@@ -6,7 +6,7 @@
    - JSON APIs for the dashboard
    - Ingest endpoint: `POST /api/ingest/{token}`
    - Email sending for verification + password reset (SMTP)
-   - Session-cookie auth + CSRF protection for state-changing requests
+   - JWT auth for dashboard APIs (no Django session cookies)
 
 2) **Next.js dashboard (latest stable)**
    - Web UI routes under `/`
@@ -23,8 +23,10 @@
 
 ## Authentication model
 
-- Dashboard: backend session cookie + CSRF (cookie-based; set/read on same origin)
-- Ingest API: token in URL path; no session required; CSRF exempt
+- Dashboard: JWT access token sent as `Authorization: Bearer <token>`
+  - Backend issues short-lived access JWTs
+  - Dashboard refreshes access tokens using a refresh token
+- Ingest API: token in URL path; no JWT required
 
 ## Deployment routing (simple)
 
@@ -33,7 +35,24 @@ To keep auth simple, host dashboard + backend on the **same origin**:
 - `/api/*` → Django backend
 - everything else → Next.js
 
-This avoids cross-origin cookie/CORS complexity and keeps Django CSRF straightforward.
+This avoids cross-origin complexity for auth and keeps the mental model simple.
+
+## JWT session strategy (recommended)
+
+### Tokens
+
+- **Access token (JWT)**: short-lived (e.g., 15 minutes), used for all authenticated `/api/*` calls.
+- **Refresh token**: long-lived opaque token stored server-side (hashed) to support logout and rotation.
+
+### Transport (recommended)
+
+- Access JWT is returned in JSON and stored in memory by the dashboard.
+- Refresh token is stored as an `HttpOnly; Secure; SameSite=Strict` cookie.
+
+With this approach:
+
+- Backend APIs authenticate requests via `Authorization` header (not cookies), so CSRF tokens are not required for state-changing requests.
+- Refresh endpoint uses the refresh cookie; it should be designed to be safe under CSRF (SameSite=Strict; minimal side effects).
 
 ## Email flows
 

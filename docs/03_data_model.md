@@ -18,6 +18,12 @@ Related:
 
 - `email_verification_tokens(user_id, token_hash, expires_at, used_at)`
 - `password_reset_tokens(user_id, token_hash, expires_at, used_at)`
+- `refresh_tokens(user_id, token_hash, expires_at, revoked_at, last_used_at)`
+
+Notes:
+
+- Refresh tokens are long-lived opaque secrets stored hashed at rest.
+- Multiple refresh tokens per user are allowed to support multiple devices/browsers.
 
 ## Ingest endpoints
 
@@ -147,4 +153,3 @@ Indexes:
   - single message delete sets `deleted_at`
   - batch delete sets `deleted_at` for all qualifying messages
 - Optional later: hard-delete to remove rows permanently.
-

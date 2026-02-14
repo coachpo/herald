@@ -7,9 +7,16 @@ This app has two primary attack surfaces:
 
 ## Authentication & sessions
 
-- Use Django auth with session cookies.
-- Enforce CSRF on all state-changing UI/API endpoints (except ingest).
+- Dashboard API auth uses **JWT access tokens**:
+  - client sends `Authorization: Bearer <access_token>` on authenticated `/api/*` requests
+  - access tokens are short-lived
+- Session continuity uses a **refresh token** stored server-side (hashed) and delivered to the browser as an `HttpOnly; Secure; SameSite=Strict` cookie.
+- Because authenticated APIs do not rely on ambient cookies for auth, **CSRF tokens are not required** for state-changing API requests.
 - Password storage: strong hashing (Django defaults).
+
+Security note:
+
+- JWT-based APIs shift the main browser risk from CSRF to **XSS**. The dashboard must treat ingested payloads as plain text (escaped) and avoid unsafe HTML rendering.
 
 ## Email verification
 
@@ -93,4 +100,3 @@ Minimum recommended:
 - Payloads may contain sensitive information; provide clear UI warning.
 - Provide batch delete to support user cleanup.
 - Optional future: per-message “expire after” or global retention policy.
-

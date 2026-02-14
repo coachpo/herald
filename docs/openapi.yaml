@@ -7,7 +7,7 @@ info:
     - a public ingest endpoint: `POST /api/ingest/{token}`
     - authenticated JSON APIs for the web dashboard under `/api/*`
 
-    Authenticated endpoints use Django session cookies (`sessionid`) and require CSRF for state changes.
+    Authenticated endpoints use JWT access tokens via `Authorization: Bearer <token>`.
 servers:
   - url: https://example.com
 tags:
@@ -20,10 +20,10 @@ tags:
   - name: deliveries
 components:
   securitySchemes:
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: sessionid
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     IdParam:
       name: id
@@ -376,15 +376,6 @@ components:
             - type: "null"
       required: [id, message_id, rule_id, channel_id, status, attempt_count, next_attempt_at, sent_at, last_error, provider_response]
 paths:
-  /api/auth/csrf:
-    get:
-      tags: [auth]
-      summary: Ensure CSRF cookie is set
-      description: |
-        Sets the `csrftoken` cookie. The dashboard should call this before making state-changing requests.
-      responses:
-        "204":
-          description: CSRF cookie set
   /api/auth/signup:
     post:
       tags: [auth]
@@ -413,7 +404,9 @@ paths:
   /api/auth/login:
     post:
       tags: [auth]
-      summary: Login (creates session)
+      summary: Login (JWT)
+      description: |
+        Returns a short-lived access token (JWT). A refresh token is also set via `Set-Cookie`.
       requestBody:
         required: true
         content:
@@ -421,24 +414,48 @@ paths:
             schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200":
-          description: OK (session cookie set)
+          description: OK (refresh cookie set)
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
                 properties:
+                  access_token: { type: string }
                   user: { $ref: "#/components/schemas/User" }
-                required: [user]
+                required: [access_token, user]
         "401":
           description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh access token
+      description: |
+        Uses a refresh token (cookie) to mint a new short-lived access token (JWT).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  access_token: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
+                required: [access_token, user]
+        "401":
+          description: Not authenticated (missing/invalid refresh token)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
   /api/auth/logout:
     post:
       tags: [auth]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Logout (clears session)
       responses:
         "204":
@@ -446,7 +463,7 @@ paths:
   /api/auth/me:
     get:
       tags: [auth]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Current user
       responses:
         "200":
@@ -467,7 +484,7 @@ paths:
   /api/auth/resend-verification:
     post:
       tags: [auth]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Resend verification email
       responses:
         "204":
@@ -523,7 +540,7 @@ paths:
   /api/auth/change-email:
     post:
       tags: [auth]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Change email (requires re-verification)
       requestBody:
         required: true
@@ -544,7 +561,7 @@ paths:
   /api/auth/change-password:
     post:
       tags: [auth]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Change password
       requestBody:
         required: true
@@ -607,7 +624,7 @@ paths:
   /api/ingest-endpoints:
     get:
       tags: [ingest_endpoints]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: List ingest endpoints
       responses:
         "200":
@@ -624,7 +641,7 @@ paths:
                 required: [endpoints]
     post:
       tags: [ingest_endpoints]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Create ingest endpoint
       requestBody:
         required: true
@@ -640,7 +657,7 @@ paths:
   /api/ingest-endpoints/{id}/revoke:
     post:
       tags: [ingest_endpoints]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Revoke an ingest endpoint
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -655,7 +672,7 @@ paths:
   /api/messages:
     get:
       tags: [messages]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: List messages
       parameters:
         - name: ingest_endpoint_id
@@ -690,7 +707,7 @@ paths:
   /api/messages/batch-delete:
     post:
       tags: [messages]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Batch delete messages older than N days
       requestBody:
         required: true
@@ -706,7 +723,7 @@ paths:
   /api/messages/{id}:
     get:
       tags: [messages]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Get message detail
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -728,7 +745,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
     delete:
       tags: [messages]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Delete a message (soft delete)
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -743,7 +760,7 @@ paths:
   /api/channels:
     get:
       tags: [channels]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: List channels
       responses:
         "200":
@@ -760,7 +777,7 @@ paths:
                 required: [channels]
     post:
       tags: [channels]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Create a Bark channel
       requestBody:
         required: true
@@ -776,7 +793,7 @@ paths:
   /api/channels/{id}:
     get:
       tags: [channels]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Get channel detail
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -793,7 +810,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
     patch:
       tags: [channels]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Update a channel
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -810,7 +827,7 @@ paths:
               schema: { $ref: "#/components/schemas/BarkChannelDetail" }
     delete:
       tags: [channels]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Delete a channel
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -825,7 +842,7 @@ paths:
   /api/rules:
     get:
       tags: [rules]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: List rules
       responses:
         "200":
@@ -842,7 +859,7 @@ paths:
                 required: [rules]
     post:
       tags: [rules]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Create rule
       requestBody:
         required: true
@@ -863,7 +880,7 @@ paths:
   /api/rules/{id}:
     get:
       tags: [rules]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Get rule
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -885,7 +902,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
     patch:
       tags: [rules]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Update rule
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -907,7 +924,7 @@ paths:
                 required: [rule]
     delete:
       tags: [rules]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Delete rule
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -922,7 +939,7 @@ paths:
   /api/rules/{id}/test:
     post:
       tags: [rules]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: Test rule against a sample message (no send)
       parameters:
         - $ref: "#/components/parameters/IdParam"
@@ -945,7 +962,7 @@ paths:
   /api/messages/{id}/deliveries:
     get:
       tags: [deliveries]
-      security: [{ cookieAuth: [] }]
+      security: [{ bearerAuth: [] }]
       summary: List deliveries for a message
       parameters:
         - $ref: "#/components/parameters/IdParam"

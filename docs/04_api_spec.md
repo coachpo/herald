@@ -6,17 +6,21 @@ This document describes HTTP endpoints at a high level. The app will expose:
 - **Backend JSON API** under `/api/...`
 - **Ingest API** under `/api/ingest/{token}` (public, token-authenticated)
 
-## Auth (backend JSON)
+## Auth (backend JSON, JWT)
 
-Backend uses Django sessions (cookie-based). State-changing requests require CSRF, except ingest.
+Backend uses JWT access tokens for authenticated endpoints.
+
+- Authenticated requests must include:
+  - `Authorization: Bearer <access_token>`
+- The backend does **not** use Django session cookies for auth.
 
 Recommended endpoints:
 
-- `GET /api/auth/csrf` — sets `csrftoken` cookie (and may return a token value)
 - `POST /api/auth/signup` — create account + send verification email
-- `POST /api/auth/login` — set session cookie
-- `POST /api/auth/logout` — clear session
-- `GET /api/auth/me` — current user + verification status
+- `POST /api/auth/login` — returns access JWT; sets refresh token cookie
+- `POST /api/auth/refresh` — returns new access JWT (uses refresh cookie)
+- `POST /api/auth/logout` — revokes refresh token; clears refresh cookie
+- `GET /api/auth/me` — current user + verification status (requires Authorization)
 - `POST /api/auth/resend-verification` — send a new verification email (rate limited)
 - `POST /api/auth/verify-email` — verify using one-time token
 - `POST /api/auth/forgot-password` — send reset email (rate limited)
@@ -58,7 +62,10 @@ Dashboard pages are implemented in Next.js (paths are suggested):
 
 ## App JSON API (authenticated)
 
-All endpoints require session auth and verified email (for mutating actions).
+All endpoints (except ingest and auth endpoints as noted) require:
+
+- `Authorization: Bearer <access_token>`
+- verified email (for mutating actions)
 
 ### Ingest endpoints
 

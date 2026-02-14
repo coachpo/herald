@@ -6,8 +6,10 @@
 - Language: TypeScript
 - Styling: Tailwind CSS
 - UI components: shadcn/ui (or equivalent lightweight component set)
-- Data access: browser `fetch` to backend `/api/*` with session cookies
-  - include CSRF header `X-CSRFToken` for state-changing requests
+- Auth: JWT (access token) for API calls
+- Data access: browser `fetch` to backend `/api/*`
+  - include `Authorization: Bearer <access_token>` for authenticated calls
+  - on app load (and on 401), call `/api/auth/refresh` to obtain a new access token
 
 ## Navigation (top-level)
 
