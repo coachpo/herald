@@ -1,0 +1,964 @@
+openapi: 3.1.0
+info:
+  title: Beacon Spear API (v0.1)
+  version: 0.1.0
+  description: |
+    Beacon Spear provides:
+    - a public ingest endpoint: `POST /api/ingest/{token}`
+    - authenticated JSON APIs for the web dashboard under `/api/*`
+
+    Authenticated endpoints use Django session cookies (`sessionid`) and require CSRF for state changes.
+servers:
+  - url: https://example.com
+tags:
+  - name: auth
+  - name: ingest
+  - name: ingest_endpoints
+  - name: messages
+  - name: channels
+  - name: rules
+  - name: deliveries
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+      required: [code, message]
+    UUID:
+      type: string
+      format: uuid
+    Timestamp:
+      type: string
+      format: date-time
+    User:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        email: { type: string, format: email }
+        email_verified_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+      required: [id, email, email_verified_at, created_at]
+    SignupRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+        password:
+          type: string
+          minLength: 8
+      required: [email, password]
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      required: [email, password]
+    ForgotPasswordRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+      required: [email]
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        token: { type: string }
+        new_password:
+          type: string
+          minLength: 8
+      required: [token, new_password]
+    VerifyEmailRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        token: { type: string }
+      required: [token]
+    ChangeEmailRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        new_email: { type: string, format: email }
+      required: [new_email]
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        old_password: { type: string }
+        new_password:
+          type: string
+          minLength: 8
+      required: [old_password, new_password]
+    IngestEndpoint:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        name: { type: string }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        last_used_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+        revoked_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+      required: [id, name, created_at, last_used_at, revoked_at]
+    IngestEndpointCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+      required: [name]
+    IngestEndpointCreateResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        endpoint: { $ref: "#/components/schemas/IngestEndpoint" }
+        token:
+          type: string
+          description: Secret token shown only once at creation time.
+        ingest_url:
+          type: string
+      required: [endpoint, token, ingest_url]
+    MessageSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        ingest_endpoint_id: { $ref: "#/components/schemas/UUID" }
+        received_at: { $ref: "#/components/schemas/Timestamp" }
+        content_type:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        payload_preview: { type: string }
+        deliveries:
+          type: object
+          additionalProperties: false
+          properties:
+            queued: { type: integer }
+            sending: { type: integer }
+            retry: { type: integer }
+            sent: { type: integer }
+            failed: { type: integer }
+          required: [queued, sending, retry, sent, failed]
+      required: [id, ingest_endpoint_id, received_at, content_type, payload_preview, deliveries]
+    MessageDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        ingest_endpoint_id: { $ref: "#/components/schemas/UUID" }
+        received_at: { $ref: "#/components/schemas/Timestamp" }
+        content_type:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        payload_text: { type: string }
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        query:
+          type: object
+          additionalProperties:
+            type: string
+        remote_ip: { type: string }
+        user_agent:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        deleted_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+      required: [id, ingest_endpoint_id, received_at, content_type, payload_text, headers, query, remote_ip, user_agent, deleted_at]
+    BatchDeleteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        older_than_days:
+          type: integer
+          minimum: 1
+          maximum: 36500
+        ingest_endpoint_id:
+          anyOf:
+            - { $ref: "#/components/schemas/UUID" }
+            - { type: "null" }
+      required: [older_than_days]
+    BatchDeleteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        deleted_count: { type: integer }
+      required: [deleted_count]
+    Channel:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        type:
+          type: string
+          enum: [bark]
+        name: { type: string }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        disabled_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+      required: [id, type, name, created_at, disabled_at]
+    BarkChannelConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        server_base_url:
+          type: string
+          description: Base URL of the Bark server (e.g. https://api.day.app or your self-hosted base).
+        device_key:
+          type: string
+          description: Bark device key.
+        device_keys:
+          type: array
+          items: { type: string }
+          description: Optional batch keys (Bark v2).
+        default_payload_json:
+          type: object
+          description: Arbitrary Bark v2 fields merged into every push.
+      required: [server_base_url]
+    BarkChannelUpsertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [bark]
+        name: { type: string }
+        config: { $ref: "#/components/schemas/BarkChannelConfig" }
+      required: [type, name, config]
+    BarkChannelDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        channel: { $ref: "#/components/schemas/Channel" }
+        config: { $ref: "#/components/schemas/BarkChannelConfig" }
+      required: [channel, config]
+    Rule:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        name: { type: string }
+        enabled: { type: boolean }
+        channel_id: { $ref: "#/components/schemas/UUID" }
+        filter:
+          $ref: "#/components/schemas/RuleFilter"
+        bark_payload_template:
+          $ref: "#/components/schemas/BarkPushPayload"
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+      required: [id, name, enabled, channel_id, filter, bark_payload_template, created_at, updated_at]
+    RuleFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        ingest_endpoint_ids:
+          anyOf:
+            - type: array
+              items: { $ref: "#/components/schemas/UUID" }
+            - type: "null"
+        text:
+          anyOf:
+            - $ref: "#/components/schemas/TextFilter"
+            - type: "null"
+      required: []
+    TextFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        contains:
+          anyOf:
+            - type: array
+              items: { type: string }
+            - type: "null"
+        regex:
+          anyOf:
+            - type: string
+            - type: "null"
+      required: []
+    BarkPushPayload:
+      type: object
+      description: |
+        Bark API v2 payload (excluding server URL). Field names should match Bark exactly.
+        Implementation should allow arbitrary keys to preserve full parity with Bark.
+      additionalProperties: true
+    RuleUpsertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        channel_id: { $ref: "#/components/schemas/UUID" }
+        filter: { $ref: "#/components/schemas/RuleFilter" }
+        bark_payload_template: { $ref: "#/components/schemas/BarkPushPayload" }
+      required: [name, enabled, channel_id, filter, bark_payload_template]
+    RuleTestRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        ingest_endpoint_id: { $ref: "#/components/schemas/UUID" }
+        content_type:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        payload_text: { type: string }
+      required: [ingest_endpoint_id, payload_text]
+    RuleTestResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        matches: { type: boolean }
+        rendered_bark_payload: { $ref: "#/components/schemas/BarkPushPayload" }
+      required: [matches, rendered_bark_payload]
+    Delivery:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        message_id: { $ref: "#/components/schemas/UUID" }
+        rule_id: { $ref: "#/components/schemas/UUID" }
+        channel_id: { $ref: "#/components/schemas/UUID" }
+        status:
+          type: string
+          enum: [queued, sending, retry, sent, failed]
+        attempt_count: { type: integer }
+        next_attempt_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+        sent_at:
+          anyOf:
+            - { $ref: "#/components/schemas/Timestamp" }
+            - { type: "null" }
+        last_error:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        provider_response:
+          anyOf:
+            - type: object
+            - type: "null"
+      required: [id, message_id, rule_id, channel_id, status, attempt_count, next_attempt_at, sent_at, last_error, provider_response]
+paths:
+  /api/auth/csrf:
+    get:
+      tags: [auth]
+      summary: Ensure CSRF cookie is set
+      description: |
+        Sets the `csrftoken` cookie. The dashboard should call this before making state-changing requests.
+      responses:
+        "204":
+          description: CSRF cookie set
+  /api/auth/signup:
+    post:
+      tags: [auth]
+      summary: Sign up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignupRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                required: [user]
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Login (creates session)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK (session cookie set)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                required: [user]
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      security: [{ cookieAuth: [] }]
+      summary: Logout (clears session)
+      responses:
+        "204":
+          description: Logged out
+  /api/auth/me:
+    get:
+      tags: [auth]
+      security: [{ cookieAuth: [] }]
+      summary: Current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                required: [user]
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/auth/resend-verification:
+    post:
+      tags: [auth]
+      security: [{ cookieAuth: [] }]
+      summary: Resend verification email
+      responses:
+        "204":
+          description: Sent (or no-op if already verified)
+  /api/auth/verify-email:
+    post:
+      tags: [auth]
+      summary: Verify email using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        "204":
+          description: Verified
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request password reset email
+      description: |
+        Returns 204 regardless of whether the email exists to avoid user enumeration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        "204":
+          description: Sent (or no-op)
+  /api/auth/reset-password:
+    post:
+      tags: [auth]
+      summary: Reset password using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "204":
+          description: Password updated
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/auth/change-email:
+    post:
+      tags: [auth]
+      security: [{ cookieAuth: [] }]
+      summary: Change email (requires re-verification)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangeEmailRequest" }
+      responses:
+        "200":
+          description: Updated (verification required again)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                required: [user]
+  /api/auth/change-password:
+    post:
+      tags: [auth]
+      security: [{ cookieAuth: [] }]
+      summary: Change password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "204":
+          description: Updated
+  /api/ingest/{token}:
+    post:
+      tags: [ingest]
+      summary: Ingest a message
+      description: |
+        Accepts arbitrary UTF-8 text (no validation). Max size 1MB; oversize is rejected.
+        Any `Content-Type` is accepted; body is treated as UTF-8.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+      responses:
+        "201":
+          description: Message stored
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  message_id: { $ref: "#/components/schemas/UUID" }
+                required: [message_id]
+        "400":
+          description: Invalid UTF-8 or invalid request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Invalid or revoked token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden (e.g., email not verified)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: Payload too large
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/ingest-endpoints:
+    get:
+      tags: [ingest_endpoints]
+      security: [{ cookieAuth: [] }]
+      summary: List ingest endpoints
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  endpoints:
+                    type: array
+                    items: { $ref: "#/components/schemas/IngestEndpoint" }
+                required: [endpoints]
+    post:
+      tags: [ingest_endpoints]
+      security: [{ cookieAuth: [] }]
+      summary: Create ingest endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IngestEndpointCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestEndpointCreateResponse" }
+  /api/ingest-endpoints/{id}/revoke:
+    post:
+      tags: [ingest_endpoints]
+      security: [{ cookieAuth: [] }]
+      summary: Revoke an ingest endpoint
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Revoked
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/messages:
+    get:
+      tags: [messages]
+      security: [{ cookieAuth: [] }]
+      summary: List messages
+      parameters:
+        - name: ingest_endpoint_id
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/UUID" }
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  messages:
+                    type: array
+                    items: { $ref: "#/components/schemas/MessageSummary" }
+                required: [messages]
+  /api/messages/batch-delete:
+    post:
+      tags: [messages]
+      security: [{ cookieAuth: [] }]
+      summary: Batch delete messages older than N days
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchDeleteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchDeleteResponse" }
+  /api/messages/{id}:
+    get:
+      tags: [messages]
+      security: [{ cookieAuth: [] }]
+      summary: Get message detail
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  message: { $ref: "#/components/schemas/MessageDetail" }
+                required: [message]
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [messages]
+      security: [{ cookieAuth: [] }]
+      summary: Delete a message (soft delete)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/channels:
+    get:
+      tags: [channels]
+      security: [{ cookieAuth: [] }]
+      summary: List channels
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  channels:
+                    type: array
+                    items: { $ref: "#/components/schemas/Channel" }
+                required: [channels]
+    post:
+      tags: [channels]
+      security: [{ cookieAuth: [] }]
+      summary: Create a Bark channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BarkChannelUpsertRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BarkChannelDetail" }
+  /api/channels/{id}:
+    get:
+      tags: [channels]
+      security: [{ cookieAuth: [] }]
+      summary: Get channel detail
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BarkChannelDetail" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [channels]
+      security: [{ cookieAuth: [] }]
+      summary: Update a channel
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BarkChannelUpsertRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BarkChannelDetail" }
+    delete:
+      tags: [channels]
+      security: [{ cookieAuth: [] }]
+      summary: Delete a channel
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/rules:
+    get:
+      tags: [rules]
+      security: [{ cookieAuth: [] }]
+      summary: List rules
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  rules:
+                    type: array
+                    items: { $ref: "#/components/schemas/Rule" }
+                required: [rules]
+    post:
+      tags: [rules]
+      security: [{ cookieAuth: [] }]
+      summary: Create rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RuleUpsertRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  rule: { $ref: "#/components/schemas/Rule" }
+                required: [rule]
+  /api/rules/{id}:
+    get:
+      tags: [rules]
+      security: [{ cookieAuth: [] }]
+      summary: Get rule
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  rule: { $ref: "#/components/schemas/Rule" }
+                required: [rule]
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [rules]
+      security: [{ cookieAuth: [] }]
+      summary: Update rule
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RuleUpsertRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  rule: { $ref: "#/components/schemas/Rule" }
+                required: [rule]
+    delete:
+      tags: [rules]
+      security: [{ cookieAuth: [] }]
+      summary: Delete rule
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/rules/{id}/test:
+    post:
+      tags: [rules]
+      security: [{ cookieAuth: [] }]
+      summary: Test rule against a sample message (no send)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RuleTestRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RuleTestResponse" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/messages/{id}/deliveries:
+    get:
+      tags: [deliveries]
+      security: [{ cookieAuth: [] }]
+      summary: List deliveries for a message
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deliveries:
+                    type: array
+                    items: { $ref: "#/components/schemas/Delivery" }
+                required: [deliveries]
