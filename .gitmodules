@@ -1,0 +1,6 @@
+[submodule "backend"]
+	path = backend
+	url = /tmp/beacon-spear-backend
+[submodule "frontend"]
+	path = frontend
+	url = /tmp/beacon-spear-frontend
