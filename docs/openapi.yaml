@@ -4,7 +4,7 @@ info:
   version: 0.2.0
   description: |
     Beacon Spear provides:
-    - a public ingest endpoint: `POST /api/ingest/{token}`
+    - a public ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Beacon-Ingest-Key`)
     - authenticated JSON APIs for the web dashboard under `/api/*`
 
     Authenticated endpoints use JWT access tokens via `Authorization: Bearer <token>`.
@@ -24,9 +24,20 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    ingestKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Beacon-Ingest-Key
   parameters:
     IdParam:
       name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EndpointIdParam:
+      name: endpoint_id
       in: path
       required: true
       schema:
@@ -114,6 +125,15 @@ components:
           type: string
           minLength: 8
       required: [old_password, new_password]
+    DeleteAccountRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        password: { type: string }
+        confirm:
+          type: string
+          description: Must equal "DELETE".
+      required: [password, confirm]
     IngestEndpoint:
       type: object
       additionalProperties: false
@@ -141,12 +161,12 @@ components:
       additionalProperties: false
       properties:
         endpoint: { $ref: "#/components/schemas/IngestEndpoint" }
-        token:
+        ingest_key:
           type: string
-          description: Secret token shown only once at creation time.
+          description: Secret ingest key shown only once at creation time.
         ingest_url:
           type: string
-      required: [endpoint, token, ingest_url]
+      required: [endpoint, ingest_key, ingest_url]
     MessageSummary:
       type: object
       additionalProperties: false
@@ -719,19 +739,41 @@ paths:
       responses:
         "204":
           description: Updated
-  /api/ingest/{token}:
+  /api/auth/delete-account:
+    post:
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      summary: Delete account
+      description: |
+        Irreversible. Hard-deletes the user and cascades deletion of owned data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeleteAccountRequest" }
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Not authenticated or invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/ingest/{endpoint_id}:
     post:
       tags: [ingest]
       summary: Ingest a message
       description: |
         Accepts arbitrary UTF-8 text (no validation). Max size 1MB; oversize is rejected.
         Any `Content-Type` is accepted; body is treated as UTF-8.
+      security: [{ ingestKeyAuth: [] }]
       parameters:
-        - name: token
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/EndpointIdParam"
       requestBody:
         required: true
         content:
@@ -755,7 +797,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "401":
-          description: Invalid or revoked token
+          description: Auth failure (missing/invalid ingest key, unknown/revoked endpoint)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
