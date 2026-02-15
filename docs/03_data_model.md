@@ -1,4 +1,4 @@
-# Data model — Beacon Spear v0.1
+# Data model — Beacon Spear v0.2
 
 This doc defines the logical schema. Implementation may use Django models + migrations.
 
@@ -75,7 +75,7 @@ Notes:
 
 - `id`
 - `user_id` (FK)
-- `type` (enum; v0.1: `bark`)
+- `type` (enum; `bark`, `ntfy`, `mqtt`)
 - `name`
 - `config_json_encrypted` (text/blob; encrypted at rest)
 - `created_at`
@@ -89,6 +89,28 @@ Stored inside `config_json_encrypted`:
 - `device_key` (string) OR `device_keys` (array of strings) — optional to support Bark multi-device
 - `default_payload_json` (object) — extra Bark v2 fields to merge into every request (optional)
 
+### ntfy config (logical)
+
+Stored inside `config_json_encrypted`:
+
+- `server_base_url` (string; example `https://ntfy.sh`)
+- `topic` (string)
+- auth (choose one):
+  - `access_token` (string)
+  - `username` + `password` (strings)
+- `default_headers_json` (object) — extra HTTP headers merged into every publish (optional)
+
+### MQTT config (logical)
+
+Stored inside `config_json_encrypted`:
+
+- `broker_host` (string)
+- `broker_port` (int; default 1883)
+- `topic` (string)
+- optional auth: `username` + `password`
+- optional TLS: `tls` (bool), `tls_insecure` (bool)
+- optional publish tuning: `qos` (0-2), `retain` (bool), `client_id` (string), `keepalive_seconds` (int)
+
 ## Forwarding rules
 
 `forwarding_rules`
@@ -99,7 +121,8 @@ Stored inside `config_json_encrypted`:
 - `enabled` (bool)
 - `filter_json` (JSON)
 - `channel_id` (FK)
-- `bark_payload_template_json` (JSON) — Bark v2 request fields, with templates supported
+- `payload_template_json` (JSON; nullable) — canonical template for all channel types
+- `bark_payload_template_json` (JSON) — legacy Bark template (backfilled into `payload_template_json`)
 - `created_at`
 - `updated_at`
 

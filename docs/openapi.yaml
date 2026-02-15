@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Beacon Spear API (v0.1)
-  version: 0.1.0
+  title: Beacon Spear API (v0.2)
+  version: 0.2.0
   description: |
     Beacon Spear provides:
     - a public ingest endpoint: `POST /api/ingest/{token}`
@@ -226,7 +226,7 @@ components:
         id: { $ref: "#/components/schemas/UUID" }
         type:
           type: string
-          enum: [bark]
+          enum: [bark, ntfy, mqtt]
         name: { type: string }
         created_at: { $ref: "#/components/schemas/Timestamp" }
         disabled_at:
@@ -262,6 +262,104 @@ components:
         name: { type: string }
         config: { $ref: "#/components/schemas/BarkChannelConfig" }
       required: [type, name, config]
+    NtfyChannelConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        server_base_url:
+          type: string
+          description: Base URL of the ntfy server (e.g. https://ntfy.sh).
+        topic:
+          type: string
+          description: Topic name to publish to.
+        access_token:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+          description: Optional bearer token.
+        username:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+          description: Optional basic auth username (must be paired with password).
+        password:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+          description: Optional basic auth password (must be paired with username).
+        default_headers_json:
+          type: object
+          description: Optional headers merged into every publish request.
+      required: [server_base_url, topic]
+    NtfyChannelUpsertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [ntfy]
+        name: { type: string }
+        config: { $ref: "#/components/schemas/NtfyChannelConfig" }
+      required: [type, name, config]
+    MqttChannelConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        broker_host:
+          type: string
+          description: MQTT broker host.
+        broker_port:
+          anyOf:
+            - { type: integer, minimum: 1, maximum: 65535 }
+            - { type: "null" }
+          description: MQTT broker port (default 1883).
+        topic:
+          type: string
+          description: MQTT topic.
+        username:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        password:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        tls:
+          anyOf:
+            - { type: boolean }
+            - { type: "null" }
+        tls_insecure:
+          anyOf:
+            - { type: boolean }
+            - { type: "null" }
+          description: If true, disables TLS certificate verification.
+        qos:
+          anyOf:
+            - { type: integer, minimum: 0, maximum: 2 }
+            - { type: "null" }
+        retain:
+          anyOf:
+            - { type: boolean }
+            - { type: "null" }
+        client_id:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        keepalive_seconds:
+          anyOf:
+            - { type: integer, minimum: 1, maximum: 3600 }
+            - { type: "null" }
+      required: [broker_host, topic]
+    MqttChannelUpsertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [mqtt]
+        name: { type: string }
+        config: { $ref: "#/components/schemas/MqttChannelConfig" }
+      required: [type, name, config]
     BarkChannelDetail:
       type: object
       additionalProperties: false
@@ -269,6 +367,30 @@ components:
         channel: { $ref: "#/components/schemas/Channel" }
         config: { $ref: "#/components/schemas/BarkChannelConfig" }
       required: [channel, config]
+    NtfyChannelDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        channel: { $ref: "#/components/schemas/Channel" }
+        config: { $ref: "#/components/schemas/NtfyChannelConfig" }
+      required: [channel, config]
+    MqttChannelDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        channel: { $ref: "#/components/schemas/Channel" }
+        config: { $ref: "#/components/schemas/MqttChannelConfig" }
+      required: [channel, config]
+    ChannelUpsertRequest:
+      oneOf:
+        - { $ref: "#/components/schemas/BarkChannelUpsertRequest" }
+        - { $ref: "#/components/schemas/NtfyChannelUpsertRequest" }
+        - { $ref: "#/components/schemas/MqttChannelUpsertRequest" }
+    ChannelDetail:
+      oneOf:
+        - { $ref: "#/components/schemas/BarkChannelDetail" }
+        - { $ref: "#/components/schemas/NtfyChannelDetail" }
+        - { $ref: "#/components/schemas/MqttChannelDetail" }
     Rule:
       type: object
       additionalProperties: false
@@ -279,11 +401,15 @@ components:
         channel_id: { $ref: "#/components/schemas/UUID" }
         filter:
           $ref: "#/components/schemas/RuleFilter"
+        payload_template:
+          type: object
+          description: Generic payload template used by the channel provider.
+          additionalProperties: true
         bark_payload_template:
           $ref: "#/components/schemas/BarkPushPayload"
         created_at: { $ref: "#/components/schemas/Timestamp" }
         updated_at: { $ref: "#/components/schemas/Timestamp" }
-      required: [id, name, enabled, channel_id, filter, bark_payload_template, created_at, updated_at]
+      required: [id, name, enabled, channel_id, filter, payload_template, bark_payload_template, created_at, updated_at]
     RuleFilter:
       type: object
       additionalProperties: false
@@ -318,7 +444,19 @@ components:
         Bark API v2 payload (excluding server URL). Field names should match Bark exactly.
         Implementation should allow arbitrary keys to preserve full parity with Bark.
       additionalProperties: true
-    RuleUpsertRequest:
+    RuleUpsertRequestV2:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        channel_id: { $ref: "#/components/schemas/UUID" }
+        filter: { $ref: "#/components/schemas/RuleFilter" }
+        payload_template:
+          type: object
+          additionalProperties: true
+      required: [name, enabled, channel_id, payload_template]
+    RuleUpsertRequestV1:
       type: object
       additionalProperties: false
       properties:
@@ -327,7 +465,11 @@ components:
         channel_id: { $ref: "#/components/schemas/UUID" }
         filter: { $ref: "#/components/schemas/RuleFilter" }
         bark_payload_template: { $ref: "#/components/schemas/BarkPushPayload" }
-      required: [name, enabled, channel_id, filter, bark_payload_template]
+      required: [name, enabled, channel_id, bark_payload_template]
+    RuleUpsertRequest:
+      oneOf:
+        - { $ref: "#/components/schemas/RuleUpsertRequestV2" }
+        - { $ref: "#/components/schemas/RuleUpsertRequestV1" }
     RuleTestRequest:
       type: object
       additionalProperties: false
@@ -344,8 +486,14 @@ components:
       additionalProperties: false
       properties:
         matches: { type: boolean }
+        channel_type:
+          type: string
+          enum: [bark, ntfy, mqtt]
+        rendered_payload:
+          type: object
+          additionalProperties: true
         rendered_bark_payload: { $ref: "#/components/schemas/BarkPushPayload" }
-      required: [matches, rendered_bark_payload]
+      required: [matches, channel_type, rendered_payload, rendered_bark_payload]
     Delivery:
       type: object
       additionalProperties: false
@@ -778,18 +926,18 @@ paths:
     post:
       tags: [channels]
       security: [{ bearerAuth: [] }]
-      summary: Create a Bark channel
+      summary: Create a channel
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/BarkChannelUpsertRequest" }
+            schema: { $ref: "#/components/schemas/ChannelUpsertRequest" }
       responses:
         "201":
           description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/BarkChannelDetail" }
+              schema: { $ref: "#/components/schemas/ChannelDetail" }
   /api/channels/{id}:
     get:
       tags: [channels]
@@ -802,7 +950,7 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/BarkChannelDetail" }
+              schema: { $ref: "#/components/schemas/ChannelDetail" }
         "404":
           description: Not found
           content:
@@ -818,13 +966,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/BarkChannelUpsertRequest" }
+            schema: { $ref: "#/components/schemas/ChannelUpsertRequest" }
       responses:
         "200":
           description: Updated
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/BarkChannelDetail" }
+              schema: { $ref: "#/components/schemas/ChannelDetail" }
     delete:
       tags: [channels]
       security: [{ bearerAuth: [] }]

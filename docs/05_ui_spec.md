@@ -1,4 +1,4 @@
-# UI spec — Beacon Spear v0.1
+# UI spec — Beacon Spear v0.2
 
 ## Tech (decision)
 
@@ -20,6 +20,12 @@
 - Rules
 - Account (profile, change password)
 
+## Theme
+
+- Theme toggle cycles: `System → Light → Dark`.
+- Persistence: `localStorage` key `beacon_theme`.
+- Implementation: `<html data-theme="light|dark">` when set; unset for System.
+
 ## Pages
 
 ### Auth
@@ -39,7 +45,7 @@
 
 - Quick actions:
   - Create ingest endpoint
-  - Create Bark channel
+  - Create channel
   - Create rule
 - Recent messages table:
   - time, endpoint, payload preview, delivery status summary
@@ -82,7 +88,7 @@
   - each rule + channel
   - status, attempts, next attempt, last error, response meta
 
-### Channels (Bark)
+### Channels (bark/ntfy/mqtt)
 
 #### Channel list
 
@@ -90,13 +96,25 @@
 
 #### Channel create/edit
 
-- Fields:
-  - name
-  - server_base_url
-  - device_key (or device_keys list, optional)
-  - default Bark payload fields (two modes):
-    - Form mode for common Bark v2 fields (exact key names)
-    - JSON mode for full Bark payload object
+- Fields (type-specific):
+  - `bark`:
+    - name
+    - server_base_url
+    - device_key (or device_keys list, optional)
+    - default payload JSON (arbitrary Bark v2 fields)
+  - `ntfy`:
+    - name
+    - server_base_url
+    - topic
+    - optional auth: bearer token OR basic user/pass
+    - default headers JSON
+  - `mqtt`:
+    - name
+    - broker_host / broker_port
+    - topic
+    - optional auth: username/password
+    - optional TLS + insecure
+    - qos/retain/client_id/keepalive_seconds
 
 Notes:
 
@@ -117,10 +135,9 @@ Notes:
   - payload contains (one per line; optional)
   - payload regex (optional)
 - Target channel:
-  - select one Bark channel
-- Bark request payload:
-  - form mode (common Bark v2 fields)
-  - JSON mode (full payload object)
+  - select one channel
+- Payload template (JSON):
+  - single JSON editor; label reflects selected channel type (Bark/ntfy/MQTT)
   - template helper showing available variables
 
 #### Rule test
@@ -130,7 +147,8 @@ Notes:
   - sample payload text
 - Output:
   - “matches: yes/no”
-  - rendered Bark JSON payload preview (not sent)
+  - channel type
+  - rendered payload preview (not sent)
 
 ## UI constraints / guardrails
 

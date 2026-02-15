@@ -1,4 +1,4 @@
-# Security & privacy — Beacon Spear v0.1
+# Security & privacy — Beacon Spear v0.2
 
 This app has two primary attack surfaces:
 
@@ -72,9 +72,9 @@ Store request metadata but redact sensitive header values.
 - Store query params as received.
 - (Optional) Apply the same redaction heuristics to query keys if desired.
 
-## SSRF considerations (Bark server)
+## Outbound connections / SSRF (Bark/ntfy/MQTT)
 
-Because users can configure any Bark server URL, outbound HTTP requests can be abused for SSRF.
+Because users can configure outbound destinations (Bark server URL, ntfy server URL, MQTT broker host), outbound connections can be abused for SSRF.
 
 Mitigations (choose per deployment posture):
 
@@ -82,10 +82,17 @@ Mitigations (choose per deployment posture):
 - Block private IP ranges / localhost by default (common mitigation)
 - Set short timeouts and size limits on outbound requests
 
-Given “reliability expectations are minimal”, v0.1 can ship with basic safeguards:
+Given “reliability expectations are minimal”, the app can ship with basic safeguards:
 
-- block `localhost`, `127.0.0.0/8`, `::1`
-- block RFC1918 private ranges (optional, configurable)
+- Always block loopback + link-local ranges.
+- Optionally block RFC1918 private ranges (configurable).
+- Enforce short timeouts.
+
+Configuration knobs:
+
+- `BARK_BLOCK_PRIVATE_NETWORKS`, `BARK_REQUEST_TIMEOUT_SECONDS`
+- `NTFY_BLOCK_PRIVATE_NETWORKS`, `NTFY_REQUEST_TIMEOUT_SECONDS`
+- `MQTT_BLOCK_PRIVATE_NETWORKS`, `MQTT_SOCKET_TIMEOUT_SECONDS`
 
 ## Rate limiting / abuse prevention
 

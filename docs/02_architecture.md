@@ -1,4 +1,4 @@
-# Architecture — Beacon Spear v0.1
+# Architecture — Beacon Spear v0.2
 
 ## High-level components
 
@@ -13,9 +13,9 @@
    - Calls backend JSON APIs under `/api/*`
 
 3) **Worker process**
-   - Polls DB for due deliveries
-   - Sends Bark v2 HTTP requests
-   - Updates delivery status, schedules retries with exponential backoff
+    - Polls DB for due deliveries
+    - Sends provider requests (Bark v2 HTTP, ntfy HTTP publish, MQTT publish)
+    - Updates delivery status, schedules retries with exponential backoff
 
 4) **Postgres**
    - Stores users, endpoints, messages, channels, rules, deliveries
@@ -113,12 +113,15 @@ Deliveries are handled asynchronously by the worker.
      - lock rows using Postgres row locks to avoid double-send (e.g., `SELECT ... FOR UPDATE SKIP LOCKED`)
   2) Mark selected rows `status='sending'`
   3) For each delivery:
-     - Build Bark v2 request JSON payload from:
-       - channel config (server base URL + auth/device key)
-       - rule payload template rendered against the message
-     - HTTP `POST {server_base_url}/push`
-     - On success: `status='sent'`, set `sent_at`
-     - On failure:
+      - Build provider request from:
+        - channel config
+        - rule `payload_template_json` rendered against the message
+      - Send via provider:
+        - Bark: HTTP `POST {server_base_url}/push`
+        - ntfy: HTTP `POST {server_base_url}/{topic}`
+        - MQTT: publish to `{broker_host}:{broker_port}` on `topic`
+      - On success: `status='sent'`, set `sent_at`
+      - On failure:
        - increment `attempt_count`
        - set `status='retry'` if attempts remaining else `status='failed'`
        - set `next_attempt_at = now + backoff(attempt_count)`

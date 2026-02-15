@@ -1,10 +1,10 @@
-# Operations — Beacon Spear v0.1
+# Operations — Beacon Spear v0.2
 
 ## Runtime processes
 
 1) `backend`: Django app (serves JSON APIs + ingest)
 2) `frontend`: Next.js app (dashboard UI)
-3) `worker`: background delivery worker (polls DB, sends Bark)
+3) `worker`: background delivery worker (polls DB, sends Bark/ntfy/MQTT)
 
 ## Configuration (env)
 
@@ -45,10 +45,14 @@ Proposed env vars:
 - `DELIVERY_BACKOFF_BASE_SECONDS=5`
 - `DELIVERY_BACKOFF_MAX_SECONDS=1800`
 - `BARK_REQUEST_TIMEOUT_SECONDS=5`
+ - `NTFY_REQUEST_TIMEOUT_SECONDS=5`
+ - `MQTT_SOCKET_TIMEOUT_SECONDS=5`
 
 ### Optional safety
 
 - `BARK_BLOCK_PRIVATE_NETWORKS=true`
+ - `NTFY_BLOCK_PRIVATE_NETWORKS=true`
+ - `MQTT_BLOCK_PRIVATE_NETWORKS=true`
 
 ## Deploy outline
 

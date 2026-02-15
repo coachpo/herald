@@ -1,12 +1,12 @@
-# PRD — Beacon Spear v0.1
+# PRD — Beacon Spear v0.2
 
 ## Summary
 
 Beacon Spear provides:
 
 1) A per-user message ingestion HTTP API (token-based), where the payload is an arbitrary UTF‑8 string (no validation).
-2) A web UI to manage users, ingest endpoints, messages, Bark channels, and forwarding rules.
-3) A background worker that forwards messages to Bark according to rules with retries.
+2) A web UI to manage users, ingest endpoints, messages, channels (Bark, ntfy, MQTT), and forwarding rules.
+3) A background worker that forwards messages to channels according to rules with retries.
 
 ## Goals
 
@@ -26,7 +26,7 @@ Beacon Spear provides:
 ## Personas / Users
 
 - **Single user** who wants to send themselves notifications from scripts/services.
-- **Hobbyist** who wants to forward webhooks/log lines to Bark quickly.
+- **Hobbyist** who wants to forward webhooks/log lines to their phone quickly.
 
 ## Key user stories
 
@@ -58,18 +58,24 @@ Beacon Spear provides:
 - As a user, I can delete individual messages.
 - As a user, I can batch delete messages older than N days (optionally scoped to an ingest endpoint).
 
-### Channels (Bark)
+### Channels
 
 - As a user, I can create a Bark channel that points at my Bark server (any base URL).
 - As a user, I can configure Bark parameters in the UI using the same field names as Bark’s API v2.
+- As a user, I can create an ntfy channel (server + topic) and optionally configure auth.
+- As a user, I can create an MQTT channel (broker + topic) and optionally configure auth/TLS/QoS.
+
+### Dashboard theme
+
+- As a user, I can switch the dashboard theme between System/Light/Dark, and it persists across reloads.
 
 ### Forwarding rules
 
 - As a user, I can create a forwarding rule:
   - filter by ingest endpoint (optional)
   - filter by payload_text (contains / regex; optional)
-  - choose a single Bark channel as the target
-  - define Bark payload fields (title/body/etc) using templates
+  - choose a single channel as the target (Bark/ntfy/MQTT)
+  - define provider payload fields using templates
 - As a user, I can enable/disable a rule.
 - As a user, I can test a rule against a sample message in the UI.
 - As a user, all matching rules run; duplicates are allowed.
@@ -114,14 +120,15 @@ Beacon Spear provides:
 
 ## UX requirements (high level)
 
-- Fast paths: “Create ingest endpoint” and “Create Bark channel” should be discoverable from the dashboard.
+- Fast paths: “Create ingest endpoint” and “Create channel” should be discoverable from the dashboard.
 - Message detail view should show delivery attempt history clearly.
 - Bark configuration should offer a “JSON mode” to mirror Bark’s payload exactly.
 
-## Acceptance criteria (v0.1)
+## Acceptance criteria (v0.2)
 
 - A new user can sign up, verify email, create an ingest endpoint, and ingest a message successfully.
 - User can create a Bark channel and a rule, ingest a message, and see a delivery attempt recorded.
+- User can create an ntfy channel and an MQTT channel, create rules for each, ingest a message, and see delivery attempts recorded.
 - Oversize payloads are rejected and not stored.
 - Sensitive headers are redacted in stored metadata and in UI.
 - Batch deletion removes (soft-deletes) messages older than N days.

@@ -1,4 +1,4 @@
-# API spec — Beacon Spear v0.1
+# API spec — Beacon Spear v0.2
 
 This document describes HTTP endpoints at a high level. The app will expose:
 
@@ -82,13 +82,30 @@ All endpoints (except ingest and auth endpoints as noted) require:
 - `POST /api/messages/batch-delete`
   - body: `{ "older_than_days": 30, "ingest_endpoint_id": "..."? }`
 
-### Channels (Bark)
+### Channels (bark/ntfy/mqtt)
 
 - `GET /api/channels`
-- `POST /api/channels` (type=bark)
+- `POST /api/channels` (type=bark|ntfy|mqtt)
 - `GET /api/channels/{id}`
 - `PATCH /api/channels/{id}`
-- `DELETE /api/channels/{id}`
+  - `DELETE /api/channels/{id}`
+
+Request shape:
+
+```json
+{
+  "type": "bark|ntfy|mqtt",
+  "name": "...",
+  "config": {
+    "...": "type-specific"
+  }
+}
+```
+
+Notes:
+
+- `PATCH /api/channels/{id}` requires `type` to match the existing channel.
+- `config` validation depends on `type`.
 
 ### Rules
 
@@ -99,7 +116,7 @@ All endpoints (except ingest and auth endpoints as noted) require:
 - `DELETE /api/rules/{id}`
 - `POST /api/rules/{id}/test`
   - body: sample message payload + endpoint id
-  - returns: whether it matches and the rendered Bark request JSON (without sending)
+  - returns: whether it matches, the channel type, and the rendered payload template (without sending)
 
 ### Deliveries (optional endpoints)
 
@@ -107,7 +124,7 @@ All endpoints (except ingest and auth endpoints as noted) require:
 
 ## Template rendering (proposed)
 
-Rule’s `bark_payload_template_json` supports templating in string values:
+Rule’s `payload_template_json` supports templating in string values (legacy: `bark_payload_template_json`):
 
 Available variables:
 
@@ -139,3 +156,20 @@ For each delivery, worker performs:
   3) inject `device_key` (or `device_keys`) from channel config
 
 UI must use the same JSON field names as Bark v2.
+
+## ntfy forwarding contract
+
+Worker performs:
+
+- `POST {server_base_url}/{topic}`
+- Request body: rendered template `body` (falls back to message payload text)
+- Headers can be driven by template keys (e.g. `Title`, `Tags`, `Priority`) and merged with channel `default_headers_json`.
+
+## MQTT forwarding contract
+
+Worker performs:
+
+- publish to broker `{broker_host}:{broker_port}` on `topic`
+- Payload is derived from rendered template:
+  - if template renders an object with `body`/`payload`/`message`, use that value
+  - otherwise, publish the rendered object (JSON-encoded) or string

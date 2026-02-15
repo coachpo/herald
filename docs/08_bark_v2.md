@@ -1,6 +1,6 @@
-# Bark API v2 integration notes (v0.1)
+# Bark API v2 integration notes
 
-Beacon Spear v0.1 supports **Bark API v2 only**.
+This document describes the Bark provider (Bark API v2).
 
 ## Endpoint pattern
 
@@ -74,4 +74,3 @@ Worker should record:
 - any parsed JSON response fields (if present)
 
 This metadata is shown in the message’s delivery history.
-
