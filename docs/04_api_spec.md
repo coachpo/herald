@@ -44,6 +44,7 @@ Dashboard pages are implemented in Next.js (paths are suggested):
 - Auth:
   - required header: `X-Beacon-Ingest-Key: <ingest_key>`
   - endpoint identified by path parameter `{endpoint_id}`
+  - canonical URL form uses a dashless UUID (32 hex chars); the server also accepts dashed UUIDs for backward compatibility
 - Body: arbitrary UTF‑8 text
 - Limits:
   - `Content-Length` must be ≤ 1MB when present
@@ -75,6 +76,7 @@ All endpoints (except ingest and auth endpoints as noted) require:
 - `GET /api/ingest-endpoints`
 - `POST /api/ingest-endpoints` → returns ingest key once
 - `POST /api/ingest-endpoints/{id}/revoke`
+- `DELETE /api/ingest-endpoints/{id}` (archive/hide)
 
 ### Messages
 
@@ -92,6 +94,9 @@ All endpoints (except ingest and auth endpoints as noted) require:
 - `GET /api/channels/{id}`
 - `PATCH /api/channels/{id}`
   - `DELETE /api/channels/{id}`
+- `POST /api/channels/{id}/test`
+  - sends a test notification immediately (no ingest/worker)
+  - body supports optional `title`, `body`, and `payload_json` (provider-specific)
 
 Request shape:
 
@@ -114,6 +119,9 @@ Notes:
 
 - `GET /api/rules`
 - `POST /api/rules`
+- `POST /api/rules/test`
+  - body: sample message payload + endpoint id
+  - returns: which rules would trigger + rendered payload previews (without sending)
 - `GET /api/rules/{id}`
 - `PATCH /api/rules/{id}`
 - `DELETE /api/rules/{id}`

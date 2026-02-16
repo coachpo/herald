@@ -86,6 +86,7 @@ Beacon Spear provides:
 ### Ingest
 
 - Endpoint: `POST /api/ingest/{endpoint_id}`
+- Canonical URL form uses a dashless UUID (32 hex chars); the server also accepts dashed UUIDs for backward compatibility.
 - Auth: `X-Beacon-Ingest-Key: <ingest_key>`
 - Payload: request body decoded as UTF‑8 string
 - Max payload: 1MB; reject larger payload with HTTP `413 Payload Too Large`

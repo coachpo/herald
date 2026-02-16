@@ -4,7 +4,7 @@
 
 1) **Django backend**
    - JSON APIs for the dashboard
-   - Ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Beacon-Ingest-Key`)
+   - Ingest endpoint: `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID; requires `X-Beacon-Ingest-Key`)
    - Email sending for verification + password reset (SMTP)
    - JWT auth for dashboard APIs (no Django session cookies)
 
@@ -78,7 +78,7 @@ Standard Django-style flow:
 
 ## Message ingest flow
 
-1) Request `POST /api/ingest/{endpoint_id}`
+1) Request `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID)
 2) Identify ingest endpoint by id; validate `X-Beacon-Ingest-Key` (constant-time compare against stored hash)
 3) Enforce:
    - UTF‑8 decoding (reject invalid)

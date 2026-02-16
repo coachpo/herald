@@ -35,6 +35,7 @@ Notes:
 - `token_hash` (store hash only; token shown once at create time)
 - `created_at`
 - `revoked_at` (nullable)
+- `deleted_at` (nullable; archived endpoints)
 - `last_used_at` (nullable)
 
 Indexes:

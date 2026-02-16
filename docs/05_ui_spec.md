@@ -62,6 +62,10 @@
 - Revoke endpoint:
   - confirmation modal
 
+- Archive endpoint:
+  - hides the endpoint from the list (does not delete message history)
+  - archiving also revokes the endpoint
+
 ### Messages list
 
 - Filters:
@@ -146,9 +150,8 @@ Notes:
   - choose ingest endpoint
   - sample payload text
 - Output:
-  - “matches: yes/no”
-  - channel type
-  - rendered payload preview (not sent)
+  - list of matching rules (the rules that would trigger for that sample)
+  - for each match: channel type + rendered payload preview (not sent)
 
 ## UI constraints / guardrails
 

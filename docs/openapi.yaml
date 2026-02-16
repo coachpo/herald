@@ -41,8 +41,11 @@ components:
       in: path
       required: true
       schema:
-        type: string
-        format: uuid
+        anyOf:
+          - type: string
+            format: uuid
+          - type: string
+            pattern: "^[0-9a-fA-F]{32}$"
   schemas:
     Error:
       type: object
@@ -514,6 +517,60 @@ components:
           additionalProperties: true
         rendered_bark_payload: { $ref: "#/components/schemas/BarkPushPayload" }
       required: [matches, channel_type, rendered_payload, rendered_bark_payload]
+    RulesTestMatch:
+      type: object
+      additionalProperties: false
+      properties:
+        rule: { $ref: "#/components/schemas/Rule" }
+        channel: { $ref: "#/components/schemas/Channel" }
+        channel_type:
+          type: string
+          enum: [bark, ntfy, mqtt]
+        rendered_payload:
+          type: object
+          additionalProperties: true
+      required: [rule, channel, channel_type, rendered_payload]
+    RulesTestResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        matched_count: { type: integer }
+        total_rules: { type: integer }
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/RulesTestMatch" }
+      required: [matched_count, total_rules, matches]
+    ChannelTestRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        body:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        payload_json:
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - { type: "null" }
+      required: []
+    ChannelTestResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        ok: { type: boolean }
+        channel_id: { $ref: "#/components/schemas/UUID" }
+        channel_type:
+          type: string
+          enum: [bark, ntfy, mqtt]
+        provider_response:
+          type: object
+          additionalProperties: true
+      required: [ok, channel_id, channel_type, provider_response]
     Delivery:
       type: object
       additionalProperties: false
@@ -817,7 +874,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "401":
-          description: Auth failure (missing/invalid ingest key, unknown/revoked endpoint)
+          description: Auth failure (missing/invalid ingest key, unknown/revoked/deleted endpoint)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -874,6 +931,24 @@ paths:
       responses:
         "204":
           description: Revoked
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/ingest-endpoints/{id}:
+    delete:
+      tags: [ingest_endpoints]
+      security: [{ bearerAuth: [] }]
+      summary: Archive an ingest endpoint
+      description: |
+        Archives (hides) the endpoint without deleting message history.
+        Archiving also revokes the endpoint.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Archived
         "404":
           description: Not found
           content:
@@ -1049,6 +1124,34 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+  /api/channels/{id}/test:
+    post:
+      tags: [channels]
+      security: [{ bearerAuth: [] }]
+      summary: Send a test notification to a channel
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChannelTestRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChannelTestResponse" }
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /api/rules:
     get:
       tags: [rules]
@@ -1087,6 +1190,27 @@ paths:
                 properties:
                   rule: { $ref: "#/components/schemas/Rule" }
                 required: [rule]
+  /api/rules/test:
+    post:
+      tags: [rules]
+      security: [{ bearerAuth: [] }]
+      summary: Test which rules would trigger for a sample message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RuleTestRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RulesTestResponse" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /api/rules/{id}:
     get:
       tags: [rules]
