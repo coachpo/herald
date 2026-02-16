@@ -37,7 +37,7 @@ services:
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@localhost}
     ports:
-      - "18000:8000"
+      - "8100:8100"
     depends_on:
       db:
         condition: service_healthy
@@ -85,7 +85,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "13000:3000"
+      - "3100:3100"
 
 volumes:
   db_data:
