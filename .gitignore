@@ -1,5 +1,8 @@
 .DS_Store
 .env
+deploy/.env
+deploy/*.env
+.env
 .env.*
 .python-version
 .venv/
