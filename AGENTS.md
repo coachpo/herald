@@ -1,14 +1,16 @@
 # AGENTS.md
 
-This repo is a two-package app:
+This repo is a three-package app:
 
 - `backend/`: Django + DRF JSON API, plus a delivery worker
 - `frontend/`: Next.js dashboard UI (proxies `/api/*` to the backend)
+- `edge/`: Edge forwarders (Cloudflare Workers, Tencent EdgeOne)
 
 For package-specific commands and conventions, prefer the closest file:
 
 - `backend/AGENTS.md`
 - `frontend/AGENTS.md`
+- `edge/AGENTS.md`
 
 ## Quick Start (Dev)
 

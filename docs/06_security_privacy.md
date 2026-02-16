@@ -46,6 +46,15 @@ Security note:
 - Ingest key is displayed only once at creation time.
 - Revoked endpoints are rejected.
 
+## Edge forwarders (optional)
+
+If you deploy edge forwarders (Cloudflare Workers / Tencent EdgeOne):
+
+- Treat edge forwarder keys as independent ingest keys.
+- Each hop should have its own `X-Beacon-Ingest-Key` and its own next-hop key.
+- Store hop keys as secrets in the edge provider.
+- Limit hop depth to prevent routing loops.
+
 ## Payload handling
 
 - Accept arbitrary UTF‑8 text.

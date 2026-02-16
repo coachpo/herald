@@ -4,3 +4,7 @@
 [submodule "frontend"]
 	path = frontend
 	url = /tmp/beacon-spear-frontend
+[submodule "edge"]
+	path = edge
+	url = /tmp/beacon-spear-edge
+	branch = main

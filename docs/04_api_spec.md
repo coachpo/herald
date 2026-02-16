@@ -64,6 +64,12 @@ Dashboard pages are implemented in Next.js (paths are suggested):
   - `413` payload too large
   - `400` invalid UTF‑8
 
+## Optional edge forwarders
+
+Edge forwarders (Cloudflare Workers / Tencent EdgeOne) can proxy the ingest API.
+
+See `docs/10_edge.md`.
+
 ## App JSON API (authenticated)
 
 All endpoints (except ingest and auth endpoints as noted) require:

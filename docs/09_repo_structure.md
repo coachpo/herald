@@ -5,6 +5,7 @@ Beacon Spear is organized as a small “meta” repository:
 - Root repo: design docs + top-level coordination
 - `backend/` git submodule: Django backend + worker
 - `frontend/` git submodule: Next.js dashboard UI (latest stable)
+- `edge/` git submodule: edge forwarders (Cloudflare Workers, Tencent EdgeOne)
 
 ## Why submodules
 
@@ -27,4 +28,3 @@ git submodule update --init --recursive
 ## Submodule URLs
 
 When you create the real remote repositories for `backend` and `frontend`, set each submodule URL in `.gitmodules` and commit the update.
-

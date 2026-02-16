@@ -59,6 +59,13 @@ Proposed env vars:
 - Postgres for persistence.
 - Worker runs as a separate process/service.
 
+## Optional edge forwarders
+
+If you deploy edge functions (Cloudflare Workers / Tencent EdgeOne) in front of ingest,
+they should forward `POST /api/ingest/{endpoint_id}` to the backend (or to another edge hop).
+
+See `docs/10_edge.md`.
+
 ## Database maintenance
 
 - Backups: daily logical backups or managed Postgres snapshots.

@@ -34,6 +34,7 @@ Implementation lives in **git submodules**:
 - `docs/07_operations.md` — configuration, deploy outline, worker ops
 - `docs/08_bark_v2.md` — Bark v2 payload + UI mirroring notes
 - `docs/09_repo_structure.md` — repo layout and submodule conventions
+- `docs/10_edge.md` — edge forwarders (EdgeOne + Cloudflare)
 
 ## Open questions (to confirm before implementation)
 
