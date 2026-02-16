@@ -22,8 +22,11 @@ Proposed env vars:
 
 ### Next.js
 
-- `NEXT_PUBLIC_BASE_URL` (optional; used for building absolute links in UI)
-- `BACKEND_BASE_URL` (optional; only if the frontend server needs to call backend directly)
+- `NEXT_PUBLIC_API_URL` (build-time; browser-facing API base URL used by the frontend app)
+
+### Backend app URL
+
+- `NEXT_PUBLIC_BASE_URL` (used by backend for verification/reset email links)
 
 ### Email (SMTP)
 
