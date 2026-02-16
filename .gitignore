@@ -18,3 +18,4 @@ dist/
 .codex/
 .sisyphus/
 .evidence/
+.ruff_cache/
