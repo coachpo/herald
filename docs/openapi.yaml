@@ -1,10 +1,12 @@
 openapi: 3.1.0
 info:
-  title: Beacon Spear API (v0.2)
-  version: 0.2.0
+  title: Beacon Spear API (v1.0)
+  version: 1.0.0
   description: |
+    Breaking upgrade from v0.2. No backward compatibility.
+
     Beacon Spear provides:
-    - a public ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Beacon-Ingest-Key`)
+    - a public ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Beacon-Ingest-Key`, accepts structured JSON)
     - authenticated JSON APIs for the web dashboard under `/api/*`
 
     Authenticated endpoints use JWT access tokens via `Authorization: Bearer <token>`.
@@ -174,11 +176,22 @@ components:
         id: { $ref: "#/components/schemas/UUID" }
         ingest_endpoint_id: { $ref: "#/components/schemas/UUID" }
         received_at: { $ref: "#/components/schemas/Timestamp" }
-        content_type:
+        title:
           anyOf:
             - { type: string }
             - { type: "null" }
-        payload_preview: { type: string }
+        body_preview: { type: string }
+        group:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+        tags:
+          type: array
+          items: { type: string }
         deliveries:
           type: object
           additionalProperties: false
@@ -189,7 +202,7 @@ components:
             sent: { type: integer }
             failed: { type: integer }
           required: [queued, sending, retry, sent, failed]
-      required: [id, ingest_endpoint_id, received_at, content_type, payload_preview, deliveries]
+      required: [id, ingest_endpoint_id, received_at, title, body_preview, group, priority, tags, deliveries]
     MessageDetail:
       type: object
       additionalProperties: false
@@ -197,11 +210,33 @@ components:
         id: { $ref: "#/components/schemas/UUID" }
         ingest_endpoint_id: { $ref: "#/components/schemas/UUID" }
         received_at: { $ref: "#/components/schemas/Timestamp" }
+        title:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        body: { type: string }
+        group:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+        tags:
+          type: array
+          items: { type: string }
+        url:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        extras:
+          type: object
+          additionalProperties: { type: string }
         content_type:
           anyOf:
             - { type: string }
             - { type: "null" }
-        payload_text: { type: string }
         headers:
           type: object
           additionalProperties:
@@ -219,7 +254,7 @@ components:
           anyOf:
             - { $ref: "#/components/schemas/Timestamp" }
             - { type: "null" }
-      required: [id, ingest_endpoint_id, received_at, content_type, payload_text, headers, query, remote_ip, user_agent, deleted_at]
+      required: [id, ingest_endpoint_id, received_at, title, body, group, priority, tags, url, extras, content_type, headers, query, remote_ip, user_agent, deleted_at]
     BatchDeleteRequest:
       type: object
       additionalProperties: false
@@ -423,13 +458,11 @@ components:
           $ref: "#/components/schemas/RuleFilter"
         payload_template:
           type: object
-          description: Generic payload template used by the channel provider.
+          description: Generic payload template used by the channel provider. Supports {{variable}} substitution.
           additionalProperties: true
-        bark_payload_template:
-          $ref: "#/components/schemas/BarkPushPayload"
         created_at: { $ref: "#/components/schemas/Timestamp" }
         updated_at: { $ref: "#/components/schemas/Timestamp" }
-      required: [id, name, enabled, channel_id, filter, payload_template, bark_payload_template, created_at, updated_at]
+      required: [id, name, enabled, channel_id, filter, payload_template, created_at, updated_at]
     RuleFilter:
       type: object
       additionalProperties: false
@@ -439,12 +472,27 @@ components:
             - type: array
               items: { $ref: "#/components/schemas/UUID" }
             - type: "null"
-        text:
+        body:
           anyOf:
-            - $ref: "#/components/schemas/TextFilter"
+            - $ref: "#/components/schemas/BodyFilter"
+            - type: "null"
+        priority:
+          anyOf:
+            - $ref: "#/components/schemas/PriorityFilter"
+            - type: "null"
+        tags:
+          anyOf:
+            - type: array
+              items: { type: string }
+              description: Message must have at least one of these tags (any-of match).
+            - type: "null"
+        group:
+          anyOf:
+            - type: string
+              description: Exact match on message group.
             - type: "null"
       required: []
-    TextFilter:
+    BodyFilter:
       type: object
       additionalProperties: false
       properties:
@@ -453,18 +501,31 @@ components:
             - type: array
               items: { type: string }
             - type: "null"
+          description: At least one substring must be present in body (case-insensitive).
         regex:
           anyOf:
-            - type: string
-            - type: "null"
-      required: []
-    BarkPushPayload:
+            - { type: string }
+            - { type: "null" }
+          description: Regex pattern that must match body.
+    PriorityFilter:
       type: object
-      description: |
-        Bark API v2 payload (excluding server URL). Field names should match Bark exactly.
-        Implementation should allow arbitrary keys to preserve full parity with Bark.
-      additionalProperties: true
-    RuleUpsertRequestV2:
+      additionalProperties: false
+      properties:
+        min:
+          anyOf:
+            - type: integer
+              minimum: 1
+              maximum: 5
+            - type: "null"
+          description: Message priority must be >= min.
+        max:
+          anyOf:
+            - type: integer
+              minimum: 1
+              maximum: 5
+            - type: "null"
+          description: Message priority must be <= max.
+    RuleUpsertRequest:
       type: object
       additionalProperties: false
       properties:
@@ -475,32 +536,47 @@ components:
         payload_template:
           type: object
           additionalProperties: true
-      required: [name, enabled, channel_id, payload_template]
-    RuleUpsertRequestV1:
-      type: object
-      additionalProperties: false
-      properties:
-        name: { type: string }
-        enabled: { type: boolean }
-        channel_id: { $ref: "#/components/schemas/UUID" }
-        filter: { $ref: "#/components/schemas/RuleFilter" }
-        bark_payload_template: { $ref: "#/components/schemas/BarkPushPayload" }
-      required: [name, enabled, channel_id, bark_payload_template]
-    RuleUpsertRequest:
-      oneOf:
-        - { $ref: "#/components/schemas/RuleUpsertRequestV2" }
-        - { $ref: "#/components/schemas/RuleUpsertRequestV1" }
+          description: Payload template with {{variable}} substitution.
+      required: [name, enabled, channel_id, filter]
     RuleTestRequest:
       type: object
       additionalProperties: false
       properties:
         ingest_endpoint_id: { $ref: "#/components/schemas/UUID" }
-        content_type:
+        payload:
+          $ref: "#/components/schemas/IngestPayload"
+      required: [ingest_endpoint_id, payload]
+    IngestPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
           anyOf:
             - { type: string }
             - { type: "null" }
-        payload_text: { type: string }
-      required: [ingest_endpoint_id, payload_text]
+        body: { type: string }
+        group:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+        tags:
+          type: array
+          items: { type: string }
+          default: []
+        url:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        extras:
+          type: object
+          additionalProperties: { type: string }
+          default: {}
+      required: [body]
     RuleTestResponse:
       type: object
       additionalProperties: false
@@ -512,8 +588,7 @@ components:
         rendered_payload:
           type: object
           additionalProperties: true
-        rendered_bark_payload: { $ref: "#/components/schemas/BarkPushPayload" }
-      required: [matches, channel_type, rendered_payload, rendered_bark_payload]
+      required: [matches, channel_type, rendered_payload]
     RulesTestMatch:
       type: object
       additionalProperties: false
@@ -841,22 +916,23 @@ paths:
   /api/ingest/{endpoint_id}:
     post:
       tags: [ingest]
-      summary: Ingest a message
+      summary: Ingest a structured message
       description: |
-        Accepts arbitrary UTF-8 text (no validation). Max size 1MB; oversize is rejected.
-        Any `Content-Type` is accepted; body is treated as UTF-8.
+        Accepts a structured JSON payload with notification fields.
+        Requires Content-Type: application/json. Max size 1MB.
+        Only `body` is required; all other fields are optional.
       security: [{ ingestKeyAuth: [] }]
       parameters:
         - $ref: "#/components/parameters/EndpointIdParam"
       requestBody:
         required: true
         content:
-          text/plain:
+          application/json:
             schema:
-              type: string
+              $ref: "#/components/schemas/IngestPayload"
       responses:
         "201":
-          description: Message stored
+          description: Created
           content:
             application/json:
               schema:
@@ -866,22 +942,32 @@ paths:
                   message_id: { $ref: "#/components/schemas/UUID" }
                 required: [message_id]
         "400":
-          description: Invalid UTF-8 or invalid request
+          description: Invalid JSON or invalid UTF-8
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "401":
-          description: Auth failure (missing/invalid ingest key, unknown/revoked/deleted endpoint)
+          description: Auth failure
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "403":
-          description: Forbidden (e.g., email not verified)
+          description: User not verified or disabled
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "413":
           description: Payload too large
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Content-Type is not application/json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Validation error (missing body, invalid priority, unknown keys, etc.)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -964,6 +1050,27 @@ paths:
         - name: q
           in: query
           required: false
+          description: Substring search on body field.
+          schema: { type: string }
+        - name: group
+          in: query
+          required: false
+          description: Filter by group (exact match).
+          schema: { type: string }
+        - name: priority_min
+          in: query
+          required: false
+          description: Minimum priority (1-5).
+          schema: { type: integer, minimum: 1, maximum: 5 }
+        - name: priority_max
+          in: query
+          required: false
+          description: Maximum priority (1-5).
+          schema: { type: integer, minimum: 1, maximum: 5 }
+        - name: tag
+          in: query
+          required: false
+          description: Filter by tag (message must have this tag).
           schema: { type: string }
         - name: from
           in: query

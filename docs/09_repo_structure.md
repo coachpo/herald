@@ -1,4 +1,4 @@
-# Repo structure — Beacon Spear v0.1
+# Repo structure — Beacon Spear v1.0
 
 Beacon Spear is organized as a small “meta” repository:
 

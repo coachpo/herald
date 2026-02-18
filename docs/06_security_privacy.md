@@ -1,4 +1,6 @@
-# Security & privacy — Beacon Spear v0.2
+# Security & privacy — Beacon Spear v1.0
+
+> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
 This app has two primary attack surfaces:
 
@@ -57,10 +59,20 @@ If you deploy edge forwarders (Cloudflare Workers / Tencent EdgeOne):
 
 ## Payload handling
 
-- Accept arbitrary UTF‑8 text.
+- Require `Content-Type: application/json`; reject other content types with `415`.
+- Parse request body as JSON; reject malformed JSON with `400`.
+- Validate structured fields:
+  - `body` (string, required, non-empty)
+  - `title` (string, optional)
+  - `group` (string, optional)
+  - `priority` (integer 1–5, optional)
+  - `tags` (array of strings, optional)
+  - `url` (string, optional; validate URL format)
+  - `extras` (object with string values, optional)
+- Reject unknown top-level keys with `422` to prevent payload confusion.
 - Reject > 1MB payloads with HTTP `413`.
-- Reject invalid UTF‑8 with HTTP `400`.
-- Never attempt to parse/execute payload content.
+- Never attempt to execute payload content.
+- Sanitize all string fields for display (escape HTML entities in the dashboard).
 
 ## Metadata capture & redaction
 

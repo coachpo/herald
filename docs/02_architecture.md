@@ -1,10 +1,13 @@
-# Architecture — Beacon Spear v0.2
+# Architecture — Beacon Spear v1.0
+
+> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
 ## High-level components
 
 1) **Django backend**
    - JSON APIs for the dashboard
    - Ingest endpoint: `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID; requires `X-Beacon-Ingest-Key`)
+   - Accepts structured JSON payloads (title, body, priority, tags, group, url, extras)
    - Email sending for verification + password reset (SMTP)
    - JWT auth for dashboard APIs (no Django session cookies)
 
@@ -14,6 +17,7 @@
 
 3) **Worker process**
     - Polls DB for due deliveries
+    - Renders payload templates against rich message context (all structured fields + request metadata + extras)
     - Sends provider requests (Bark v2 HTTP, ntfy HTTP publish, MQTT publish)
     - Updates delivery status, schedules retries with exponential backoff
 
@@ -81,25 +85,39 @@ Standard Django-style flow:
 1) Request `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID)
 2) Identify ingest endpoint by id; validate `X-Beacon-Ingest-Key` (constant-time compare against stored hash)
 3) Enforce:
-   - UTF‑8 decoding (reject invalid)
-   - body size ≤ 1MB (reject > 1MB)
-4) Persist message + metadata (headers redacted, query params captured)
-5) Evaluate enabled rules for that user
-6) For each matching rule:
+   - `Content-Type: application/json` required (reject with `415` otherwise)
+   - body size ≤ 1MB (reject > 1MB with `413`)
+   - valid JSON (reject with `400`)
+   - valid UTF-8 (reject with `400`)
+4) Parse and validate structured payload:
+   - `body` (string, required) — reject with `422` if missing or empty
+   - `title` (string, optional)
+   - `group` (string, optional)
+   - `priority` (integer 1–5, optional; default 3)
+   - `tags` (array of strings, optional; default `[]`)
+   - `url` (string, optional; must be a valid URL if provided)
+   - `extras` (object with string values, optional; default `{}`)
+   - reject unknown top-level keys with `422`
+5) Persist message with structured fields + request metadata (headers redacted, query params captured)
+6) Evaluate enabled rules for that user
+7) For each matching rule:
    - create a delivery row `status=queued`, `next_attempt_at=now`
-7) Return `200`/`201` with `message_id`
+8) Return `201` with `{ "message_id": "..." }`
 
-## Rule evaluation model (simple)
+## Rule evaluation model
 
 Rule filters can constrain:
 
-- `ingest_endpoint_id` (optional)
-- `payload_text` (optional): contains or regex
+- `ingest_endpoint_id` (optional) — message must come from one of the listed endpoints
+- `body` (optional): contains substrings or regex match against `body` field
+- `priority` (optional): min/max range (e.g., only priority ≥ 4)
+- `tags` (optional): message must have at least one of the listed tags (any-of match)
+- `group` (optional): exact match on `group` field
 
 Matching behavior:
 
 - If a filter field is omitted, it does not restrict matching.
-- A rule matches if all provided conditions match.
+- A rule matches if all provided conditions match (AND across filter dimensions).
 
 ## Delivery model
 

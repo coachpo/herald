@@ -1,4 +1,6 @@
-# UI spec — Beacon Spear v0.2
+# UI spec — Beacon Spear v1.0
+
+> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
 ## Tech (decision)
 
@@ -48,7 +50,7 @@
   - Create channel
   - Create rule
 - Recent messages table:
-  - time, endpoint, payload preview, delivery status summary
+  - time, endpoint, title (or body preview), priority badge, tags, group, delivery status summary
 - Recent delivery failures panel (if any)
 
 ### Ingest endpoints
@@ -70,21 +72,35 @@
 
 - Filters:
   - endpoint dropdown
-  - search box (substring on payload_text)
+  - search box (substring on body)
+  - group dropdown/text
+  - priority range (min/max)
+  - tag filter (multi-select or text)
   - time range
 - Table columns:
   - received_at
   - endpoint
-  - payload preview
+  - title (or body preview if no title)
+  - priority (badge with color coding: 1=gray, 2=blue, 3=default, 4=orange, 5=red)
+  - tags (chips)
+  - group
   - deliveries summary (sent/failed/pending)
 - Batch delete:
-  - “delete messages older than N days”
+  - "delete messages older than N days"
   - optional endpoint scope
 
 ### Message detail
 
-- Raw payload viewer (monospace, wrap toggle)
-- Metadata:
+- Structured fields (prominent display):
+  - title
+  - body (monospace, wrap toggle)
+  - priority (badge)
+  - tags (chips)
+  - group
+  - url (clickable link)
+- Extras section (collapsible):
+  - key-value table of all extras
+- Request metadata (collapsible):
   - content type, remote ip, user agent
   - query params JSON
   - headers JSON (redacted)
@@ -136,19 +152,26 @@ Notes:
 - name + enabled
 - Filters:
   - ingest endpoints multiselect (optional)
-  - payload contains (one per line; optional)
-  - payload regex (optional)
+  - body contains (one per line; optional)
+  - body regex (optional)
+  - priority range: min/max dropdowns (optional)
+  - tags filter: multi-select or comma-separated text (any-of match; optional)
+  - group: exact match text input (optional)
 - Target channel:
   - select one channel
 - Payload template (JSON):
   - single JSON editor; label reflects selected channel type (Bark/ntfy/MQTT)
-  - template helper showing available variables
+  - template variable reference panel showing all available variables:
+    - **Message fields**: `{{message.title}}`, `{{message.body}}`, `{{message.group}}`, `{{message.priority}}`, `{{message.tags}}`, `{{message.url}}`, `{{message.id}}`, `{{message.received_at}}`
+    - **Message extras**: `{{message.extras.<key>}}` (with note: key names depend on what the sender includes)
+    - **Request metadata**: `{{request.content_type}}`, `{{request.remote_ip}}`, `{{request.user_agent}}`, `{{request.headers.<name>}}`, `{{request.query.<name>}}`
+    - **Ingest endpoint**: `{{ingest_endpoint.id}}`, `{{ingest_endpoint.name}}`
 
 #### Rule test
 
 - Input:
   - choose ingest endpoint
-  - sample payload text
+  - sample JSON payload (structured: title, body, group, priority, tags, url, extras)
 - Output:
   - list of matching rules (the rules that would trigger for that sample)
   - for each match: channel type + rendered payload preview (not sent)
@@ -157,7 +180,9 @@ Notes:
 
 - Block create actions if email not verified; show banner prompting verification.
 - Warn when regex is invalid.
-- Warn when Bark JSON is not valid JSON.
+- Warn when payload template JSON is not valid JSON.
+- Validate priority range (1–5) in rule filter inputs.
+- Show inline validation for the sample JSON payload in rule test (must be valid JSON with `body` field).
 
 ## Account page
 

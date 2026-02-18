@@ -1,4 +1,6 @@
-# Data model — Beacon Spear v0.2
+# Data model — Beacon Spear v1.0
+
+> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
 This doc defines the logical schema. Implementation may use Django models + migrations.
 
@@ -51,9 +53,15 @@ Indexes:
 - `user_id` (FK)
 - `ingest_endpoint_id` (FK)
 - `received_at`
-- `content_type` (nullable)
-- `payload_text` (text)
-- `payload_sha256` (optional; can help dedupe/debug)
+- `title` (string; nullable) — notification title
+- `body` (text; required) — main notification content
+- `group` (string; nullable) — grouping identifier
+- `priority` (integer 1–5; default 3) — 1=lowest, 5=critical
+- `tags` (JSON array of strings; default `[]`)
+- `url` (string; nullable) — action URL
+- `extras_json` (JSON object; default `{}`) — arbitrary key-value pairs (string values)
+- `content_type` (nullable) — original request Content-Type
+- `body_sha256` (optional; hash of `body` field for dedupe/debug)
 - `headers_json` (JSON; sensitive values redacted)
 - `query_json` (JSON)
 - `remote_ip` (string)
@@ -64,11 +72,15 @@ Indexes:
 
 - `(user_id, received_at desc)`
 - `(user_id, ingest_endpoint_id, received_at desc)`
-- Optional: `(user_id, payload_sha256)`
+- `(user_id, group)` — for group-based queries
+- `(user_id, priority)` — for priority-based filtering
+- Optional: `(user_id, body_sha256)`
 
 Notes:
 
-- Deletion: v0.1 recommends soft-delete (`deleted_at`), hiding from normal views.
+- Deletion: soft-delete (`deleted_at`), hiding from normal views.
+- `extras_json` values must be strings. Nested objects are not supported.
+- `tags` is stored as a JSON array; filtering uses array containment.
 
 ## Channels
 
@@ -122,29 +134,37 @@ Stored inside `config_json_encrypted`:
 - `enabled` (bool)
 - `filter_json` (JSON)
 - `channel_id` (FK)
-- `payload_template_json` (JSON; nullable) — canonical template for all channel types
-- `bark_payload_template_json` (JSON) — legacy Bark template (backfilled into `payload_template_json`)
+- `payload_template_json` (JSON; nullable) — template for all channel types
 - `created_at`
 - `updated_at`
 
-### Filter JSON (proposed)
+### Filter JSON
 
 ```
 {
-  "ingest_endpoint_ids": ["ep_1", "ep_2"],   // optional
-  "text": {
-    "contains": ["error", "panic"],          // optional, case-insensitive
-    "regex": "timeout\\b"                   // optional
-  }
+  "ingest_endpoint_ids": ["ep_1", "ep_2"],   // optional; message endpoint must be in set
+  "body": {
+    "contains": ["error", "panic"],          // optional, case-insensitive substring match (any)
+    "regex": "timeout\\b"                    // optional, regex match on body
+  },
+  "priority": {
+    "min": 3,                                // optional; message priority >= min
+    "max": 5                                 // optional; message priority <= max
+  },
+  "tags": ["deploy", "critical"],            // optional; message must have at least one of these tags (any-of)
+  "group": "production"                      // optional; exact match on message group
 }
 ```
 
 Semantics:
 
-- If `ingest_endpoint_ids` provided: message’s endpoint must be in the set.
-- If `text.contains` provided: at least one substring must be present in payload.
-- If `text.regex` provided: regex must match payload.
-- All provided conditions must match (AND).
+- If `ingest_endpoint_ids` provided: message's endpoint must be in the set.
+- If `body.contains` provided: at least one substring must be present in body (case-insensitive).
+- If `body.regex` provided: regex must match body.
+- If `priority.min` and/or `priority.max` provided: message priority must be within range.
+- If `tags` provided: message must have at least one matching tag (any-of).
+- If `group` provided: message group must match exactly.
+- All provided conditions must match (AND across dimensions).
 
 ## Deliveries (queue + history)
 

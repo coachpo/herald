@@ -1,5 +1,7 @@
 # Edge Forwarders (EdgeOne + Cloudflare)
 
+> **v1.0 note:** The ingest API now requires `Content-Type: application/json` with a structured JSON body. Edge forwarders forward the body as-is without parsing or validating the JSON payload — all validation happens at the backend. No edge code changes are required for the v1.0 upgrade.
+
 This project can optionally run edge forwarding functions in front of the backend Ingest API.
 
 Goals:
@@ -14,7 +16,7 @@ Edge functions accept:
 
 - `POST /api/ingest/{endpoint_id}`
   - header: `X-Beacon-Ingest-Key: <edge_ingest_key>`
-  - body: arbitrary UTF-8 text (same as backend)
+  - body: JSON payload (forwarded as-is; validated by backend)
 
 They forward to a configured next hop:
 
