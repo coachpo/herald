@@ -1,130 +1,60 @@
-# Edge Forwarders (EdgeOne + Cloudflare)
+# Edge — Beacon Spear Lite
 
-> **v1.0 note:** The ingest API now requires `Content-Type: application/json` with a structured JSON body. Edge forwarders forward the body as-is without parsing or validating the JSON payload — all validation happens at the backend. No edge code changes are required for the v1.0 upgrade.
+> **v2.0 note:** The edge worker now runs exclusively in Lite mode. The previous proxy/forwarding mode (multi-hop routing, EdgeOne support, env-var-based config) has been removed. All configuration is via Cloudflare KV.
 
-This project can optionally run edge forwarding functions in front of the backend Ingest API.
+The `edge/` Cloudflare Worker runs Beacon Spear in lite mode: local rule evaluation, template rendering, and HTTP dispatch to Bark/ntfy.
 
-Goals:
+## How It Works
 
-- Keep the request shape identical to the backend Ingest API.
-- Allow multi-hop routing across edge providers.
-- Use per-hop authentication keys.
+1. Receives `POST /api/ingest/{endpoint_id}` with a JSON body.
+2. Authenticates using `token_hash` from KV config.
+3. Evaluates forwarding rules locally (field matching, regex, keyword filters).
+4. Renders notification templates and dispatches to Bark or ntfy via HTTP.
+
+No backend round-trip required. Best-effort delivery.
 
 ## Request Shape
 
-Edge functions accept:
+Edge accepts:
 
 - `POST /api/ingest/{endpoint_id}`
-  - header: `X-Beacon-Ingest-Key: <edge_ingest_key>`
-  - body: JSON payload (forwarded as-is; validated by backend)
-
-They forward to a configured next hop:
-
-- `UPSTREAM_INGEST_URL` (a full URL to the next hop's `/api/ingest/{endpoint_id}`)
-- `UPSTREAM_INGEST_KEY` (the key used for the next hop)
-
-The function replaces the incoming `X-Beacon-Ingest-Key` with `UPSTREAM_INGEST_KEY`.
-
-The edge function also preserves the incoming query string by appending it to the configured upstream ingest URL.
+  - header: `X-Beacon-Ingest-Key: <ingest_token>`
+  - body: JSON payload (validated locally by the worker)
+- `GET /healthz`
+  - returns `{"ok": true, "mode": "lite"}`
 
 ## Configuration
 
-Each hop is configured independently with:
+All config is stored in Cloudflare KV (bound as `EDGE_CONFIG`, key `"config"`).
 
-- Incoming authentication (the key(s) clients / previous hop must send)
-  - `EDGE_INGEST_KEYS` (comma-separated)
-  - EdgeOne-safe variant (no `_`): `EDGE-INGEST-KEYS`
-- Optional endpoint pinning (rejects requests for other endpoint ids)
-  - `EDGE_EXPECT_ENDPOINT_ID`
-  - EdgeOne-safe variant: `EDGE-EXPECT-ENDPOINT-ID`
-- Next hop ingest destination
-  - Preferred: `UPSTREAM_INGEST_URL` (full URL to `/api/ingest/{endpoint_id}`)
-  - EdgeOne-safe variant: `UPSTREAM-INGEST-URL`
-  - Alternative (construct full ingest URL): `UPSTREAM_BASE_URL` + `UPSTREAM_ENDPOINT_ID`
-- Next hop authentication
-  - `UPSTREAM_INGEST_KEY`
-  - EdgeOne-safe variant: `UPSTREAM-INGEST-KEY`
-- Loop safety
-  - `EDGE_MAX_HOPS` (default: 5)
-  - EdgeOne-safe variant: `EDGE-MAX-HOPS`
-- Optional observability
-  - `EDGE_NAME` / `EDGE-NAME` (sets `X-Beacon-Edge-Name`)
+The backend exports config via `GET /api/edge-config`. Push the JSON blob to KV.
 
-## Supported Routing Paths
+Config includes per-endpoint:
 
-Examples:
+- `token_hash` — SHA-256 hex of the ingest token (for auth)
+- `rules` — array of forwarding rules with filters, channel config, and payload templates
 
-- Request -> EdgeOne -> Cloudflare -> Ingestion
-- Request -> EdgeOne -> Ingestion
-- Request -> Cloudflare -> Ingestion
-- Request -> Cloudflare -> EdgeOne -> Ingestion
+See `edge/README.md` for the full config shape.
 
-## Multi-hop Examples
+## Supported Providers
 
-### Request -> Cloudflare -> Ingestion
+- Bark (HTTP API v2)
+- ntfy (HTTP publish)
+- MQTT: **not supported** (no TCP sockets in Workers)
 
-Cloudflare worker configuration:
+## Limitations
 
-```
-EDGE_INGEST_KEYS=edge-cf-key
-UPSTREAM_INGEST_URL=https://api.example.com/api/ingest/<endpoint_id>
-UPSTREAM_INGEST_KEY=<backend_ingest_key>
-EDGE_NAME=cloudflare
-```
+- Best-effort delivery only. No durable retries or message persistence.
+- No message history or audit log at the edge.
+- User-supplied regex in rule filters could cause ReDoS.
 
-Client request:
+## Cloudflare Workers Free Tier Compatibility
 
-```
-POST https://edge-cf.example.com/api/ingest/<endpoint_id>
-X-Beacon-Ingest-Key: edge-cf-key
+The lite worker fits within CF Workers free tier limits:
 
-<raw utf-8 body>
-```
-
-### Request -> EdgeOne -> Cloudflare -> Ingestion
-
-EdgeOne forwarder configuration (forwards *into* the Cloudflare worker):
-
-```
-EDGE-INGEST-KEYS=edge-eo-key
-UPSTREAM-INGEST-URL=https://edge-cf.example.com/api/ingest/<endpoint_id>
-UPSTREAM-INGEST-KEY=edge-cf-key
-EDGE-NAME=edgeone
-```
-
-Cloudflare forwarder configuration (forwards *into* the backend ingest API):
-
-```
-EDGE_INGEST_KEYS=edge-cf-key
-UPSTREAM_INGEST_URL=https://api.example.com/api/ingest/<endpoint_id>
-UPSTREAM_INGEST_KEY=<backend_ingest_key>
-EDGE_NAME=cloudflare
-```
-
-Client request (into EdgeOne):
-
-```
-POST https://edge-eo.example.com/api/ingest/<endpoint_id>
-X-Beacon-Ingest-Key: edge-eo-key
-
-<raw utf-8 body>
-```
-
-## Loop Safety
-
-Edge functions add `X-Beacon-Edge-Hop: <n>` and enforce `EDGE_MAX_HOPS`.
-
-If the hop limit is exceeded, the edge function rejects the request with HTTP 508.
-
-## Observability Headers
-
-Edge forwarders may add:
-
-- `X-Beacon-Edge-Name`
-- `X-Beacon-Edge-Client-IP`
-- `X-Forwarded-For`
-
-Note: the backend currently records the upstream remote IP from the socket (`REMOTE_ADDR`). These headers are best-effort and primarily for debugging.
+- ~1-3ms CPU per request (well under 10ms limit)
+- 1 subrequest per matched rule (well under 50 subrequest limit)
+- Config cached in memory after first KV read
 
 ## Submodule
 
