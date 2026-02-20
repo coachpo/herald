@@ -5,14 +5,18 @@ on:
     branches: [main]
     tags: ["v*"]
     paths:
+      - "backend"
       - "backend/**"
+      - "frontend"
       - "frontend/**"
       - ".github/workflows/docker-images.yml"
       - ".gitmodules"
   pull_request:
     branches: [main]
     paths:
+      - "backend"
       - "backend/**"
+      - "frontend"
       - "frontend/**"
       - ".github/workflows/docker-images.yml"
       - ".gitmodules"
@@ -36,7 +40,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME_BACKEND: ${{ github.event.repository.name }}-backend
   IMAGE_NAME_FRONTEND: ${{ github.event.repository.name }}-frontend
-  NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+  VITE_API_URL: ${{ secrets.VITE_API_URL != '' && secrets.VITE_API_URL || secrets.NEXT_PUBLIC_API_URL }}
 
   BUILD_PLATFORM: linux/arm64
 
@@ -106,4 +110,4 @@ jobs:
           platforms: ${{ env.BUILD_PLATFORM }}
           provenance: false
           sbom: false
-          build-args: ${{ matrix.service == 'frontend' && format('NEXT_PUBLIC_API_URL={0}', env.NEXT_PUBLIC_API_URL) || '' }}
+          build-args: ${{ matrix.service == 'frontend' && format('VITE_API_URL={0}', env.VITE_API_URL || 'http://localhost:8100') || '' }}
