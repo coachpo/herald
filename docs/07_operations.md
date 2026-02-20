@@ -5,8 +5,13 @@
 ## Runtime processes
 
 1) `backend`: Django app (serves JSON APIs + ingest)
-2) `frontend`: Next.js app (dashboard UI)
+2) `frontend`: React 19 + TypeScript SPA (Vite build, React Router dashboard UI)
 3) `worker`: background delivery worker (polls DB, sends Bark/ntfy/MQTT)
+
+Frontend UI stack:
+- Tailwind CSS v4 via `@tailwindcss/vite`
+- shadcn/ui ecosystem (Radix primitives, CVA, `clsx`, `tailwind-merge`)
+- `react-hook-form` + `zod` for form handling and validation
 
 ## Configuration (env)
 
@@ -22,9 +27,9 @@ Proposed env vars:
 - `JWT_ACCESS_TTL_SECONDS=900`
 - `JWT_REFRESH_TTL_SECONDS=2592000` (30 days)
 
-### Next.js
+### Frontend (Vite)
 
-- `NEXT_PUBLIC_API_URL` (build-time; browser-facing API base URL used by the frontend app)
+- `VITE_API_URL` (build-time; browser-facing API base URL used by the frontend app)
 
 ### Backend app URL
 
@@ -47,20 +52,20 @@ Proposed env vars:
 - `DELIVERY_BACKOFF_BASE_SECONDS=5`
 - `DELIVERY_BACKOFF_MAX_SECONDS=1800`
 - `BARK_REQUEST_TIMEOUT_SECONDS=5`
- - `NTFY_REQUEST_TIMEOUT_SECONDS=5`
- - `MQTT_SOCKET_TIMEOUT_SECONDS=5`
+- `NTFY_REQUEST_TIMEOUT_SECONDS=5`
+- `MQTT_SOCKET_TIMEOUT_SECONDS=5`
 
 ### Optional safety
 
 - `BARK_BLOCK_PRIVATE_NETWORKS=true`
- - `NTFY_BLOCK_PRIVATE_NETWORKS=true`
- - `MQTT_BLOCK_PRIVATE_NETWORKS=true`
+- `NTFY_BLOCK_PRIVATE_NETWORKS=true`
+- `MQTT_BLOCK_PRIVATE_NETWORKS=true`
 
 ## Deploy outline
 
 - Reverse proxy (nginx/caddy) terminates TLS and routes:
   - `/api/*` → Django backend
-  - everything else → Next.js frontend
+  - everything else → frontend SPA (Vite build, typically served by nginx)
 - Postgres for persistence.
 - Worker runs as a separate process/service.
 

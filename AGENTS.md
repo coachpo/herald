@@ -11,7 +11,7 @@ Beacon Spear — ingest arbitrary UTF-8 payloads via HTTP, store them, and forwa
 ```
 beacon-spear/
 ├── backend/        # Django 5 + DRF JSON API + delivery worker
-├── frontend/       # Next.js 16 (App Router) dashboard UI
+├── frontend/       # React 19 + TypeScript + Vite + React Router dashboard UI
 ├── edge/           # Cloudflare Worker — lite mode (local rules, no backend)
 ├── docs/           # PRD, architecture, data model, API spec, OpenAPI
 ├── deploy/         # docker-compose.yml (Postgres + backend + worker + frontend)
@@ -31,9 +31,11 @@ Git submodules: `backend/` and `frontend/` are submodules (see `.gitmodules`).
 | Delivery worker | `backend/beacon/management/commands/deliveries_worker.py` | Polling loop, exponential backoff |
 | SSRF protection | `backend/beacon/ssrf.py` | Blocks loopback/private IPs for outbound URLs |
 | Channel encryption | `backend/beacon/crypto.py` | Fernet encryption for `Channel.config_json_encrypted` |
-| Frontend auth | `frontend/lib/auth.tsx` | AuthProvider context, sessionStorage refresh tokens |
-| Frontend API client | `frontend/lib/api.ts` | `apiFetch()` — direct browser-to-backend, `credentials: "omit"` |
-| Frontend types | `frontend/lib/types.ts` | TypeScript types mirroring backend API responses |
+| Frontend auth | `frontend/src/lib/auth.tsx` | AuthProvider context, sessionStorage refresh tokens |
+| Frontend API client | `frontend/src/lib/api.ts` | `apiFetch()` — direct browser-to-backend, `credentials: "omit"` |
+| Frontend types | `frontend/src/lib/types.ts` | TypeScript types mirroring backend API responses |
+| Frontend routing | `frontend/src/router.tsx` | React Router route tree |
+| Frontend UI | `frontend/src/components/ui/` | shadcn/ui (Radix primitives + CVA + clsx + tailwind-merge) |
 | Edge config | `edge/src/lite.mjs` | KV-based config, local rule eval + HTTP dispatch |
 | OpenAPI spec | `docs/openapi.yaml` | JSON API + ingest endpoints |
 | Docker deploy | `deploy/docker-compose.yml` | Postgres + backend:8100 + worker + frontend:3100 |
@@ -41,7 +43,7 @@ Git submodules: `backend/` and `frontend/` are submodules (see `.gitmodules`).
 ## Package Communication
 
 ```
-Frontend (browser) --NEXT_PUBLIC_API_URL--> Backend (/api/*)
+Frontend (browser) --VITE_API_URL--> Backend (/api/*)
 Backend --edge-config endpoint--> Edge (KV push)
 Edge (standalone) --HTTP dispatch--> Bark/ntfy
 Backend worker --HTTP/MQTT dispatch--> Bark/ntfy/MQTT
@@ -82,7 +84,7 @@ python manage.py deliveries_worker
 pnpm install
 pnpm lint
 pnpm build
-pnpm dev -p 3000
+pnpm dev
 
 # Edge (from edge/)
 npm install
@@ -100,7 +102,7 @@ npm run dev
 | `TOKEN_HASH_KEY` | backend | Ingest token hashing |
 | `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Fernet key for channel configs |
 | `DATABASE_URL` | backend | Postgres connection (sqlite fallback) |
-| `NEXT_PUBLIC_API_URL` | frontend | Backend URL (default: `http://localhost:8100`) |
+| `VITE_API_URL` | frontend | Backend URL (default: `http://localhost:8100`) |
 | `CORS_ALLOWED_ORIGINS` | backend | Allowed frontend origins |
 | `BARK_BLOCK_PRIVATE_NETWORKS` | backend | SSRF protection toggle (default: true) |
 
@@ -113,6 +115,7 @@ npm run dev
 ## Notes
 
 - SQLite is default for local dev; settings auto-enables WAL mode + 30s timeout for multi-process (API + worker)
-- Backend uses `NEXT_PUBLIC_BASE_URL` setting for email verification links (points to frontend)
+- Frontend stack: React 19 + TypeScript, Vite, React Router, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui ecosystem, and `react-hook-form` + `zod`
+- Backend uses `NEXT_PUBLIC_BASE_URL` setting for email verification links (points to frontend app URL)
 - Edge has no durable retries or message persistence — best-effort HTTP dispatch only
 - MQTT channel type is backend-only (no TCP sockets in Workers)
