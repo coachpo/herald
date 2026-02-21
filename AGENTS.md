@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Generated:** 2026-02-20 **Commit:** 8256b0b **Branch:** main
+**Generated:** 2026-02-22 **Commit:** bf27d57 **Branch:** main
 
 ## Overview
 
@@ -14,11 +14,10 @@ beacon-spear/
 ├── frontend/       # React 19 + TypeScript + Vite + React Router dashboard UI
 ├── edge/           # Cloudflare Worker — lite mode (local rules, no backend)
 ├── docs/           # PRD, architecture, data model, API spec, OpenAPI
-├── deploy/         # docker-compose.yml (Postgres + backend + worker + frontend)
 └── .github/        # CI: Docker image builds (arm64), cleanup
 ```
 
-Git submodules: `backend/` and `frontend/` are submodules (see `.gitmodules`).
+Git submodules: `backend/`, `frontend/`, and `edge/` are submodules (see `.gitmodules`).
 
 ## Where to Look
 
@@ -38,7 +37,6 @@ Git submodules: `backend/` and `frontend/` are submodules (see `.gitmodules`).
 | Frontend UI | `frontend/src/components/ui/` | shadcn/ui (Radix primitives + CVA + clsx + tailwind-merge) |
 | Edge config | `edge/src/lite.mjs` | KV-based config, local rule eval + HTTP dispatch |
 | OpenAPI spec | `docs/openapi.yaml` | JSON API + ingest endpoints |
-| Docker deploy | `deploy/docker-compose.yml` | Postgres + backend:8100 + worker + frontend:3100 |
 
 ## Package Communication
 
@@ -53,12 +51,12 @@ No server-side proxy. Frontend calls backend directly from browser.
 
 ## Conventions
 
-- Custom implementations over third-party packages: JWT auth (not simplejwt), CORS middleware (not django-cors-headers), .env loader (not python-dotenv), DATABASE_URL parser (not dj-database-url)
+- Custom implementations over third-party packages: JWT auth (not simplejwt), CORS middleware (not django-cors-headers), .env loader (not python-dotenv)
 - All UUIDs are v4, used as primary keys across all models
 - Soft-delete pattern: `deleted_at` / `revoked_at` / `disabled_at` nullable timestamps
 - Channel configs encrypted at rest with Fernet (`CHANNEL_CONFIG_ENCRYPTION_KEY`)
 - Ingest endpoints accept both dashed UUID and dashless hex formats
-- Backend serves on port 8100 in Docker (not 8000)
+- SQLite for both dev and production; settings has optional `DATABASE_URL` override but no Postgres driver installed
 
 ## Anti-Patterns (Do Not)
 
@@ -101,7 +99,6 @@ npm run dev
 | `JWT_SIGNING_KEY` | backend | JWT token signing |
 | `TOKEN_HASH_KEY` | backend | Ingest token hashing |
 | `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Fernet key for channel configs |
-| `DATABASE_URL` | backend | Optional DB override (SQLite default; Postgres if set) |
 | `VITE_API_URL` | frontend | Backend URL (default: `http://localhost:8100`) |
 | `CORS_ALLOWED_ORIGINS` | backend | Allowed frontend origins |
 | `BARK_BLOCK_PRIVATE_NETWORKS` | backend | SSRF protection toggle (default: true) |
@@ -114,7 +111,7 @@ npm run dev
 
 ## Notes
 
-- SQLite is default for local dev; settings auto-enables WAL mode + 30s timeout for multi-process (API + worker)
+- SQLite for both dev and production; settings auto-enables WAL mode + 30s timeout for multi-process (API + worker)
 - Frontend stack: React 19 + TypeScript, Vite, React Router, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui ecosystem, and `react-hook-form` + `zod`
 - Backend uses `APP_BASE_URL` setting for email verification links (points to frontend app URL)
 - Edge has no durable retries or message persistence — best-effort HTTP dispatch only
