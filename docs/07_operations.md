@@ -4,11 +4,12 @@
 
 ## Runtime processes
 
-1) `backend`: Django app (serves JSON APIs + ingest)
-2) `frontend`: React 19 + TypeScript SPA (Vite build, React Router dashboard UI)
-3) `worker`: background delivery worker (polls DB, sends Bark/ntfy/MQTT)
+1. `backend`: Django app (serves JSON APIs + ingest)
+2. `frontend`: React 19 + TypeScript SPA (Vite build, React Router dashboard UI)
+3. `worker`: background delivery worker (polls DB, sends Bark/ntfy/MQTT)
 
 Frontend UI stack:
+
 - Tailwind CSS v4 via `@tailwindcss/vite`
 - shadcn/ui ecosystem (Radix primitives, CVA, `clsx`, `tailwind-merge`)
 - `react-hook-form` + `zod` for form handling and validation
@@ -22,7 +23,6 @@ Proposed env vars:
 - `DJANGO_SECRET_KEY`
 - `DJANGO_ALLOWED_HOSTS`
 - `DJANGO_DEBUG` (false in prod)
-- `DATABASE_URL` (Postgres)
 - `JWT_SIGNING_KEY` (or reuse `DJANGO_SECRET_KEY`; recommended separate key)
 - `JWT_ACCESS_TTL_SECONDS=900`
 - `JWT_REFRESH_TTL_SECONDS=2592000` (30 days)

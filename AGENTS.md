@@ -101,7 +101,7 @@ npm run dev
 | `JWT_SIGNING_KEY` | backend | JWT token signing |
 | `TOKEN_HASH_KEY` | backend | Ingest token hashing |
 | `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Fernet key for channel configs |
-| `DATABASE_URL` | backend | Postgres connection (sqlite fallback) |
+| `DATABASE_URL` | backend | Optional DB override (SQLite default; Postgres if set) |
 | `VITE_API_URL` | frontend | Backend URL (default: `http://localhost:8100`) |
 | `CORS_ALLOWED_ORIGINS` | backend | Allowed frontend origins |
 | `BARK_BLOCK_PRIVATE_NETWORKS` | backend | SSRF protection toggle (default: true) |
