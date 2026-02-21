@@ -4,7 +4,7 @@
 
 This document describes HTTP endpoints at a high level. The app will expose:
 
-- **Dashboard UI** (Next.js) under `/`
+- **Dashboard UI** (React SPA) under `/`
 - **Backend JSON API** under `/api/...`
 - **Ingest API** under `/api/ingest/{endpoint_id}` (public, header-authenticated)
 
@@ -33,7 +33,7 @@ Recommended endpoints:
 
 ## Auth (dashboard routes)
 
-Dashboard pages are implemented in Next.js (paths are suggested):
+Dashboard pages are implemented in React Router (paths are suggested):
 
 - `/signup`, `/login`, `/forgot-password`
 - `/verify-email?token=...`

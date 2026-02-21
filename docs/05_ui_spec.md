@@ -4,7 +4,7 @@
 
 ## Tech (decision)
 
-- Framework: **Next.js (latest stable)** using the **App Router**
+- Framework: **React 19 + Vite** with **React Router**
 - Language: TypeScript
 - Styling: Tailwind CSS
 - UI components: shadcn/ui (or equivalent lightweight component set)

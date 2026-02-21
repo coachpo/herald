@@ -7,7 +7,7 @@ This repository contains design documents and an initial v0.1 implementation.
 Implementation lives in **git submodules**:
 
 - `backend/` — Django backend + worker
-- `frontend/` — Next.js dashboard (latest stable)
+- `frontend/` — React 19 + Vite dashboard
 
 ## Scope (v0.1)
 

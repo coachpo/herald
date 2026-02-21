@@ -33,7 +33,7 @@ Proposed env vars:
 
 ### Backend app URL
 
-- `NEXT_PUBLIC_BASE_URL` (used by backend for verification/reset email links)
+- `APP_BASE_URL` (used by backend for verification/reset email links)
 
 ### Email (SMTP)
 

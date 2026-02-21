@@ -11,7 +11,7 @@
    - Email sending for verification + password reset (SMTP)
    - JWT auth for dashboard APIs (no Django session cookies)
 
-2) **Next.js dashboard (latest stable)**
+2) **React 19 + Vite dashboard**
    - Web UI routes under `/`
    - Calls backend JSON APIs under `/api/*`
 
@@ -37,7 +37,7 @@
 To keep auth simple, host dashboard + backend on the **same origin**:
 
 - `/api/*` → Django backend
-- everything else → Next.js
+- everything else → React SPA (Vite build, served by nginx)
 
 This avoids cross-origin complexity for auth and keeps the mental model simple.
 

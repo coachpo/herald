@@ -23,7 +23,7 @@ services:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure}
-      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3100}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3100}
 
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-insecure}
       TOKEN_HASH_KEY: ${TOKEN_HASH_KEY:-}

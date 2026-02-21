@@ -116,6 +116,6 @@ npm run dev
 
 - SQLite is default for local dev; settings auto-enables WAL mode + 30s timeout for multi-process (API + worker)
 - Frontend stack: React 19 + TypeScript, Vite, React Router, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui ecosystem, and `react-hook-form` + `zod`
-- Backend uses `NEXT_PUBLIC_BASE_URL` setting for email verification links (points to frontend app URL)
+- Backend uses `APP_BASE_URL` setting for email verification links (points to frontend app URL)
 - Edge has no durable retries or message persistence — best-effort HTTP dispatch only
 - MQTT channel type is backend-only (no TCP sockets in Workers)
