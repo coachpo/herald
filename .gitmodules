@@ -1,12 +1,12 @@
 [submodule "backend"]
 	path = backend
-	url = https://github.com/coachpo/beacon-spear-backend.git
+	url = https://github.com/coachpo/herald-backend.git
 	branch = main
 [submodule "frontend"]
 	path = frontend
-	url = https://github.com/coachpo/beacon-spear-frontend.git
+	url = https://github.com/coachpo/herald-frontend.git
 	branch = main
 [submodule "edge"]
 	path = edge
-	url = https://github.com/coachpo/beacon-spear-edge.git
+	url = https://github.com/coachpo/herald-edge.git
 	branch = main

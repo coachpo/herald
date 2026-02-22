@@ -1,4 +1,4 @@
-# Architecture — Beacon Spear v1.0
+# Architecture — Herald v1.0
 
 > **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
@@ -6,7 +6,7 @@
 
 1) **Django backend**
    - JSON APIs for the dashboard
-   - Ingest endpoint: `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID; requires `X-Beacon-Ingest-Key`)
+   - Ingest endpoint: `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID; requires `X-Herald-Ingest-Key`)
    - Accepts structured JSON payloads (title, body, priority, tags, group, url, extras)
    - Email sending for verification + password reset (SMTP)
    - JWT auth for dashboard APIs (no Django session cookies)
@@ -30,7 +30,7 @@
 - Dashboard: JWT access token sent as `Authorization: Bearer <token>`
   - Backend issues short-lived access JWTs
   - Dashboard refreshes access tokens using a refresh token
-- Ingest API: `endpoint_id` in URL path + `X-Beacon-Ingest-Key` header; no JWT required
+- Ingest API: `endpoint_id` in URL path + `X-Herald-Ingest-Key` header; no JWT required
 
 ## Deployment routing (simple)
 
@@ -83,7 +83,7 @@ Standard Django-style flow:
 ## Message ingest flow
 
 1) Request `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID)
-2) Identify ingest endpoint by id; validate `X-Beacon-Ingest-Key` (constant-time compare against stored hash)
+2) Identify ingest endpoint by id; validate `X-Herald-Ingest-Key` (constant-time compare against stored hash)
 3) Enforce:
    - `Content-Type: application/json` required (reject with `415` otherwise)
    - body size ≤ 1MB (reject > 1MB with `413`)

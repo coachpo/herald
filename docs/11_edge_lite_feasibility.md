@@ -1,10 +1,10 @@
-# Edge "Beacon Spear Lite" Feasibility Assessment
+# Edge "Herald Lite" Feasibility Assessment
 
 Date: 2026-02-19
 
 ## Context
 
-Goal: evaluate whether `edge/` can become a headless "beacon-spear lite" Cloudflare Worker by consuming exported configuration from the main application.
+Goal: evaluate whether `edge/` can become a headless "herald lite" Cloudflare Worker by consuming exported configuration from the main application.
 
 Reviewed sources:
 
@@ -55,7 +55,7 @@ A per-user edge config payload would include:
 - accepts `POST /api/ingest/{endpoint_id}`
 - validates incoming key(s)
 - appends/forwards query params
-- rewrites `X-Beacon-Ingest-Key` for upstream hop
+- rewrites `X-Herald-Ingest-Key` for upstream hop
 - forwards body as-is
 - does **not** validate message payload
 - does **not** evaluate rules
@@ -96,7 +96,7 @@ A truly headless-lite worker would likely be:
 
 ## Conclusion
 
-- **Yes**, a Cloudflare Worker "beacon-spear lite" is viable for **HTTP-based forwarding** (Bark + ntfy), with config exported from backend and consumed at edge.
+- **Yes**, a Cloudflare Worker "herald lite" is viable for **HTTP-based forwarding** (Bark + ntfy), with config exported from backend and consumed at edge.
 - **No**, it is not functionally equivalent to the full backend+worker architecture without additional infrastructure.
 - Without extra state services, this should be framed as:
   - stateless ingest + rules + template + HTTP fanout
@@ -118,5 +118,5 @@ A truly headless-lite worker would likely be:
 
 Call this mode:
 
-- **"Beacon Spear Lite (Edge)"** = low-latency, HTTP-channel, best-effort forwarding
-- **Full Beacon Spear** = persistent storage, durable retries, full provider support including MQTT
+- **"Herald Lite (Edge)"** = low-latency, HTTP-channel, best-effort forwarding
+- **Full Herald** = persistent storage, durable retries, full provider support including MQTT

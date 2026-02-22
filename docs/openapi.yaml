@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
-  title: Beacon Spear API (v1.0)
+  title: Herald API (v1.0)
   version: 1.0.0
   description: |
     Breaking upgrade from v0.2. No backward compatibility.
 
-    Beacon Spear provides:
-    - a public ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Beacon-Ingest-Key`, accepts structured JSON)
+    Herald provides:
+    - a public ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Herald-Ingest-Key`, accepts structured JSON)
     - authenticated JSON APIs for the web dashboard under `/api/*`
 
     Authenticated endpoints use JWT access tokens via `Authorization: Bearer <token>`.
@@ -29,7 +29,7 @@ components:
     ingestKeyAuth:
       type: apiKey
       in: header
-      name: X-Beacon-Ingest-Key
+      name: X-Herald-Ingest-Key
   parameters:
     IdParam:
       name: id

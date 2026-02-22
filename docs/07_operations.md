@@ -1,4 +1,4 @@
-# Operations — Beacon Spear v1.0
+# Operations — Herald v1.0
 
 > **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 

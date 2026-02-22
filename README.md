@@ -1,6 +1,6 @@
-# Beacon Spear (Design Docs)
+# Herald (Design Docs)
 
-Beacon Spear is a small web app for ingesting arbitrary UTF-8 message payloads, storing them, and forwarding them via user-defined rules to notification channels (Bark v2 only in v0.1).
+Herald is a small web app for ingesting arbitrary UTF-8 message payloads, storing them, and forwarding them via user-defined rules to notification channels (Bark v2 only in v0.1).
 
 This repository contains design documents and an initial v0.1 implementation.
 

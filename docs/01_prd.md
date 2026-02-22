@@ -1,10 +1,10 @@
-# PRD — Beacon Spear v1.0
+# PRD — Herald v1.0
 
 > **Breaking upgrade from v0.2.** No backward compatibility with the v0.2 ingest API or message schema.
 
 ## Summary
 
-Beacon Spear provides:
+Herald provides:
 
 1) A per-user message ingestion HTTP API that accepts **structured JSON payloads** with rich metadata (title, body, priority, tags, group, URL, and arbitrary extras).
 2) A web UI to manage users, ingest endpoints, messages, channels (Bark, ntfy, MQTT), and forwarding rules with a comprehensive template variable system.
@@ -120,7 +120,7 @@ Beacon Spear provides:
 
 - Endpoint: `POST /api/ingest/{endpoint_id}`
 - Canonical URL form uses a dashless UUID (32 hex chars); the server also accepts dashed UUIDs.
-- Auth: `X-Beacon-Ingest-Key: <ingest_key>`
+- Auth: `X-Herald-Ingest-Key: <ingest_key>`
 - Content-Type: must be `application/json`
 - Payload: JSON object with the following fields:
   - `body` (string, **required**) — main notification content

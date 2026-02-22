@@ -16,7 +16,7 @@ This document describes the Bark provider (Bark API v2).
 
 Bark v2 expects a JSON object with specific key names. Some “boolean” flags are represented as the string `"1"` instead of a JSON boolean.
 
-Beacon Spear design:
+Herald design:
 
 - **Channel** stores `server_base_url` and `device_key` (or `device_keys`) as secrets.
 - **Rule** stores the rest of the Bark payload as a template.

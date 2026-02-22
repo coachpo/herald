@@ -1,6 +1,6 @@
-# Repo structure — Beacon Spear v1.0
+# Repo structure — Herald v1.0
 
-Beacon Spear is organized as a small “meta” repository:
+Herald is organized as a small "meta" repository:
 
 - Root repo: design docs + top-level coordination
 - `backend/` git submodule: Django backend + worker

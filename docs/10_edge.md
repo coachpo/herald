@@ -1,8 +1,8 @@
-# Edge — Beacon Spear Lite
+# Edge — Herald Lite
 
 > **v2.0 note:** The edge worker now runs exclusively in Lite mode. The previous proxy/forwarding mode (multi-hop routing, EdgeOne support, env-var-based config) has been removed. All configuration is via Cloudflare KV.
 
-The `edge/` Cloudflare Worker runs Beacon Spear in lite mode: local rule evaluation, template rendering, and HTTP dispatch to Bark/ntfy.
+The `edge/` Cloudflare Worker runs Herald in lite mode: local rule evaluation, template rendering, and HTTP dispatch to Bark/ntfy.
 
 ## How It Works
 
@@ -18,7 +18,7 @@ No backend round-trip required. Best-effort delivery.
 Edge accepts:
 
 - `POST /api/ingest/{endpoint_id}`
-  - header: `X-Beacon-Ingest-Key: <ingest_token>`
+  - header: `X-Herald-Ingest-Key: <ingest_token>`
   - body: JSON payload (validated locally by the worker)
 - `GET /healthz`
   - returns `{"ok": true, "mode": "lite"}`

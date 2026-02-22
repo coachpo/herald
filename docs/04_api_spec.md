@@ -1,4 +1,4 @@
-# API spec — Beacon Spear v1.0
+# API spec — Herald v1.0
 
 > **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
@@ -44,7 +44,7 @@ Dashboard pages are implemented in React Router (paths are suggested):
 ### POST /api/ingest/{endpoint_id}
 
 - Auth:
-  - required header: `X-Beacon-Ingest-Key: <ingest_key>`
+  - required header: `X-Herald-Ingest-Key: <ingest_key>`
   - endpoint identified by path parameter `{endpoint_id}`
   - canonical URL form uses a dashless UUID (32 hex chars); the server also accepts dashed UUIDs
 - Content-Type: `application/json` required (reject with `415` otherwise)
@@ -82,7 +82,7 @@ Example request:
 
 ```bash
 curl -X POST https://example.com/api/ingest/abcdef1234567890abcdef1234567890 \
-  -H "X-Beacon-Ingest-Key: my-secret-key" \
+  -H "X-Herald-Ingest-Key: my-secret-key" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Deploy failed",
@@ -103,7 +103,7 @@ Minimal request (only required field):
 
 ```bash
 curl -X POST https://example.com/api/ingest/abcdef1234567890abcdef1234567890 \
-  -H "X-Beacon-Ingest-Key: my-secret-key" \
+  -H "X-Herald-Ingest-Key: my-secret-key" \
   -H "Content-Type: application/json" \
   -d '{"body": "Something happened"}'
 ```

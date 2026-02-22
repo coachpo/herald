@@ -1,10 +1,10 @@
-# Security & privacy — Beacon Spear v1.0
+# Security & privacy — Herald v1.0
 
 > **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
 This app has two primary attack surfaces:
 
-- public ingest endpoints (`endpoint_id` in URL + `X-Beacon-Ingest-Key` header)
+- public ingest endpoints (`endpoint_id` in URL + `X-Herald-Ingest-Key` header)
 - self-signup and email flows
 
 ## Authentication & sessions
@@ -53,7 +53,7 @@ Security note:
 If you deploy edge forwarders (Cloudflare Workers / Tencent EdgeOne):
 
 - Treat edge forwarder keys as independent ingest keys.
-- Each hop should have its own `X-Beacon-Ingest-Key` and its own next-hop key.
+- Each hop should have its own `X-Herald-Ingest-Key` and its own next-hop key.
 - Store hop keys as secrets in the edge provider.
 - Limit hop depth to prevent routing loops.
 

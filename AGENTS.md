@@ -4,12 +4,12 @@
 
 ## Overview
 
-Beacon Spear — ingest arbitrary UTF-8 payloads via HTTP, store them, and forward to notification channels (Bark, ntfy, MQTT) via user-defined rules. Three independent packages connected by HTTP APIs; no shared code.
+Herald — ingest arbitrary UTF-8 payloads via HTTP, store them, and forward to notification channels (Bark, ntfy, MQTT) via user-defined rules. Three independent packages connected by HTTP APIs; no shared code.
 
 ## Structure
 
 ```
-beacon-spear/
+herald/
 ├── backend/        # Django 5 + DRF JSON API + delivery worker
 ├── frontend/       # React 19 + TypeScript + Vite + React Router dashboard UI
 ├── edge/           # Cloudflare Worker — lite mode (local rules, no backend)
@@ -23,13 +23,13 @@ Git submodules: `backend/`, `frontend/`, and `edge/` are submodules (see `.gitmo
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Domain models | `backend/beacon/models.py` | IngestEndpoint, Message, Channel, ForwardingRule, Delivery |
+| Domain models | `backend/core/models.py` | IngestEndpoint, Message, Channel, ForwardingRule, Delivery |
 | Auth (JWT, users) | `backend/accounts/` | Custom User (email-only), refresh token rotation with family_id |
 | API endpoints | `backend/api/urls.py` | All routes under `/api/` |
 | Ingest handler | `backend/api/ingest.py` | POST `/api/ingest/{endpoint_id}` (UUID or hex) |
-| Delivery worker | `backend/beacon/management/commands/deliveries_worker.py` | Polling loop, exponential backoff |
-| SSRF protection | `backend/beacon/ssrf.py` | Blocks loopback/private IPs for outbound URLs |
-| Channel encryption | `backend/beacon/crypto.py` | Fernet encryption for `Channel.config_json_encrypted` |
+| Delivery worker | `backend/core/management/commands/deliveries_worker.py` | Polling loop, exponential backoff |
+| SSRF protection | `backend/core/ssrf.py` | Blocks loopback/private IPs for outbound URLs |
+| Channel encryption | `backend/core/crypto.py` | Fernet encryption for `Channel.config_json_encrypted` |
 | Frontend auth | `frontend/src/lib/auth.tsx` | AuthProvider context, sessionStorage refresh tokens |
 | Frontend API client | `frontend/src/lib/api.ts` | `apiFetch()` — direct browser-to-backend, `credentials: "omit"` |
 | Frontend types | `frontend/src/lib/types.ts` | TypeScript types mirroring backend API responses |
@@ -60,7 +60,7 @@ No server-side proxy. Frontend calls backend directly from browser.
 
 ## Anti-Patterns (Do Not)
 
-- **Never disable SSRF checks** in `beacon/ssrf.py` — blocks loopback, link-local, private networks
+- **Never disable SSRF checks** in `core/ssrf.py` — blocks loopback, link-local, private networks
 - **Never log secrets** — device keys, access tokens, passwords, ingest keys
 - **Never commit `.env` files** or any credential material
 - **Never persist tokens in localStorage** — sessionStorage only (XSS = account takeover with JWT)
@@ -106,7 +106,7 @@ npm run dev
 ## CI/CD
 
 - GitHub Actions: `docker-images.yml` builds arm64 Docker images on push to main/tags
-- GHCR registry: `ghcr.io/{owner}/beacon-spear-backend`, `ghcr.io/{owner}/beacon-spear-frontend`
+- GHCR registry: `ghcr.io/{owner}/herald-backend`, `ghcr.io/{owner}/herald-frontend`
 - Cleanup workflow: daily prune of old workflow runs + untagged container images
 
 ## Notes

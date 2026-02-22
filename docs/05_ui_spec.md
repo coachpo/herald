@@ -1,4 +1,4 @@
-# UI spec — Beacon Spear v1.0
+# UI spec — Herald v1.0
 
 > **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
 
@@ -25,7 +25,7 @@
 ## Theme
 
 - Theme toggle cycles: `System → Light → Dark`.
-- Persistence: `localStorage` key `beacon_theme`.
+- Persistence: `localStorage` key `herald_theme`.
 - Implementation: `<html data-theme="light|dark">` when set; unset for System.
 
 ## Pages
