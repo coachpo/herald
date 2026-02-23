@@ -20,6 +20,8 @@ tags:
   - name: channels
   - name: rules
   - name: deliveries
+  - name: health
+  - name: edge
 components:
   securitySchemes:
     bearerAuth:
@@ -1414,3 +1416,90 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/Delivery" }
                 required: [deliveries]
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Returns server health status. No authentication required.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                required: [status]
+  /api/edge-config:
+    get:
+      tags: [edge]
+      security: [{ bearerAuth: [] }]
+      summary: Get edge configuration snapshot
+      description: |
+        Returns a snapshot of the user's ingest endpoints, channels (Bark/ntfy only),
+        and forwarding rules for edge worker consumption. MQTT channels are excluded.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  ingest_endpoints:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        id: { $ref: "#/components/schemas/UUID" }
+                        name: { type: string }
+                        token_hash: { type: string }
+                      required: [id, name, token_hash]
+                  channels:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        id: { $ref: "#/components/schemas/UUID" }
+                        type:
+                          type: string
+                          enum: [bark, ntfy]
+                        name: { type: string }
+                        config:
+                          type: object
+                          description: Decrypted channel configuration
+                      required: [id, type, name, config]
+                  rules:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        id: { $ref: "#/components/schemas/UUID" }
+                        name: { type: string }
+                        filter:
+                          type: object
+                          description: Rule filter criteria
+                        channel_id: { $ref: "#/components/schemas/UUID" }
+                        payload_template:
+                          type: object
+                          description: Rendered payload template
+                      required: [id, name, filter, channel_id, payload_template]
+                  updated_at: { $ref: "#/components/schemas/Timestamp" }
+                  version:
+                    type: string
+                    description: First 16 characters of SHA-256 hash of config JSON
+                    pattern: "^[0-9a-f]{16}$"
+                required: [ingest_endpoints, channels, rules, updated_at, version]
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }

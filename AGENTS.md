@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Generated:** 2026-02-22 **Commit:** bf27d57 **Branch:** main
+**Generated:** 2026-02-23 **Commit:** cf2f6e5 **Branch:** main
 
 ## Overview
 
@@ -112,7 +112,7 @@ npm run dev
 ## Notes
 
 - SQLite for both dev and production; settings auto-enables WAL mode + 30s timeout for multi-process (API + worker)
-- Frontend stack: React 19 + TypeScript, Vite, React Router, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui ecosystem, and `react-hook-form` + `zod`
+- Frontend stack: React 19 + TypeScript, Vite, React Router, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui ecosystem. Forms use plain React state (`useState`); `react-hook-form` and `zod` are installed but currently unused
 - Backend uses `APP_BASE_URL` setting for email verification links (points to frontend app URL)
 - Edge has no durable retries or message persistence — best-effort HTTP dispatch only
 - MQTT channel type is backend-only (no TCP sockets in Workers)

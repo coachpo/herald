@@ -13,14 +13,13 @@ This doc defines the logical schema. Implementation may use Django models + migr
 - `password_hash`
 - `email_verified_at` (nullable)
 - `created_at`
-- `last_login_at`
 - `is_active`
 
 Related:
 
 - `email_verification_tokens(user_id, token_hash, expires_at, used_at)`
 - `password_reset_tokens(user_id, token_hash, expires_at, used_at)`
-- `refresh_tokens(user_id, token_hash, expires_at, revoked_at, last_used_at)`
+- `refresh_tokens(user_id, token_hash, family_id, replaced_by, expires_at, revoked_at, revoked_reason, last_used_at, ip, user_agent, created_at, updated_at)`
 
 Notes:
 

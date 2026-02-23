@@ -268,3 +268,47 @@ Worker performs:
   - if template renders an object with `body`/`payload`/`message`, use that value
   - otherwise, publish the rendered object (JSON-encoded) or string
   - if no template is defined, publish a JSON object with all message fields (title, body, group, priority, tags, url, extras)
+
+## Health check
+
+### GET /health
+
+- Auth: none (public)
+- Response: `200 OK`
+
+```json
+{ "status": "ok" }
+```
+
+This endpoint is at the root level, not under `/api/`.
+
+## Edge config
+
+### GET /api/edge-config
+
+- Auth: `Authorization: Bearer <access_token>` (JWT required)
+- Response: `200 OK`
+
+```json
+{
+  "ingest_endpoints": [
+    { "id": "uuid", "name": "string", "token_hash": "string" }
+  ],
+  "channels": [
+    { "id": "uuid", "type": "bark|ntfy", "name": "string", "config": { ... } }
+  ],
+  "rules": [
+    { "id": "uuid", "name": "string", "filter": { ... }, "channel_id": "uuid", "payload_template": { ... } }
+  ],
+  "updated_at": "ISO-8601 timestamp",
+  "version": "16-char hex string (sha256 prefix)"
+}
+```
+
+Notes:
+
+- Only returns Bark and ntfy channels (MQTT channels are excluded — no TCP sockets in edge workers).
+- Only returns rules whose channel is Bark/ntfy and not disabled.
+- Only returns ingest endpoints that are not revoked or deleted.
+- `config` contains the decrypted channel configuration (server URL, device key, topic, etc.).
+- `version` is the first 16 characters of the SHA-256 hash of the config JSON (for cache invalidation).
