@@ -132,10 +132,7 @@ components:
       additionalProperties: false
       properties:
         password: { type: string }
-        confirm:
-          type: string
-          description: Must equal "DELETE".
-      required: [password, confirm]
+      required: [password]
     IngestEndpoint:
       type: object
       additionalProperties: false
