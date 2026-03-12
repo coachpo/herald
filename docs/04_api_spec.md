@@ -1,314 +1,151 @@
-# API spec — Herald v1.0
+# API Guide
 
-> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
+`docs/openapi.yaml` is the schema source of truth. This file is the human-readable overview of the same API.
 
-This document describes HTTP endpoints at a high level. The app will expose:
+## Authentication
 
-- **Dashboard UI** (React SPA) under `/`
-- **Backend JSON API** under `/api/...`
-- **Ingest API** under `/api/ingest/{endpoint_id}` (public, header-authenticated)
+### Dashboard APIs
 
-## Auth (backend JSON, JWT)
+- Access token via `Authorization: Bearer <token>`
+- Refresh token sent in JSON body to `POST /api/auth/refresh`
+- Browser requests use `credentials: "omit"`
+- Unverified users can log in and read, but unsafe resource methods are blocked
 
-Backend uses JWT access tokens for authenticated endpoints.
+### Ingest API
 
-- Authenticated requests must include:
-  - `Authorization: Bearer <access_token>`
-- The backend does **not** use Django session cookies for auth.
+- `POST /api/ingest/{endpoint_id}`
+- Header: `X-Herald-Ingest-Key`
+- Accepts dashed UUID and dashless hex endpoint IDs
 
-Recommended endpoints:
+## Auth Endpoints
 
-- `POST /api/auth/signup` — create account + send verification email
-- `POST /api/auth/login` — returns access JWT + refresh token
-- `POST /api/auth/refresh` — body `{ "refresh_token": "..." }` → returns new access JWT + refresh token (refresh token rotation)
-- `POST /api/auth/logout` — body `{ "refresh_token": "..." }` (optional) → revokes refresh token; client can also drop tokens locally
-- `GET /api/auth/me` — current user + verification status (requires Authorization)
-- `POST /api/auth/resend-verification` — send a new verification email (rate limited)
-- `POST /api/auth/verify-email` — verify using one-time token
-- `POST /api/auth/forgot-password` — send reset email (rate limited)
-- `POST /api/auth/reset-password` — set new password using one-time token
-- `POST /api/auth/change-email` — change email + re-verify
-- `POST /api/auth/change-password` — change password
-- `POST /api/auth/delete-account` — permanently delete account
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `POST /api/auth/resend-verification`
+- `POST /api/auth/verify-email`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+- `POST /api/auth/change-email`
+- `POST /api/auth/change-password`
+- `POST /api/auth/delete-account`
 
-## Auth (dashboard routes)
+Behavior notes:
 
-Dashboard pages are implemented in React Router (paths are suggested):
+- Signup can be disabled by backend settings.
+- Refresh token rotation is mandatory; clients must store the newest refresh token returned.
+- Password reset and password change revoke all refresh tokens.
 
-- `/signup`, `/login`, `/forgot-password`
-- `/verify-email?token=...`
-- `/reset-password?token=...`
+## Ingest Contract
 
-## Ingest API
+### Endpoint
 
-### POST /api/ingest/{endpoint_id}
+- `POST /api/ingest/{endpoint_id}`
 
-- Auth:
-  - required header: `X-Herald-Ingest-Key: <ingest_key>`
-  - endpoint identified by path parameter `{endpoint_id}`
-  - canonical URL form uses a dashless UUID (32 hex chars); the server also accepts dashed UUIDs
-- Content-Type: `application/json` required (reject with `415` otherwise)
-- Body: structured JSON object
-- Required fields:
-  - `body` (string) — main notification content; must be non-empty
-- Optional fields:
-  - `title` (string) — notification title
-  - `group` (string) — grouping identifier for organizing notifications
-  - `priority` (integer 1–5; default 3) — 1=lowest, 2=low, 3=normal, 4=high, 5=critical
-  - `tags` (array of strings; default `[]`) — labels/categories for filtering
-  - `url` (string) — action URL (must be a valid URL if provided)
-  - `extras` (object with string values; default `{}`) — arbitrary key-value pairs for custom data
-- Unknown top-level keys are rejected with `422`.
-- Limits:
-  - `Content-Length` must be ≤ 1MB when present
-  - if absent, read up to 1MB+1; reject if exceeded
-- Stores:
-  - structured fields (title, body, group, priority, tags, url, extras)
-  - content type
-  - query params
-  - remote IP/user agent
-  - headers (redacted)
-- Response:
-  - `201 Created` with `{ "message_id": "..." }`
-- Errors:
-  - `400` invalid JSON or invalid UTF-8
-  - `401` auth failure (missing/invalid key, unknown/revoked endpoint)
-  - `403` user not verified or disabled (if enforced)
-  - `413` payload too large
-  - `415` Content-Type is not `application/json`
-  - `422` validation error (missing `body`, invalid `priority` range, unknown keys, etc.)
+### Required request shape
 
-Example request:
+- `Content-Type: application/json`
+- JSON object
+- `body` must be a non-empty string
 
-```bash
-curl -X POST https://example.com/api/ingest/abcdef1234567890abcdef1234567890 \
-  -H "X-Herald-Ingest-Key: my-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Deploy failed",
-    "body": "Production deploy #1234 failed at step 3",
-    "group": "deploys",
-    "priority": 4,
-    "tags": ["deploy", "production", "failure"],
-    "url": "https://ci.example.com/builds/1234",
-    "extras": {
-      "build_id": "1234",
-      "environment": "production",
-      "commit": "abc123f"
-    }
-  }'
-```
+### Optional fields
 
-Minimal request (only required field):
+- `title`
+- `group`
+- `priority` (1-5, default 3)
+- `tags` (array of strings)
+- `url` (valid URL string)
+- `extras` (object of string values)
 
-```bash
-curl -X POST https://example.com/api/ingest/abcdef1234567890abcdef1234567890 \
-  -H "X-Herald-Ingest-Key: my-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"body": "Something happened"}'
-```
+### Validation and errors
 
-## Optional edge forwarders
+- `400` for invalid UTF-8 or invalid JSON
+- `401` for unknown endpoint, missing key, wrong key, revoked endpoint, or deleted endpoint
+- `403` when the endpoint's user is inactive or ingest is blocked for unverified email
+- `413` for payloads above configured size
+- `415` for non-JSON content types
+- `422` for schema/validation failures such as missing `body` or unknown top-level keys
 
-Edge forwarders (Cloudflare Workers / Tencent EdgeOne) can proxy the ingest API.
+### Success response
 
-See `docs/10_edge.md`.
+- `201` with `{ "message_id": "..." }`
 
-## App JSON API (authenticated)
-
-All endpoints (except ingest and auth endpoints as noted) require:
-
-- `Authorization: Bearer <access_token>`
-- verified email (for mutating actions)
+## Resource APIs
 
 ### Ingest endpoints
 
 - `GET /api/ingest-endpoints`
-- `POST /api/ingest-endpoints` → returns ingest key once
+- `POST /api/ingest-endpoints`
 - `POST /api/ingest-endpoints/{id}/revoke`
-- `DELETE /api/ingest-endpoints/{id}` (archive/hide)
+- `DELETE /api/ingest-endpoints/{id}`
+
+`POST` returns the ingest key once together with the created endpoint and canonical ingest URL.
 
 ### Messages
 
 - `GET /api/messages`
-  - filters: `ingest_endpoint_id`, `q` (substring on body), `group`, `priority_min`, `priority_max`, `tag`, `from`, `to`
 - `GET /api/messages/{id}`
 - `DELETE /api/messages/{id}`
 - `POST /api/messages/batch-delete`
-  - body: `{ "older_than_days": 30, "ingest_endpoint_id": "..."? }`
+- `GET /api/messages/{id}/deliveries`
 
-### Channels (bark/ntfy/mqtt)
+Supported list filters:
+
+- `ingest_endpoint_id`
+- `q`
+- `group`
+- `priority_min`
+- `priority_max`
+- `tag`
+- `from`
+- `to`
+
+### Channels
 
 - `GET /api/channels`
-- `POST /api/channels` (type=bark|ntfy|mqtt)
+- `POST /api/channels`
 - `GET /api/channels/{id}`
 - `PATCH /api/channels/{id}`
-  - `DELETE /api/channels/{id}`
+- `DELETE /api/channels/{id}`
 - `POST /api/channels/{id}/test`
-  - sends a test notification immediately (no ingest/worker)
-  - body supports optional `title`, `body`, and `payload_json` (provider-specific)
 
-Request shape:
-
-```json
-{
-  "type": "bark|ntfy|mqtt",
-  "name": "...",
-  "config": {
-    "...": "type-specific"
-  }
-}
-```
-
-Notes:
-
-- `PATCH /api/channels/{id}` requires `type` to match the existing channel.
-- `config` validation depends on `type`.
+Channel test sends immediately and returns provider metadata. It does not create a stored message or delivery row.
 
 ### Rules
 
 - `GET /api/rules`
 - `POST /api/rules`
-- `POST /api/rules/test`
-  - body: sample message payload + endpoint id
-  - returns: which rules would trigger + rendered payload previews (without sending)
 - `GET /api/rules/{id}`
 - `PATCH /api/rules/{id}`
 - `DELETE /api/rules/{id}`
+- `POST /api/rules/test`
 - `POST /api/rules/{id}/test`
-  - body: sample message payload + endpoint id
-  - returns: whether it matches, the channel type, and the rendered payload template (without sending)
 
-### Deliveries (optional endpoints)
+Rule test endpoints only evaluate filters and render payload previews. They do not dispatch notifications.
 
-- `GET /api/messages/{id}/deliveries`
+## Template Variables
 
-## Template rendering
+Templates can reference:
 
-Rule's `payload_template_json` supports templating in string values.
+- `{{message.id}}`, `{{message.received_at}}`, `{{message.title}}`, `{{message.body}}`
+- `{{message.group}}`, `{{message.priority}}`, `{{message.tags}}`, `{{message.url}}`
+- `{{message.extras.<key>}}`
+- `{{request.content_type}}`, `{{request.remote_ip}}`, `{{request.user_agent}}`
+- `{{request.headers.<name>}}`, `{{request.query.<name>}}`
+- `{{ingest_endpoint.id}}`, `{{ingest_endpoint.name}}`
 
-Available variables:
+Rendering rules:
 
-### Message fields (from ingested payload)
+- Missing values render as empty strings
+- Priority renders as a string in template output
+- Tags render as a comma-joined string
 
-- `{{message.id}}`
-- `{{message.received_at}}` — ISO 8601 timestamp
-- `{{message.title}}` — notification title (empty string if not provided)
-- `{{message.body}}` — main notification content
-- `{{message.group}}` — grouping identifier (empty string if not provided)
-- `{{message.priority}}` — integer 1–5
-- `{{message.tags}}` — comma-separated string of tags (e.g., `"deploy,production,failure"`)
-- `{{message.url}}` — action URL (empty string if not provided)
-- `{{message.extras.<key>}}` — arbitrary extras by key (e.g., `{{message.extras.build_id}}`)
+## Health And Edge Snapshot
 
-### Request metadata (from the HTTP request)
+- Backend health: `GET /health`
+- Edge-lite health: `GET /healthz`
+- Edge snapshot export: `GET /api/edge-config`
 
-- `{{request.content_type}}`
-- `{{request.remote_ip}}`
-- `{{request.user_agent}}`
-- `{{request.headers.<name>}}` — request header by name (e.g., `{{request.headers.x-custom-header}}`); redacted headers return `[REDACTED]`
-- `{{request.query.<name>}}` — query parameter by name (e.g., `{{request.query.source}}`)
-
-### Ingest endpoint
-
-- `{{ingest_endpoint.id}}`
-- `{{ingest_endpoint.name}}`
-
-### Rendering rules
-
-- Missing/null variables render as empty string `""`.
-- Variables are substituted as strings; no type coercion (priority renders as `"4"`, not integer `4`).
-- Nested dot-notation is supported for `extras`, `headers`, and `query`.
-- No conditional logic or filters (keep it simple).
-
-Example:
-
-```json
-{
-  "title": "[{{message.priority}}] {{message.title}}",
-  "body": "{{message.body}}\n\nGroup: {{message.group}}\nSource: {{ingest_endpoint.name}}\nIP: {{request.remote_ip}}",
-  "url": "{{message.url}}",
-  "group": "{{message.group}}",
-  "tags": "{{message.tags}}"
-}
-```
-
-## Bark v2 forwarding contract
-
-For each delivery, worker performs:
-
-- `POST {server_base_url}/push`
-- `Content-Type: application/json`
-- JSON payload is built as:
-  1) start with rule's rendered `payload_template_json`
-  2) merge channel `default_payload_json` (if defined) — rule template wins on conflicts
-  3) inject `device_key` (or `device_keys`) from channel config
-  4) if template omits `body`, use `message.body`
-  5) if template omits `title` and message has a title, use `message.title`
-
-UI must use the same JSON field names as Bark v2.
-
-## ntfy forwarding contract
-
-Worker performs:
-
-- `POST {server_base_url}/{topic}`
-- Request body: rendered template `body` (falls back to `message.body`)
-- Headers can be driven by template keys (e.g. `Title`, `Tags`, `Priority`) and merged with channel `default_headers_json`.
-- If template omits `Title` and message has a title, use `message.title`.
-- If template omits `Priority`, map `message.priority` to ntfy priority levels (1→min, 2→low, 3→default, 4→high, 5→urgent).
-- If template omits `Tags` and message has tags, use `message.tags` (comma-separated).
-
-## MQTT forwarding contract
-
-Worker performs:
-
-- publish to broker `{broker_host}:{broker_port}` on `topic`
-- Payload is derived from rendered template:
-  - if template renders an object with `body`/`payload`/`message`, use that value
-  - otherwise, publish the rendered object (JSON-encoded) or string
-  - if no template is defined, publish a JSON object with all message fields (title, body, group, priority, tags, url, extras)
-
-## Health check
-
-### GET /health
-
-- Auth: none (public)
-- Response: `200 OK`
-
-```json
-{ "status": "ok" }
-```
-
-This endpoint is at the root level, not under `/api/`.
-
-## Edge config
-
-### GET /api/edge-config
-
-- Auth: `Authorization: Bearer <access_token>` (JWT required)
-- Response: `200 OK`
-
-```json
-{
-  "ingest_endpoints": [
-    { "id": "uuid", "name": "string", "token_hash": "string" }
-  ],
-  "channels": [
-    { "id": "uuid", "type": "bark|ntfy", "name": "string", "config": { ... } }
-  ],
-  "rules": [
-    { "id": "uuid", "name": "string", "filter": { ... }, "channel_id": "uuid", "payload_template": { ... } }
-  ],
-  "updated_at": "ISO-8601 timestamp",
-  "version": "16-char hex string (sha256 prefix)"
-}
-```
-
-Notes:
-
-- Only returns Bark and ntfy channels (MQTT channels are excluded — no TCP sockets in edge workers).
-- Only returns rules whose channel is Bark/ntfy and not disabled.
-- Only returns ingest endpoints that are not revoked or deleted.
-- `config` contains the decrypted channel configuration (server URL, device key, topic, etc.).
-- `version` is the first 16 characters of the SHA-256 hash of the config JSON (for cache invalidation).
+`GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy channels and rules for edge-lite consumption. MQTT is excluded.

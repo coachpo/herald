@@ -1,15 +1,14 @@
 openapi: 3.1.0
 info:
-  title: Herald API (v1.0)
-  version: 1.0.0
+  title: Herald API
+  version: current
   description: |
-    Breaking upgrade from v0.2. No backward compatibility.
+    Herald exposes:
+    - a public structured-ingest endpoint: `POST /api/ingest/{endpoint_id}`
+    - authenticated JSON APIs for the dashboard under `/api/*`
+    - an edge snapshot export for Cloudflare lite mode
 
-    Herald provides:
-    - a public ingest endpoint: `POST /api/ingest/{endpoint_id}` (requires `X-Herald-Ingest-Key`, accepts structured JSON)
-    - authenticated JSON APIs for the web dashboard under `/api/*`
-
-    Authenticated endpoints use JWT access tokens via `Authorization: Bearer <token>`.
+    Dashboard APIs use bearer access tokens in the `Authorization` header.
 servers:
   - url: https://example.com
 tags:
@@ -44,9 +43,10 @@ components:
       name: endpoint_id
       in: path
       required: true
+      description: Ingest endpoint ID. Backend accepts either dashless UUID hex or a dashed UUID string.
       schema:
         type: string
-        pattern: "^[0-9a-fA-F]{32}$"
+        pattern: "^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
   schemas:
     Error:
       type: object
@@ -291,6 +291,9 @@ components:
     BarkChannelConfig:
       type: object
       additionalProperties: false
+      oneOf:
+        - required: [server_base_url, device_key]
+        - required: [server_base_url, device_keys]
       properties:
         server_base_url:
           type: string
@@ -305,7 +308,6 @@ components:
         default_payload_json:
           type: object
           description: Arbitrary Bark v2 fields merged into every push.
-      required: [server_base_url]
     BarkChannelUpsertRequest:
       type: object
       additionalProperties: false
@@ -531,12 +533,15 @@ components:
         name: { type: string }
         enabled: { type: boolean }
         channel_id: { $ref: "#/components/schemas/UUID" }
-        filter: { $ref: "#/components/schemas/RuleFilter" }
+        filter:
+          $ref: "#/components/schemas/RuleFilter"
+          description: Optional filter object. Omit or send `{}` to match all messages.
         payload_template:
           type: object
           additionalProperties: true
           description: Payload template with {{variable}} substitution.
-      required: [name, enabled, channel_id, filter]
+          default: {}
+      required: [name, enabled, channel_id]
     RuleTestRequest:
       type: object
       additionalProperties: false
@@ -641,6 +646,7 @@ components:
         provider_response:
           type: object
           additionalProperties: true
+          description: Provider-specific metadata. Includes at least a `provider` field in current backend responses.
       required: [ok, channel_id, channel_type, provider_response]
     Delivery:
       type: object
@@ -649,7 +655,15 @@ components:
         id: { $ref: "#/components/schemas/UUID" }
         message_id: { $ref: "#/components/schemas/UUID" }
         rule_id: { $ref: "#/components/schemas/UUID" }
+        rule_name:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
         channel_id: { $ref: "#/components/schemas/UUID" }
+        channel_name:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
         status:
           type: string
           enum: [queued, sending, retry, sent, failed]
@@ -670,7 +684,7 @@ components:
           anyOf:
             - type: object
             - type: "null"
-      required: [id, message_id, rule_id, channel_id, status, attempt_count, next_attempt_at, sent_at, last_error, provider_response]
+      required: [id, message_id, rule_id, rule_name, channel_id, channel_name, status, attempt_count, next_attempt_at, sent_at, last_error, provider_response]
 paths:
   /api/auth/signup:
     post:
@@ -757,6 +771,11 @@ paths:
                 required: [access_token, refresh_token, user]
         "401":
           description: Not authenticated (missing/invalid refresh token)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Temporary backend unavailability (for example SQLite lock contention during refresh)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1003,6 +1022,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/IngestEndpointCreateResponse" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
   /api/ingest-endpoints/{id}/revoke:
     post:
       tags: [ingest_endpoints]
@@ -1013,6 +1034,8 @@ paths:
       responses:
         "204":
           description: Revoked
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:
@@ -1031,6 +1054,8 @@ paths:
       responses:
         "204":
           description: Archived
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:
@@ -1108,6 +1133,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/BatchDeleteResponse" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
   /api/messages/{id}:
     get:
       tags: [messages]
@@ -1140,6 +1167,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:
@@ -1178,6 +1207,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ChannelDetail" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
+        "503":
+          description: Temporary backend unavailability while writing the channel row
   /api/channels/{id}:
     get:
       tags: [channels]
@@ -1213,6 +1246,13 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ChannelDetail" }
+        "400":
+          description: Validation error or channel type mismatch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
     delete:
       tags: [channels]
       security: [{ bearerAuth: [] }]
@@ -1222,6 +1262,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:
@@ -1250,8 +1292,15 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: Provider send failed
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1293,6 +1342,8 @@ paths:
                 properties:
                   rule: { $ref: "#/components/schemas/Rule" }
                 required: [rule]
+        "403":
+          description: Permission denied or email not verified for unsafe methods
   /api/rules/test:
     post:
       tags: [rules]
@@ -1309,6 +1360,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RulesTestResponse" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:
@@ -1359,6 +1412,8 @@ paths:
                 properties:
                   rule: { $ref: "#/components/schemas/Rule" }
                 required: [rule]
+        "403":
+          description: Permission denied or email not verified for unsafe methods
     delete:
       tags: [rules]
       security: [{ bearerAuth: [] }]
@@ -1368,6 +1423,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:
@@ -1391,6 +1448,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RuleTestResponse" }
+        "403":
+          description: Permission denied or email not verified for unsafe methods
         "404":
           description: Not found
           content:

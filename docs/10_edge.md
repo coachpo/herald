@@ -1,61 +1,68 @@
-# Edge — Herald Lite
+# Edge Lite
 
-> **v2.0 note:** The edge worker now runs exclusively in Lite mode. The previous proxy/forwarding mode (multi-hop routing, EdgeOne support, env-var-based config) has been removed. All configuration is via Cloudflare KV.
+## Current Mode
 
-The `edge/` Cloudflare Worker runs Herald in lite mode: local rule evaluation, template rendering, and HTTP dispatch to Bark/ntfy.
+The `edge/` package is a Cloudflare Worker running Herald lite mode only. It does local validation, local rule evaluation, template rendering, and Bark/ntfy HTTP dispatch from a KV snapshot.
 
-## How It Works
+## Routes
 
-1. Receives `POST /api/ingest/{endpoint_id}` with a JSON body.
-2. Authenticates using `token_hash` from KV config.
-3. Evaluates forwarding rules locally (field matching, regex, keyword filters).
-4. Renders notification templates and dispatches to Bark or ntfy via HTTP.
-
-No backend round-trip required. Best-effort delivery.
-
-## Request Shape
-
-Edge accepts:
-
-- `POST /api/ingest/{endpoint_id}`
-  - header: `X-Herald-Ingest-Key: <ingest_token>`
-  - body: JSON payload (validated locally by the worker)
 - `GET /healthz`
-  - returns `{"ok": true, "mode": "lite"}`
+- `POST /api/ingest/{endpoint_id}`
 
-## Configuration
+## Ingest Handling
 
-All config is stored in Cloudflare KV (bound as `EDGE_CONFIG`, key `"config"`).
+For `POST /api/ingest/{endpoint_id}` the worker:
 
-The backend exports config via `GET /api/edge-config`. Push the JSON blob to KV.
+1. Loads the KV snapshot from `EDGE_CONFIG`, key `config`
+2. Finds the ingest endpoint by dashed or dashless UUID
+3. Compares `X-Herald-Ingest-Key` directly to the exported `token_hash`
+4. Validates the JSON payload and 1 MB size limit
+5. Evaluates matching rules
+6. Renders templates
+7. Dispatches Bark and/or ntfy requests in parallel
+8. Returns a `201` response with dispatch results
 
-Config includes per-endpoint:
+## KV Snapshot Shape
 
-- `token_hash` — SHA-256 hex of the ingest token (for auth)
-- `rules` — array of forwarding rules with filters, channel config, and payload templates
+Backend exports this shape from `GET /api/edge-config`:
 
-See `edge/README.md` for the full config shape.
+- `ingest_endpoints`: `{id, name, token_hash}`
+- `channels`: active Bark/ntfy channels with decrypted `config`
+- `rules`: enabled rules referencing those channels
+- `updated_at`
+- `version`
+
+MQTT is intentionally excluded from the snapshot.
+
+## Payload Validation
+
+Allowed top-level fields:
+
+- `body` (required)
+- `title`
+- `group`
+- `priority`
+- `tags`
+- `url`
+- `extras`
+
+The worker rejects unknown fields, missing body, invalid types, oversized payloads, and non-JSON content types.
 
 ## Supported Providers
 
-- Bark (HTTP API v2)
-- ntfy (HTTP publish)
-- MQTT: **not supported** (no TCP sockets in Workers)
+- Bark
+- ntfy
 
-## Limitations
+Not supported in edge-lite:
 
-- Best-effort delivery only. No durable retries or message persistence.
-- No message history or audit log at the edge.
-- User-supplied regex in rule filters could cause ReDoS.
+- MQTT
+- durable retries
+- stored message history
+- backend-style SSRF guardrails
 
-## Cloudflare Workers Free Tier Compatibility
+## Important Caveats
 
-The lite worker fits within CF Workers free tier limits:
-
-- ~1-3ms CPU per request (well under 10ms limit)
-- 1 subrequest per matched rule (well under 50 subrequest limit)
-- Config cached in memory after first KV read
-
-## Submodule
-
-Implementation lives in the `edge/` git submodule.
+- Current auth behavior is not backend-ingest parity: the worker expects the exported `token_hash` value directly.
+- Dispatch is best-effort only; failures are reported in the response body, not retried.
+- Regex filters can still be expensive; keep them simple.
+- `env._liteConfig` caching is in-process only and should not be treated as durable config state.

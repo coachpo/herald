@@ -1,77 +1,69 @@
-# Herald (Design Docs)
+# Herald
 
-Herald is a small web app for ingesting arbitrary UTF-8 message payloads, storing them, and forwarding them via user-defined rules to notification channels (Bark v2 only in v0.1).
+Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, or MQTT via user-defined rules.
 
-This repository contains design documents and an initial v0.1 implementation.
+This repository is the coordination layer around three git submodules:
 
-Implementation lives in **git submodules**:
+- `backend/` - Django 5.2 + DRF API + polling delivery worker
+- `frontend/` - React 19 + Vite + React Router dashboard
+- `edge/` - Cloudflare Worker lite mode (KV config, local rule eval, HTTP dispatch)
 
-- `backend/` — Django backend + worker
-- `frontend/` — React 19 + Vite dashboard
+## Current Feature Set
 
-## Scope (v0.1)
+- Email/password signup, login, refresh, verification, password reset, change email/password, delete account
+- Multiple ingest endpoints per user with token-based auth
+- Structured JSON ingest with `body` required and optional `title`, `group`, `priority`, `tags`, `url`, `extras`
+- Message history with filters, detail view, soft delete, and batch delete
+- Channel types: Bark, ntfy, MQTT
+- Forwarding rules with endpoint/body/priority/tag/group filters and Mustache-style payload templates
+- Background delivery worker with exponential backoff retries
+- Edge-lite mode for Bark/ntfy HTTP fanout from Cloudflare Workers
 
-- Self-signup (email + password) with **email verification**
-- Password reset via email (SMTP)
-- Per-user **multiple ingest endpoints** (token-based)
-- Ingest accepts **any** request body as **UTF-8 string**, **no validation**, **max 1MB** (reject oversize)
-- Store ingested messages in DB with request metadata (headers/query/ip/ua), with sensitive header redaction
-- Message list/detail + delete (single + batch delete “older than N days”)
-- Forwarding rules (CRUD): simple matching on `ingest_endpoint_id` and/or `payload_text`
-- One rule forwards to one channel; execute all matching rules; duplicates allowed
-- Channels: Bark (API v2) only; supports any Bark server; “mirror Bark fields” in UI
-- Delivery worker with at-least-once semantics and exponential backoff retries
+## Repository Layout
 
-## Documents
-
-- `docs/01_prd.md` — product requirements, user stories, acceptance criteria
-- `docs/02_architecture.md` — system architecture and data flows
-- `docs/03_data_model.md` — database schema and indexing
-- `docs/04_api_spec.md` — HTTP APIs (ingest + app API)
-- `docs/openapi.yaml` — OpenAPI 3.1 (JSON API + ingest)
-- `docs/05_ui_spec.md` — UI pages and UX behavior
-- `docs/06_security_privacy.md` — threat model, redaction, auth, tokens
-- `docs/07_operations.md` — configuration, deploy outline, worker ops
-- `docs/08_bark_v2.md` — Bark v2 payload + UI mirroring notes
-- `docs/09_repo_structure.md` — repo layout and submodule conventions
-- `docs/10_edge.md` — edge forwarders (EdgeOne + Cloudflare)
-
-## Open questions (to confirm before implementation)
-
-- Do you want any global admin functions (ban users, view system health), or user-only?
-- Should batch delete be soft-delete only, or also provide an irreversible “hard delete”?
-
-Current implementation defaults:
-- user-only (no global admin features beyond Django admin)
-- soft-delete only
-
-## Local dev (quick)
-
-Backend:
-
-```bash
-cd backend
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
+```text
+herald/
+├── backend/
+├── frontend/
+├── edge/
+├── docs/
+├── .github/workflows/
+└── start.sh
 ```
 
-Worker:
+## Docs
+
+- `docs/01_prd.md` - product scope and user-facing behavior
+- `docs/02_architecture.md` - runtime architecture and package communication
+- `docs/03_data_model.md` - backend entities and stored fields
+- `docs/04_api_spec.md` - human-readable API guide
+- `docs/openapi.yaml` - API schema source of truth
+- `docs/05_ui_spec.md` - implemented dashboard routes and pages
+- `docs/06_security_privacy.md` - tokens, SSRF, redaction, safety constraints
+- `docs/07_operations.md` - env vars, deploy/runtime notes, health endpoints
+- `docs/08_bark_v2.md` - Bark-specific provider behavior
+- `docs/09_repo_structure.md` - repo/submodule conventions
+- `docs/10_edge.md` - current Cloudflare lite runtime
+- `docs/11_edge_lite_feasibility.md` - edge-lite tradeoffs and scope boundaries
+
+## Quick Start
+
+Initialize submodules first:
 
 ```bash
-cd backend
-. .venv/bin/activate
-python manage.py deliveries_worker
+git submodule update --init --recursive
 ```
 
-Frontend:
+Run backend only:
 
 ```bash
-cd frontend
-pnpm install
-cp .env.example .env.local
-pnpm dev
+./start.sh headless
 ```
+
+Run backend + frontend:
+
+```bash
+./start.sh full
+```
+
+Manual package commands live in `docs/07_operations.md` and the package `AGENTS.md` files.

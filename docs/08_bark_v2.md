@@ -1,76 +1,65 @@
-# Bark API v2 integration notes
+# Bark Provider Notes
 
-This document describes the Bark provider (Bark API v2).
+## Current Backend Behavior
 
-## Endpoint pattern
+Backend Bark delivery is implemented in `backend/core/bark.py`.
 
-- Push endpoint: `POST {server_base_url}/push`
-- Health endpoints (optional for diagnostics):
-  - `GET {server_base_url}/ping`
-  - `GET {server_base_url}/healthz`
-  - `GET {server_base_url}/info`
+- Normal dispatch is `POST {server_base_url}/push` with JSON.
+- `server_base_url` is normalized to remove trailing slashes and duplicate `/push`.
+- If a POST returns `404` or `405`, backend falls back to the legacy GET URL form.
 
-`server_base_url` must be configurable per channel so users can target any Bark server (cloud or self-hosted).
+## Channel Config
 
-## Request payload (JSON)
-
-Bark v2 expects a JSON object with specific key names. Some “boolean” flags are represented as the string `"1"` instead of a JSON boolean.
-
-Herald design:
-
-- **Channel** stores `server_base_url` and `device_key` (or `device_keys`) as secrets.
-- **Rule** stores the rest of the Bark payload as a template.
-- Worker renders template → merges channel defaults → injects `device_key(s)` → `POST /push`.
-
-### Common fields (per Bark v2)
-
-Required:
-
-- `device_key` (string) — device key (or use `device_keys`)
-- `body` (string) — main content
-
-Optional:
-
-- `device_keys` (array of strings) — batch push
-- `title` (string)
-- `subtitle` (string)
-- `level` (string) — one of: `critical`, `active`, `timeSensitive`, `passive`
-- `volume` (string) — `0` to `1` (string form)
-- `badge` (number) — badge count
-- `call` (string) — must be `"1"` to repeat sound
-- `autoCopy` (string) — must be `"1"` to auto copy
-- `copy` (string) — text to copy
-- `sound` (string) — sound name
-- `icon` (string) — icon URL
-- `group` (string) — group identifier
-- `ciphertext` (string) — base64; encrypted payload mode
-- `isArchive` (string) — must be `"1"` to archive
-- `url` (string) — URL to open
-- `action` (string) — if set to `"none"`, tap does nothing
-
-## UI requirements (“mirror Bark fields”)
-
-Channel form must show:
+Stored encrypted in the channel config payload:
 
 - `server_base_url`
-- `device_key` (and optionally `device_keys`)
-- a JSON editor for `default_payload_json` (sent with every push)
+- `device_key` or `device_keys`
+- `default_payload_json`
 
-Rule form must show a “Bark payload” editor that uses **the same field names** as Bark v2.
+Notes:
 
-Because `device_key(s)` are secrets and stored on the channel, the rule editor should:
+- UI allows pasting a full Bark key URL and normalizes it into `server_base_url` plus `device_key`.
+- Bark channel validation requires `server_base_url` and at least one of `device_key` or `device_keys`.
 
-- either hide `device_key(s)` fields, or
-- show them as read-only values sourced from the selected channel
+## Rule Payload Template
 
-Additionally, provide a **raw JSON mode** that allows users to enter arbitrary keys so the UI stays compatible if Bark adds new fields.
+- Rules store a generic `payload_template_json`.
+- For Bark, backend renders the template, merges it into `default_payload_json`, then injects `device_key` or `device_keys` from channel config.
+- If no rendered `body` exists, backend falls back to `message.body`.
+- If no rendered `title` exists and the message has one, backend falls back to `message.title`.
 
-## Response handling
+## Useful Bark Fields
 
-Worker should record:
+Herald passes through arbitrary JSON keys, so common Bark payload fields can be set in the rule template or default payload JSON, including:
 
-- HTTP status code
-- a small response body snippet (size-capped)
-- any parsed JSON response fields (if present)
+- `title`
+- `body`
+- `subtitle`
+- `level`
+- `volume`
+- `badge`
+- `call`
+- `autoCopy`
+- `copy`
+- `sound`
+- `icon`
+- `group`
+- `isArchive`
+- `url`
+- `action`
 
-This metadata is shown in the message’s delivery history.
+## Test Endpoint
+
+`POST /api/channels/{id}/test` for Bark:
+
+- merges `default_payload_json`
+- overlays optional `payload_json`
+- fills in default `title` / `body` if absent
+- injects configured `device_key` or `device_keys`
+- returns provider metadata under `provider_response`
+
+## Safety And Limits
+
+- Backend applies SSRF checks to Bark destination URLs.
+- Response metadata is stored as capped snippets plus parsed JSON when available.
+- Do not document Bark support as edge/backend identical; the edge package has a narrower safety model.

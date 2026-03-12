@@ -1,170 +1,91 @@
-# Architecture — Herald v1.0
+# Architecture
 
-> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
+## High-Level Packages
 
-## High-level components
+### Backend (`backend/`)
 
-1) **Django backend**
-   - JSON APIs for the dashboard
-   - Ingest endpoint: `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID; requires `X-Herald-Ingest-Key`)
-   - Accepts structured JSON payloads (title, body, priority, tags, group, url, extras)
-   - Email sending for verification + password reset (SMTP)
-   - JWT auth for dashboard APIs (no Django session cookies)
+- Django 5.2 + DRF
+- Owns auth, ingest, message storage, channel/rule CRUD, and edge-config export
+- Runs a polling delivery worker for Bark, ntfy, and MQTT
 
-2) **React 19 + Vite dashboard**
-   - Web UI routes under `/`
-   - Calls backend JSON APIs under `/api/*`
+### Frontend (`frontend/`)
 
-3) **Worker process**
-    - Polls DB for due deliveries
-    - Renders payload templates against rich message context (all structured fields + request metadata + extras)
-    - Sends provider requests (Bark v2 HTTP, ntfy HTTP publish, MQTT publish)
-    - Updates delivery status, schedules retries with exponential backoff
+- React 19 + Vite + React Router SPA
+- Talks directly to backend APIs using `VITE_API_URL`
+- Stores refresh token in `sessionStorage` and access token in memory
 
-4) **Postgres**
-   - Stores users, endpoints, messages, channels, rules, deliveries
-   - Acts as the job queue (deliveries table)
+### Edge (`edge/`)
 
-## Authentication model
+- Cloudflare Worker lite mode
+- Reads config snapshot from KV
+- Evaluates rules locally and dispatches Bark/ntfy HTTP requests
+- Does not persist messages or retry failures
 
-- Dashboard: JWT access token sent as `Authorization: Bearer <token>`
-  - Backend issues short-lived access JWTs
-  - Dashboard refreshes access tokens using a refresh token
-- Ingest API: `endpoint_id` in URL path + `X-Herald-Ingest-Key` header; no JWT required
+## Runtime Communication
 
-## Deployment routing (simple)
+```text
+Browser -> Backend /api/* via VITE_API_URL
+Ingest -> Backend Message row + Delivery rows
+Worker -> Bark / ntfy / MQTT
+Backend /api/edge-config -> KV snapshot -> Edge lite
+Edge lite -> Bark / ntfy HTTP only
+```
 
-To keep auth simple, host dashboard + backend on the **same origin**:
+## Backend Request Model
 
-- `/api/*` → Django backend
-- everything else → React SPA (Vite build, served by nginx)
+### Authenticated dashboard APIs
 
-This avoids cross-origin complexity for auth and keeps the mental model simple.
+- Access token sent as `Authorization: Bearer <token>`
+- Refresh token sent in JSON body to `/api/auth/refresh`
+- Backend does not rely on session cookies for API auth
+- Custom CORS middleware allows configured frontend origins
 
-## JWT session strategy (recommended)
+### Ingest API
 
-### Tokens
+- Public path: `POST /api/ingest/{endpoint_id}`
+- Supports both dashed UUID and dashless hex IDs
+- Requires `X-Herald-Ingest-Key`
+- Requires `Content-Type: application/json`
 
-- **Access token (JWT)**: short-lived (e.g., 15 minutes), used for all authenticated `/api/*` calls.
-- **Refresh token**: long-lived opaque token stored server-side (hashed) to support logout and rotation.
+## Ingest And Delivery Flow
 
-### Transport (recommended)
+1. Backend finds the ingest endpoint by path ID.
+2. Backend validates the ingest key with a constant-time hash comparison.
+3. Backend validates payload shape and size.
+4. Backend stores a `Message` row with structured fields and redacted request metadata.
+5. Backend evaluates enabled `ForwardingRule` rows for the user.
+6. Backend creates `Delivery` rows for matches.
+7. Worker polls due deliveries and dispatches them.
+8. Worker writes success/failure metadata back to the delivery rows.
 
-- Access JWT is returned in JSON and stored in memory by the dashboard.
-- Refresh token is returned in JSON and stored client-side (recommended: `sessionStorage`, per-tab).
+## Storage Model
 
-With this approach:
+- SQLite is the default runtime DB in this repo.
+- `DATABASE_URL` parsing exists for alternate backends, but no Postgres driver is installed here.
+- SQLite runtime is tuned for API + worker concurrency using WAL and timeout settings.
+- Delivery queue state lives in the database, not in an external queue system.
 
-- Backend APIs authenticate requests via `Authorization` header (not cookies), so CSRF tokens are not required for state-changing requests.
-- Refresh endpoint uses the refresh token in the request body and rotates it on every use.
+## Worker Model
 
-## Email flows
+- Implemented as `python manage.py deliveries_worker`
+- Polls `queued` and `retry` rows
+- Uses `select_for_update(skip_locked=True)` to avoid duplicate processing
+- Retries with exponential backoff until `DELIVERY_MAX_ATTEMPTS`
 
-### Email verification
+## Frontend Architecture Notes
 
-1) User signs up with email+password.
-2) System creates user with `email_verified_at = NULL`.
-3) System emails a verification link (one-time token) that lands on the dashboard, which calls a backend verify API.
-4) Backend sets `email_verified_at`.
-5) Until verified, block:
-   - creating ingest endpoints
-   - creating channels
-   - creating/enabling rules
-   - ingest itself (optional; recommended to block to avoid abuse)
+- Production architecture is direct browser-to-backend communication; same-origin hosting is optional, not required.
+- Vite dev server proxies `/api`, `/health`, and `/admin` to the backend only for local development.
+- Auth-gated routes live under `DashboardLayout`; public flows live under `AuthLayout`.
 
-### Password reset
+## Edge Lite Notes
 
-Standard Django-style flow:
+- Cloudflare-only runtime in the current repo; do not document EdgeOne or proxy mode as active features.
+- `GET /api/edge-config` exports only active ingest endpoints plus Bark/ntfy channels and rules.
+- Current lite auth compares the raw `X-Herald-Ingest-Key` header directly against exported `token_hash` values from KV.
 
-1) User requests reset from “Forgot password”.
-2) System emails a reset link with one-time token (dashboard page).
-3) Dashboard calls backend reset API to set a new password.
+## Health Endpoints
 
-## Message ingest flow
-
-1) Request `POST /api/ingest/{endpoint_id}` (canonical URL uses dashless UUID)
-2) Identify ingest endpoint by id; validate `X-Herald-Ingest-Key` (constant-time compare against stored hash)
-3) Enforce:
-   - `Content-Type: application/json` required (reject with `415` otherwise)
-   - body size ≤ 1MB (reject > 1MB with `413`)
-   - valid JSON (reject with `400`)
-   - valid UTF-8 (reject with `400`)
-4) Parse and validate structured payload:
-   - `body` (string, required) — reject with `422` if missing or empty
-   - `title` (string, optional)
-   - `group` (string, optional)
-   - `priority` (integer 1–5, optional; default 3)
-   - `tags` (array of strings, optional; default `[]`)
-   - `url` (string, optional; must be a valid URL if provided)
-   - `extras` (object with string values, optional; default `{}`)
-   - reject unknown top-level keys with `422`
-5) Persist message with structured fields + request metadata (headers redacted, query params captured)
-6) Evaluate enabled rules for that user
-7) For each matching rule:
-   - create a delivery row `status=queued`, `next_attempt_at=now`
-8) Return `201` with `{ "message_id": "..." }`
-
-## Rule evaluation model
-
-Rule filters can constrain:
-
-- `ingest_endpoint_id` (optional) — message must come from one of the listed endpoints
-- `body` (optional): contains substrings or regex match against `body` field
-- `priority` (optional): min/max range (e.g., only priority ≥ 4)
-- `tags` (optional): message must have at least one of the listed tags (any-of match)
-- `group` (optional): exact match on `group` field
-
-Matching behavior:
-
-- If a filter field is omitted, it does not restrict matching.
-- A rule matches if all provided conditions match (AND across filter dimensions).
-
-## Delivery model
-
-Deliveries are handled asynchronously by the worker.
-
-### Worker loop
-
-- Repeatedly:
-  1) Select due deliveries:
-     - `status in ('queued','retry') AND next_attempt_at <= now()`
-     - lock rows using Postgres row locks to avoid double-send (e.g., `SELECT ... FOR UPDATE SKIP LOCKED`)
-  2) Mark selected rows `status='sending'`
-  3) For each delivery:
-      - Build provider request from:
-        - channel config
-        - rule `payload_template_json` rendered against the message
-      - Send via provider:
-        - Bark: HTTP `POST {server_base_url}/push`
-        - ntfy: HTTP `POST {server_base_url}/{topic}`
-        - MQTT: publish to `{broker_host}:{broker_port}` on `topic`
-      - On success: `status='sent'`, set `sent_at`
-      - On failure:
-       - increment `attempt_count`
-       - set `status='retry'` if attempts remaining else `status='failed'`
-       - set `next_attempt_at = now + backoff(attempt_count)`
-       - save `last_error`
-
-### Exponential backoff
-
-Proposed:
-
-- `delay_seconds = min(max_delay, base_delay * (2 ** (attempt_count - 1)))`
-- add small random jitter (optional)
-- defaults:
-  - base_delay = 5s
-  - max_delay = 30m
-  - max_attempts = 10
-
-## Extensibility (future channels)
-
-Keep “channel providers” as a small abstraction:
-
-- `ChannelProvider.validate_config(config) -> errors`
-- `ChannelProvider.send(message, rendered_payload, config) -> (ok, response_meta)`
-
-Core forwarding remains the same; adding a new channel means:
-
-- new provider implementation
-- UI form additions
-- config validation
+- Backend API/process health: `GET /health`
+- Frontend container health: `GET /health`
+- Edge-lite health: `GET /healthz`

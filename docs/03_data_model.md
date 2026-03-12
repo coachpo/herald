@@ -1,198 +1,177 @@
-# Data model — Herald v1.0
+# Data Model
 
-> **Breaking upgrade from v0.2.** See `01_prd.md § Breaking changes from v0.2`.
+## Core Principles
 
-This doc defines the logical schema. Implementation may use Django models + migrations.
+- All primary keys are UUID v4.
+- Message and endpoint deletion is soft-delete in the user-facing API.
+- Channel configs are encrypted at rest.
+- Many structured fields are stored in JSON columns with `_json` suffixes.
 
-## Users
+## Users And Auth Tokens
 
-`users`
+### `users`
 
-- `id` (uuid or bigint)
-- `email` (unique, case-insensitive)
-- `password_hash`
-- `email_verified_at` (nullable)
-- `created_at`
+- `id`
+- `email` (case-insensitive unique)
+- `password`
+- `email_verified_at`
 - `is_active`
-
-Related:
-
-- `email_verification_tokens(user_id, token_hash, expires_at, used_at)`
-- `password_reset_tokens(user_id, token_hash, expires_at, used_at)`
-- `refresh_tokens(user_id, token_hash, family_id, replaced_by, expires_at, revoked_at, revoked_reason, last_used_at, ip, user_agent, created_at, updated_at)`
-
-Notes:
-
-- Refresh tokens are long-lived opaque secrets stored hashed at rest.
-- Multiple refresh tokens per user are allowed to support multiple devices/browsers.
-
-## Ingest endpoints
-
-`ingest_endpoints`
-
-- `id`
-- `user_id` (FK)
-- `name`
-- `token_hash` (store hash only; token shown once at create time)
+- `is_staff`
 - `created_at`
-- `revoked_at` (nullable)
-- `deleted_at` (nullable; archived endpoints)
-- `last_used_at` (nullable)
 
-Indexes:
-
-- `(user_id)`
-- `(token_hash)` unique
-
-## Messages (immutable after ingest)
-
-`messages`
+### `email_verification_tokens`
 
 - `id`
-- `user_id` (FK)
-- `ingest_endpoint_id` (FK)
-- `received_at`
-- `title` (string; nullable) — notification title
-- `body` (text; required) — main notification content
-- `group` (string; nullable) — grouping identifier
-- `priority` (integer 1–5; default 3) — 1=lowest, 5=critical
-- `tags` (JSON array of strings; default `[]`)
-- `url` (string; nullable) — action URL
-- `extras_json` (JSON object; default `{}`) — arbitrary key-value pairs (string values)
-- `content_type` (nullable) — original request Content-Type
-- `body_sha256` (optional; hash of `body` field for dedupe/debug)
-- `headers_json` (JSON; sensitive values redacted)
-- `query_json` (JSON)
-- `remote_ip` (string)
-- `user_agent` (string; nullable)
-- `deleted_at` (nullable)
+- `user_id`
+- `token_hash`
+- `expires_at`
+- `used_at`
+- `created_at`
 
-Indexes:
+### `password_reset_tokens`
 
-- `(user_id, received_at desc)`
-- `(user_id, ingest_endpoint_id, received_at desc)`
-- `(user_id, group)` — for group-based queries
-- `(user_id, priority)` — for priority-based filtering
-- Optional: `(user_id, body_sha256)`
+- `id`
+- `user_id`
+- `token_hash`
+- `expires_at`
+- `used_at`
+- `created_at`
+
+### `refresh_tokens`
+
+- `id`
+- `user_id`
+- `token_hash`
+- `family_id`
+- `replaced_by`
+- `created_at`
+- `updated_at`
+- `last_used_at`
+- `expires_at`
+- `revoked_at`
+- `revoked_reason`
+- `ip`
+- `user_agent`
 
 Notes:
 
-- Deletion: soft-delete (`deleted_at`), hiding from normal views.
-- `extras_json` values must be strings. Nested objects are not supported.
-- `tags` is stored as a JSON array; filtering uses array containment.
+- Refresh tokens are opaque secrets stored only as hashes.
+- `family_id` is used to revoke a whole token family on replay/reuse.
+
+## Ingest Endpoints
+
+### `ingest_endpoints`
+
+- `id`
+- `user_id`
+- `name`
+- `token_hash`
+- `created_at`
+- `revoked_at`
+- `deleted_at`
+- `last_used_at`
+
+Notes:
+
+- `token_hash` is unique.
+- Revoked or deleted endpoints cannot ingest.
+
+## Messages
+
+### `messages`
+
+- `id`
+- `user_id`
+- `ingest_endpoint_id`
+- `received_at`
+- `title`
+- `body`
+- `group`
+- `priority`
+- `tags_json`
+- `url`
+- `extras_json`
+- `content_type`
+- `body_sha256`
+- `headers_json`
+- `query_json`
+- `remote_ip`
+- `user_agent`
+- `deleted_at`
+
+Notes:
+
+- `body` is required; all other payload fields are optional.
+- `headers_json` stores redacted header values.
+- `extras_json` is a flat object of string values.
 
 ## Channels
 
-`channels`
+### `channels`
 
 - `id`
-- `user_id` (FK)
-- `type` (enum; `bark`, `ntfy`, `mqtt`)
+- `user_id`
+- `type` (`bark`, `ntfy`, `mqtt`)
 - `name`
-- `config_json_encrypted` (text/blob; encrypted at rest)
+- `config_json_encrypted`
 - `created_at`
-- `disabled_at` (nullable)
+- `disabled_at`
 
-### Bark config (logical)
+Logical config fields:
 
-Stored inside `config_json_encrypted`:
+- Bark: `server_base_url`, `device_key` or `device_keys`, `default_payload_json`
+- ntfy: `server_base_url`, `topic`, optional bearer/basic auth, `default_headers_json`
+- MQTT: `broker_host`, `broker_port`, `topic`, optional auth/TLS/QoS/retain/client_id/keepalive_seconds`
 
-- `server_base_url` (string; example `https://your-bark.example.com`)
-- `device_key` (string) OR `device_keys` (array of strings) — optional to support Bark multi-device
-- `default_payload_json` (object) — extra Bark v2 fields to merge into every request (optional)
+## Forwarding Rules
 
-### ntfy config (logical)
-
-Stored inside `config_json_encrypted`:
-
-- `server_base_url` (string; example `https://ntfy.sh`)
-- `topic` (string)
-- auth (choose one):
-  - `access_token` (string)
-  - `username` + `password` (strings)
-- `default_headers_json` (object) — extra HTTP headers merged into every publish (optional)
-
-### MQTT config (logical)
-
-Stored inside `config_json_encrypted`:
-
-- `broker_host` (string)
-- `broker_port` (int; default 1883)
-- `topic` (string)
-- optional auth: `username` + `password`
-- optional TLS: `tls` (bool), `tls_insecure` (bool)
-- optional publish tuning: `qos` (0-2), `retain` (bool), `client_id` (string), `keepalive_seconds` (int)
-
-## Forwarding rules
-
-`forwarding_rules`
+### `forwarding_rules`
 
 - `id`
-- `user_id` (FK)
+- `user_id`
 - `name`
-- `enabled` (bool)
-- `filter_json` (JSON)
-- `channel_id` (FK)
-- `payload_template_json` (JSON; nullable) — template for all channel types
+- `enabled`
+- `filter_json`
+- `channel_id`
+- `payload_template_json`
 - `created_at`
 - `updated_at`
 
-### Filter JSON
+Supported filter dimensions:
 
-```
-{
-  "ingest_endpoint_ids": ["ep_1", "ep_2"],   // optional; message endpoint must be in set
-  "body": {
-    "contains": ["error", "panic"],          // optional, case-insensitive substring match (any)
-    "regex": "timeout\\b"                    // optional, regex match on body
-  },
-  "priority": {
-    "min": 3,                                // optional; message priority >= min
-    "max": 5                                 // optional; message priority <= max
-  },
-  "tags": ["deploy", "critical"],            // optional; message must have at least one of these tags (any-of)
-  "group": "production"                      // optional; exact match on message group
-}
-```
+- `ingest_endpoint_ids`
+- `body.contains`
+- `body.regex`
+- `priority.min` / `priority.max`
+- `tags`
+- `group`
 
-Semantics:
+## Deliveries
 
-- If `ingest_endpoint_ids` provided: message's endpoint must be in the set.
-- If `body.contains` provided: at least one substring must be present in body (case-insensitive).
-- If `body.regex` provided: regex must match body.
-- If `priority.min` and/or `priority.max` provided: message priority must be within range.
-- If `tags` provided: message must have at least one matching tag (any-of).
-- If `group` provided: message group must match exactly.
-- All provided conditions must match (AND across dimensions).
-
-## Deliveries (queue + history)
-
-`deliveries`
+### `deliveries`
 
 - `id`
-- `user_id` (FK)
-- `message_id` (FK)
-- `rule_id` (FK)
-- `channel_id` (FK)
-- `status` (enum: `queued`, `sending`, `retry`, `sent`, `failed`)
-- `attempt_count` (int)
-- `next_attempt_at` (timestamp)
-- `sent_at` (nullable)
-- `last_error` (text; nullable)
-- `provider_response_json` (JSON; nullable)
+- `user_id`
+- `message_id`
+- `rule_id`
+- `channel_id`
+- `status` (`queued`, `sending`, `retry`, `sent`, `failed`)
+- `attempt_count`
+- `next_attempt_at`
+- `sent_at`
+- `last_error`
+- `provider_response_json`
 - `created_at`
 - `updated_at`
 
-Indexes:
+Notes:
 
-- `(status, next_attempt_at)`
-- `(message_id)`
-- `(user_id, created_at desc)`
+- These rows are both queue state and delivery history.
+- Backend worker owns retry/backoff behavior.
 
-## Data retention / deletion
+## Deletion Semantics
 
-- Default: store indefinitely.
-- User deletion:
-  - single message delete sets `deleted_at`
-  - batch delete sets `deleted_at` for all qualifying messages
-- Optional later: hard-delete to remove rows permanently.
+- Endpoint archive: sets `revoked_at` and `deleted_at`
+- Message delete: sets `deleted_at`
+- Channel and rule delete endpoints remove the row
+- Account delete removes the user and cascades owned data

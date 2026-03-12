@@ -1,30 +1,42 @@
-# Repo structure — Herald v1.0
+# Repo Structure
 
-Herald is organized as a small "meta" repository:
+## Layout
 
-- Root repo: design docs + top-level coordination
-- `backend/` git submodule: Django backend + worker
-- `frontend/` git submodule: React 19 + Vite dashboard UI
-- `edge/` git submodule: edge forwarders (Cloudflare Workers, Tencent EdgeOne)
-
-## Why submodules
-
-- Backend and frontend can evolve independently.
-- Separate dependency trees and release cycles.
-- Clear ownership boundaries.
-
-## Conventions
-
-- Dashboard uses React 19 + Vite + React Router; pin versions in `package.json`.
-- Backend remains Django-based; worker can be implemented as a Django management command or separate worker entrypoint.
-- Keep `/api/*` reserved for backend routes so a reverse proxy can route cleanly.
-
-## First-time setup
-
-```
-git submodule update --init --recursive
+```text
+herald/
+├── backend/                 # git submodule: Django API + worker
+├── frontend/                # git submodule: React/Vite dashboard
+├── edge/                    # git submodule: Cloudflare lite worker
+├── docs/                    # maintained markdown specs + OpenAPI
+├── .github/workflows/       # Docker builds and cleanup automation
+├── start.sh                 # local startup helper
+├── AGENTS.md                # root repo guidance
+└── .gitmodules              # submodule remotes and tracked branches
 ```
 
-## Submodule URLs
+## Submodule Conventions
 
-When you create the real remote repositories for `backend` and `frontend`, set each submodule URL in `.gitmodules` and commit the update.
+- `backend`, `frontend`, and `edge` are separate repositories mounted as git submodules.
+- Each submodule tracks its own `main` branch in `.gitmodules`.
+- Root repo owns shared documentation, orchestration, and CI/CD wiring.
+
+## Documentation Surfaces
+
+- Package-local guidance lives in `AGENTS.md` files.
+- Maintained specs live under `docs/`.
+- Repo-facing quick-start docs live in `README.md`, `backend/README.md`, and `edge/README.md`.
+
+## Startup Helper
+
+`start.sh` supports two modes:
+
+- `headless` - backend only
+- `full` - backend + frontend
+
+In `full` mode it also sets sensible local defaults for `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, and `VITE_API_URL`.
+
+## Current Package Boundaries
+
+- Backend owns persistent storage, auth, rule matching, and MQTT.
+- Frontend owns browser UI only; it does not proxy backend requests in production.
+- Edge owns optional best-effort Bark/ntfy fanout from a KV snapshot.

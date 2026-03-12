@@ -1,122 +1,41 @@
-# Edge "Herald Lite" Feasibility Assessment
+# Edge Lite Tradeoffs
 
-Date: 2026-02-19
+This file records what edge-lite now covers well and what still belongs to the full backend/worker architecture.
 
-## Context
+## What Edge Lite Solves Today
 
-Goal: evaluate whether `edge/` can become a headless "herald lite" Cloudflare Worker by consuming exported configuration from the main application.
+- Low-latency ingest handling from Cloudflare Workers
+- Local rule matching on the exported snapshot
+- Local template rendering
+- Bark and ntfy HTTP dispatch without calling the backend at request time
 
-Reviewed sources:
+## What Still Belongs To The Backend
 
-- `docs/01_prd.md`
-- `docs/02_architecture.md`
-- `docs/03_data_model.md`
-- `docs/04_api_spec.md`
-- `docs/10_edge.md`
-- `docs/openapi.yaml`
-- `edge/src/core.mjs`
-- `edge/src/env.mjs`
-- `edge/wrangler.toml`
+- Durable message storage
+- Delivery retries and backoff
+- MQTT publishing
+- Auditable delivery history
+- Backend SSRF protections on provider destinations
 
-## Q1 — Can the app export configs in a format that `edge/` can consume?
+## Practical Consequences
 
-## Current state
+- Edge-lite is best-effort fanout, not a replacement for the backend worker
+- Backend remains the only implementation with persisted `Message` and `Delivery` rows
+- Documentation should present edge-lite as a narrower deployment mode, not a feature-equivalent runtime
 
-- There is **no existing config export API** and no defined export schema for edge runtime consumption.
-- Current edge config is environment-variable based and only supports proxy forwarding concerns:
-  - incoming key validation
-  - endpoint pinning
-  - upstream URL + key
-  - hop loop guard
+## Current Sharp Edges
 
-## Feasibility
+- Auth uses the exported `token_hash` string directly
+- Provider dispatch is HTTP-only
+- Failures are returned in the immediate response and then discarded
+- Regex filters remain user-controlled and can still be computationally expensive
 
-- **Yes, feasible to add.**
-- Existing backend data model already contains needed entities:
-  - ingest endpoints
-  - channels (bark/ntfy/mqtt)
-  - forwarding rules + payload templates
+## When To Use Edge Lite
 
-## Suggested export shape (high-level)
+Use it when you want:
 
-A per-user edge config payload would include:
+- Cloudflare-hosted best-effort HTTP fanout
+- No MQTT dependency
+- Lower latency and fewer moving parts than the full backend/worker path
 
-- `ingest_endpoints`: endpoint ids + auth material usable by edge
-- `channels`: channel type + decrypted runtime config
-- `rules`: filters + target channel + payload template
-- optional metadata: config version, checksum, updated_at
-
-## Q2 — Can `edge/` run purely headless using only that config?
-
-## Current `edge/` behavior
-
-`edge/src/core.mjs` is a stateless ingest forwarder:
-
-- accepts `POST /api/ingest/{endpoint_id}`
-- validates incoming key(s)
-- appends/forwards query params
-- rewrites `X-Herald-Ingest-Key` for upstream hop
-- forwards body as-is
-- does **not** validate message payload
-- does **not** evaluate rules
-- does **not** render templates
-- does **not** send provider notifications itself
-
-## Headless-lite viability
-
-- **Yes, partially.**
-- It can become a headless relay for HTTP providers if edge adds:
-  - local payload validation
-  - rule filter evaluation
-  - template rendering
-  - provider dispatch via `fetch()`
-
-## Capability matrix
-
-- Bark delivery (HTTP): feasible
-- ntfy delivery (HTTP): feasible
-- MQTT delivery: **not feasible in Workers** (no raw TCP sockets)
-
-## Operational implications
-
-A truly headless-lite worker would likely be:
-
-- fire-and-forget by default
-- limited/no durable retry semantics unless extra Cloudflare state services are added
-- limited/no message history unless D1/KV/DO persistence is introduced
-
-## Q3 — Would this work within Cloudflare Worker constraints?
-
-## Constraints impact
-
-- Runtime CPU/memory limits: acceptable for filter+template+HTTP dispatch at moderate scale
-- Subrequest quotas: depends on number of matching rules/channels per ingest event
-- No TCP sockets: blocks native MQTT publishing
-- Stateless execution model: durable queue/retry requires KV, Durable Objects, and/or Queues
-
-## Conclusion
-
-- **Yes**, a Cloudflare Worker "herald lite" is viable for **HTTP-based forwarding** (Bark + ntfy), with config exported from backend and consumed at edge.
-- **No**, it is not functionally equivalent to the full backend+worker architecture without additional infrastructure.
-- Without extra state services, this should be framed as:
-  - stateless ingest + rules + template + HTTP fanout
-  - best-effort delivery
-  - no durable retry/history guarantees
-
-## Recommended architecture direction
-
-1. Add backend export pipeline for edge config (versioned JSON).
-2. Distribute config to Cloudflare KV (push on config changes).
-3. Extend `edge/` runtime with local rule evaluation + template rendering.
-4. Keep MQTT out of lite scope (or route MQTT via backend).
-5. Decide explicitly whether lite supports:
-   - durable retries
-   - message audit/history
-   and provision D1/DO/Queues only if required.
-
-## Scope positioning
-
-Call this mode:
-
-- **"Herald Lite (Edge)"** = low-latency, HTTP-channel, best-effort forwarding
-- **Full Herald** = persistent storage, durable retries, full provider support including MQTT
+Do not present it as the default answer when durable retries or stored history matter.
