@@ -1,81 +1,82 @@
 # AGENTS.md
 
-**Generated:** 2026-02-23 **Commit:** cf2f6e5 **Branch:** main
+**Generated:** 2026-03-12 **Commit:** bd9979c **Branch:** main
 
 ## Overview
 
-Herald — ingest arbitrary UTF-8 payloads via HTTP, store them, and forward to notification channels (Bark, ntfy, MQTT) via user-defined rules. Three independent packages connected by HTTP APIs; no shared code.
+Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, or MQTT via user-defined rules. This root repo is the coordination layer around three submodules: Django backend, React/Vite frontend, and Cloudflare Worker lite edge.
 
 ## Structure
 
-```
+```text
 herald/
-├── backend/        # Django 5 + DRF JSON API + delivery worker
-├── frontend/       # React 19 + TypeScript + Vite + React Router dashboard UI
-├── edge/           # Cloudflare Worker — lite mode (local rules, no backend)
-├── docs/           # PRD, architecture, data model, API spec, OpenAPI
-└── .github/        # CI: Docker image builds (arm64), cleanup
+├── backend/        # Django 5.2 + DRF API + polling delivery worker
+├── frontend/       # React 19 + Vite + React Router dashboard
+├── edge/           # Cloudflare Worker lite mode (KV config, HTTP dispatch)
+├── docs/           # Product, architecture, data model, API, security, ops
+├── .github/        # Docker image builds and cleanup workflows
+├── start.sh        # Local startup helper (headless|full)
+└── .gitmodules     # Submodule remotes and tracked branches
 ```
 
-Git submodules: `backend/`, `frontend/`, and `edge/` are submodules (see `.gitmodules`).
+Git submodules: `backend/`, `frontend/`, and `edge/` each track their own `main` branch and dependency tree.
 
 ## Where to Look
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Domain models | `backend/core/models.py` | IngestEndpoint, Message, Channel, ForwardingRule, Delivery |
-| Auth (JWT, users) | `backend/accounts/` | Custom User (email-only), refresh token rotation with family_id |
-| API endpoints | `backend/api/urls.py` | All routes under `/api/` |
-| Ingest handler | `backend/api/ingest.py` | POST `/api/ingest/{endpoint_id}` (UUID or hex) |
-| Delivery worker | `backend/core/management/commands/deliveries_worker.py` | Polling loop, exponential backoff |
-| SSRF protection | `backend/core/ssrf.py` | Blocks loopback/private IPs for outbound URLs |
-| Channel encryption | `backend/core/crypto.py` | Fernet encryption for `Channel.config_json_encrypted` |
-| Frontend auth | `frontend/src/lib/auth.tsx` | AuthProvider context, sessionStorage refresh tokens |
-| Frontend API client | `frontend/src/lib/api.ts` | `apiFetch()` — direct browser-to-backend, `credentials: "omit"` |
-| Frontend types | `frontend/src/lib/types.ts` | TypeScript types mirroring backend API responses |
-| Frontend routing | `frontend/src/router.tsx` | React Router route tree |
-| Frontend UI | `frontend/src/components/ui/` | shadcn/ui (Radix primitives + CVA + clsx + tailwind-merge) |
-| Edge config | `edge/src/lite.mjs` | KV-based config, local rule eval + HTTP dispatch |
-| OpenAPI spec | `docs/openapi.yaml` | JSON API + ingest endpoints |
+| Auth and user lifecycle | `backend/accounts/`, `backend/api/views_auth.py` | Custom user, JWT, refresh rotation, email flows |
+| Ingest endpoint | `backend/api/ingest.py` | JSON-only, `body` required, 1 MB limit, dashed or dashless UUID |
+| Resource API | `backend/api/views_resources.py`, `backend/api/serializers.py` | Messages, channels, rules, ingest endpoints |
+| Delivery worker | `backend/core/management/commands/deliveries_worker.py` | Polling DB queue, exponential backoff |
+| Frontend auth and routing | `frontend/src/lib/auth.tsx`, `frontend/src/router.tsx` | `sessionStorage` refresh token, BrowserRouter route tree |
+| Frontend API URLs | `frontend/src/lib/api.ts`, `frontend/src/lib/public-api.ts` | Direct browser-to-backend calls via `VITE_API_URL` |
+| Edge lite runtime | `edge/src/lite.mjs` | KV config, local rule eval, Bark/ntfy dispatch |
+| API schema and docs | `docs/openapi.yaml`, `docs/`, `docs/AGENTS.md` | OpenAPI plus markdown specs/runbooks |
+| CI/CD | `.github/workflows/` | arm64 Docker builds, workflow/package cleanup |
 
 ## Package Communication
 
-```
-Frontend (browser) --VITE_API_URL--> Backend (/api/*)
-Backend --edge-config endpoint--> Edge (KV push)
-Edge (standalone) --HTTP dispatch--> Bark/ntfy
-Backend worker --HTTP/MQTT dispatch--> Bark/ntfy/MQTT
+```text
+Frontend browser --VITE_API_URL--> Backend /api/*
+Backend ingest -> DB Message + Delivery rows -> polling worker -> Bark/ntfy/MQTT
+Backend /api/edge-config -> exported snapshot -> Cloudflare KV EDGE_CONFIG
+Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 ```
 
-No server-side proxy. Frontend calls backend directly from browser.
+No shared runtime code crosses package boundaries; synchronization happens through JSON APIs, the database, and KV snapshots.
 
 ## Conventions
 
-- Custom implementations over third-party packages: JWT auth (not simplejwt), CORS middleware (not django-cors-headers), .env loader (not python-dotenv)
-- All UUIDs are v4, used as primary keys across all models
-- Soft-delete pattern: `deleted_at` / `revoked_at` / `disabled_at` nullable timestamps
-- Channel configs encrypted at rest with Fernet (`CHANNEL_CONFIG_ENCRYPTION_KEY`)
-- Ingest endpoints accept both dashed UUID and dashless hex formats
-- SQLite for both dev and production; settings has optional `DATABASE_URL` override but no Postgres driver installed
+- Backend prefers custom implementations over helper libraries: JWT auth, CORS middleware, and `.env` loading are all in-repo.
+- SQLite is the default runtime database in this repo; `DATABASE_URL` parsing exists, but no Postgres driver is installed here.
+- All model primary keys are UUID v4.
+- Soft-delete uses nullable timestamps: `deleted_at`, `revoked_at`, `disabled_at`.
+- Channel configs are encrypted at rest in `config_json_encrypted`.
+- Ingest accepts both dashed UUID and dashless hex endpoint IDs.
+- Frontend forms currently use plain React state; `react-hook-form` and `zod` are installed but unused.
+- Vite proxies `/api`, `/health`, and `/admin` to the backend in local dev, but production still uses direct browser-to-backend requests via `VITE_API_URL`.
 
 ## Anti-Patterns (Do Not)
 
-- **Never disable SSRF checks** in `core/ssrf.py` — blocks loopback, link-local, private networks
-- **Never log secrets** — device keys, access tokens, passwords, ingest keys
-- **Never commit `.env` files** or any credential material
-- **Never persist tokens in localStorage** — sessionStorage only (XSS = account takeover with JWT)
-- **Never use `dangerouslySetInnerHTML`** — all ingested payloads are untrusted plain text
-- **Never suppress type errors** — no `as any`, `@ts-ignore`, `@ts-expect-error`
+- Never disable backend SSRF checks in `backend/core/ssrf.py`.
+- Never log or commit secrets: `.env`, ingest keys, device keys, access tokens, passwords.
+- Never move auth tokens into `localStorage`; refresh stays in `sessionStorage`, access stays in memory.
+- Never render ingested content with `dangerouslySetInnerHTML`.
+- Never assume edge-lite has the same safety or durability guarantees as the backend worker.
+- Never suppress type errors with `as any`, `@ts-ignore`, or `@ts-expect-error`.
 
 ## Commands
 
 ```bash
+# Whole repo
+./start.sh headless   # backend only
+./start.sh full       # backend + frontend
+
 # Backend (from backend/)
 python manage.py migrate --noinput
 python manage.py test
 python manage.py runserver 0.0.0.0:8000
-
-# Worker (from backend/)
 python manage.py deliveries_worker
 
 # Frontend (from frontend/)
@@ -91,28 +92,8 @@ npm run lint
 npm run dev
 ```
 
-## Environment Variables (Key)
-
-| Variable | Package | Purpose |
-|----------|---------|---------|
-| `DJANGO_SECRET_KEY` | backend | Django secret (change from default) |
-| `JWT_SIGNING_KEY` | backend | JWT token signing |
-| `TOKEN_HASH_KEY` | backend | Ingest token hashing |
-| `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Fernet key for channel configs |
-| `VITE_API_URL` | frontend | Backend URL (default: `http://localhost:8100`) |
-| `CORS_ALLOWED_ORIGINS` | backend | Allowed frontend origins |
-| `BARK_BLOCK_PRIVATE_NETWORKS` | backend | SSRF protection toggle (default: true) |
-
-## CI/CD
-
-- GitHub Actions: `docker-images.yml` builds arm64 Docker images on push to main/tags
-- GHCR registry: `ghcr.io/{owner}/herald-backend`, `ghcr.io/{owner}/herald-frontend`
-- Cleanup workflow: daily prune of old workflow runs + untagged container images
-
 ## Notes
 
-- SQLite for both dev and production; settings auto-enables WAL mode + 30s timeout for multi-process (API + worker)
-- Frontend stack: React 19 + TypeScript, Vite, React Router, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui ecosystem. Forms use plain React state (`useState`); `react-hook-form` and `zod` are installed but currently unused
-- Backend uses `APP_BASE_URL` setting for email verification links (points to frontend app URL)
-- Edge has no durable retries or message persistence — best-effort HTTP dispatch only
-- MQTT channel type is backend-only (no TCP sockets in Workers)
+- Backend health endpoint is `GET /health`; edge-lite health endpoint is `GET /healthz`.
+- `start.sh` creates the backend virtualenv on demand, runs migrations, and can launch frontend dev with matching `APP_BASE_URL` and `CORS_ALLOWED_ORIGINS`.
+- Edge-lite currently compares `X-Herald-Ingest-Key` directly against exported `token_hash` values in KV config; document that caveat accurately whenever editing edge docs.
