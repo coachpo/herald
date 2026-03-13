@@ -32,7 +32,7 @@ Backend exports this shape from `GET /api/edge-config`:
 - `updated_at`
 - `version`
 
-MQTT is intentionally excluded from the snapshot.
+MQTT and Gotify are intentionally excluded from the snapshot.
 
 ## Payload Validation
 
@@ -56,6 +56,7 @@ The worker rejects unknown fields, missing body, invalid types, oversized payloa
 Not supported in edge-lite:
 
 - MQTT
+- Gotify
 - durable retries
 - stored message history
 - backend-style SSRF guardrails

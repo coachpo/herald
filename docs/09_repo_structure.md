@@ -25,7 +25,7 @@ herald/
 
 - Package-local guidance lives in `AGENTS.md` files.
 - Maintained specs live under `docs/`.
-- Repo-facing quick-start docs live in `README.md`, `backend/README.md`, and `edge/README.md`.
+- Repo-facing quick-start docs live in `README.md`, `backend/README.md`, `frontend/README.md`, and `edge/README.md`.
 
 ## Startup
 

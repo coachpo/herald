@@ -192,4 +192,4 @@ Rendering rules:
 - Edge-lite health: `GET /healthz`
 - Edge snapshot export: `GET /api/edge-config`
 
-`GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy/gotify channels and rules for edge-lite consumption. MQTT is excluded.
+`GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy channels and rules for edge-lite consumption. MQTT and Gotify are excluded.

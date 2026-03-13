@@ -1,44 +1,42 @@
 # AGENTS.md
 
-**Generated:** 2026-03-12 **Commit:** bd9979c **Branch:** main
+**Generated:** 2026-03-13 **Commit:** 8916c21 **Branch:** main
 
 ## Overview
 
-Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules. This root repo coordinates the backend, frontend, edge runtime, shared docs, and local orchestration.
+Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules. This root repo coordinates three git submodules (`backend/`, `frontend/`, `edge/`), shared docs, and local orchestration.
 
 ## Structure
 
 ```text
 herald/
-├── backend/        # Production FastAPI backend (async PostgreSQL + structlog)
-├── frontend/       # React 19 + Vite + React Router dashboard
-├── edge/           # Cloudflare Worker lite mode (KV config, HTTP dispatch)
-├── docs/           # Product, architecture, data model, API, security, ops
-├── .github/        # Docker image builds and cleanup workflows
-├── docker-compose.yml # Local dev orchestration (FastAPI + PostgreSQL + worker)
-├── start.sh        # Local startup helper (headless|full)
-└── .gitmodules     # Submodule remotes and tracked branches
+├── backend/           # FastAPI backend + async delivery worker
+├── frontend/          # React 19 + Vite dashboard
+├── edge/              # Cloudflare Worker lite runtime
+├── docs/              # Product, architecture, API, security, ops
+├── .github/           # GHCR image build + cleanup workflows
+├── docker-compose.yml # Local PostgreSQL + API + worker stack
+├── start.sh           # Local backend/full startup helper
+└── .gitmodules        # Submodule remotes and tracked branches
 ```
 
-Git submodules: `backend/`, `frontend/`, and `edge/` each track their own `main` branch and dependency tree.
+Git submodules: `backend/`, `frontend/`, and `edge/` each track `main`. Package-local guidance lives in `backend/AGENTS.md`, `frontend/AGENTS.md`, `edge/AGENTS.md`, and `docs/AGENTS.md`.
 
 ## Where to Look
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Auth and user lifecycle | `backend/routes/auth.py`, `backend/services/auth.py` | JWT access/refresh lifecycle and account management |
-| Ingest endpoint | `backend/routes/ingest.py` | JSON-only, `body` required, 1 MB limit, dashed or dashless UUID |
-| Resource API | `backend/routes/`, `backend/services/` | Messages, channels, rules, ingest endpoints |
-| Delivery worker | `backend/worker.py` | Async delivery loop with exponential backoff |
-| FastAPI backend | `backend/` | Production-ready async stack |
-| Structured logging | `backend/logging_config.py` | structlog setup with JSON/console output |
-| Error handling | `backend/errors.py` | Global exception handlers |
-| Docker | `backend/Dockerfile`, `docker-compose.yml` | Container builds and local dev |
-| Frontend auth and routing | `frontend/src/lib/auth.tsx`, `frontend/src/router.tsx` | `sessionStorage` refresh token, BrowserRouter route tree |
-| Frontend API URLs | `frontend/src/lib/api.ts`, `frontend/src/lib/public-api.ts` | Direct browser-to-backend calls via `VITE_API_URL` |
-| Edge lite runtime | `edge/src/lite.mjs` | KV config, local rule eval, Bark/ntfy dispatch |
-| API schema and docs | `docs/openapi.yaml`, `docs/`, `docs/AGENTS.md` | OpenAPI plus markdown specs/runbooks |
-| CI/CD | `.github/workflows/` | arm64 Docker builds, workflow/package cleanup |
+| Repo/package boundaries | `.gitmodules`, `docs/09_repo_structure.md` | Root repo coordinates submodules, docs, and orchestration |
+| Backend package guide | `backend/AGENTS.md`, `backend/README.md` | Auth, ingest, worker, providers, edge export |
+| Frontend package guide | `frontend/AGENTS.md`, `frontend/src/router.tsx` | Routes, auth state, API helpers, deploy server |
+| Edge package guide | `edge/AGENTS.md`, `edge/src/lite.mjs` | KV snapshot ingest, rule eval, Bark/ntfy dispatch |
+| Spec governance | `docs/AGENTS.md`, `docs/openapi.yaml` | Docs index plus schema source of truth |
+| Local startup | `start.sh`, `docker-compose.yml` | `start.sh` runs backend/full; compose runs db/api/worker only |
+| CI/CD scope | `.github/workflows/docker-images.yml`, `.github/workflows/cleanup.yml` | Root CI builds backend/frontend images only |
+| Auth and ingest | `backend/routes/auth.py`, `backend/routes/ingest.py` | JWT lifecycle and JSON ingest validation |
+| Delivery pipeline | `backend/worker.py`, `backend/channel_dispatch.py` | Retry loop plus provider dispatch |
+| Edge snapshot export | `backend/edge_config.py`, `edge/src/lite.mjs` | Backend export -> KV snapshot -> edge-lite ingest |
+| Frontend auth storage | `frontend/src/lib/auth.tsx`, `frontend/src/lib/public-api.ts` | `sessionStorage` refresh token, `VITE_API_URL` origin logic |
 
 ## Package Communication
 
@@ -49,43 +47,40 @@ Backend /api/edge-config -> exported snapshot -> Cloudflare KV EDGE_CONFIG
 Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 ```
 
-Production runtime traffic flows through the FastAPI backend (`backend/`), frontend, and edge.
-
 ## Conventions
 
-- Backend prefers custom implementations over helper libraries: JWT auth, CORS middleware, `.env` loading, and `DATABASE_URL` parsing are all in-repo.
-- PostgreSQL is the only supported database for the backend. `DATABASE_URL` configures the connection via asyncpg with optional pool settings.
-- All model primary keys are UUID v4.
-- Soft-delete uses nullable timestamps: `deleted_at`, `revoked_at`, `disabled_at`.
-- Channel configs are encrypted at rest in `config_json_encrypted`.
-- Ingest accepts both dashed UUID and dashless hex endpoint IDs.
-- Frontend forms currently use plain React state plus manual validation.
-- Vite proxies `/api`, `/health`, and `/admin` to the backend in local dev, but production still uses direct browser-to-backend requests via `VITE_API_URL`.
+- Root `AGENTS.md` covers cross-package coordination; package-local implementation details belong in child `AGENTS.md` files.
+- `backend/`, `frontend/`, and `edge/` remain git submodules; update boundaries through `.gitmodules`, not ad hoc copies.
+- Production frontend traffic is direct browser-to-backend via `VITE_API_URL`; Vite proxy config is local-dev-only.
+- `start.sh full` sets `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, and `VITE_API_URL` for the local backend/frontend pair.
+- `docker-compose.yml` starts PostgreSQL, API, and worker only; it does not launch frontend or edge.
+- Root CI builds and cleans up `backend` and `frontend` arm64 images in GHCR; `edge/` deployment is manual or external to root workflows.
 
 ## Anti-Patterns (Do Not)
 
 - Never disable backend SSRF checks in `backend/core/ssrf.py`.
 - Never log or commit secrets: `.env`, ingest keys, device keys, access tokens, passwords.
 - Never move auth tokens into `localStorage`; refresh stays in `sessionStorage`, access stays in memory.
-- Never render ingested content with `dangerouslySetInnerHTML`.
-- Never assume edge-lite has the same safety or durability guarantees as the backend worker.
+- Never treat edge-lite as backend-equivalent durability or safety; it is best-effort only and skips backend-style SSRF checks.
+- Never assume root CI covers `edge/`; check `edge/` commands or external deployment steps explicitly.
 - Never suppress type errors with `as any`, `@ts-ignore`, or `@ts-expect-error`.
 
 ## Commands
 
 ```bash
+# Repo setup
+git submodule update --init --recursive
+
 # Whole repo
-./start.sh headless   # backend only
-./start.sh full       # backend + frontend
+./start.sh headless
+./start.sh full
+docker compose up
 
 # Backend (from repo root)
-pip install -r backend/requirements.txt
+python -m pip install -r backend/requirements.txt
+python -m pytest backend/tests/ -v
 uvicorn backend.main:app --host 0.0.0.0 --port 8001
 python -m backend.worker
-python -m pytest backend/tests/ -v
-
-# Docker Compose
-docker compose up
 
 # Frontend (from frontend/)
 pnpm install
@@ -98,10 +93,11 @@ npm install
 npm test
 npm run lint
 npm run dev
+npm run deploy
 ```
 
 ## Notes
 
-- Backend health endpoint is `GET /health`; edge-lite health endpoint is `GET /healthz`.
-- `start.sh` creates the backend virtualenv on demand and can launch frontend dev with matching `APP_BASE_URL` and `CORS_ALLOWED_ORIGINS`.
-- Edge-lite currently compares `X-Herald-Ingest-Key` directly against exported `token_hash` values in KV config; document that caveat accurately whenever editing edge docs.
+- Backend health endpoint is `GET /health`; edge-lite health endpoint is `GET /healthz`; the frontend container also exposes `GET /health`.
+- `docs/AGENTS.md` governs spec accuracy; root `AGENTS.md` governs repo coordination.
+- Edge-lite currently compares `X-Herald-Ingest-Key` directly against exported `token_hash` values in KV config; docs must describe implemented behavior exactly.
