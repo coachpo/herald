@@ -16,7 +16,7 @@ docs/
 ├── 06_security_privacy.md     # auth, SSRF, redaction, token handling
 ├── 07_operations.md           # env, deploy, runtime commands, health/ops
 ├── 08_bark_v2.md              # Bark-specific provider notes
-├── 09_repo_structure.md       # repo/submodule layout
+├── 09_repo_structure.md       # repo layout and package boundaries
 ├── 10_edge.md                 # current edge-lite runtime behavior
 ├── 11_edge_lite_feasibility.md# current assessment/history for lite mode
 └── openapi.yaml               # API schema source of truth
@@ -34,7 +34,7 @@ docs/
 | How are auth, tokens, SSRF, and redaction handled? | `06_security_privacy.md` |
 | How is the repo run or deployed? | `07_operations.md` |
 | What does Bark integration support? | `08_bark_v2.md` |
-| How is the repo split across submodules? | `09_repo_structure.md` |
+| How is the repo laid out across packages? | `09_repo_structure.md` |
 | How does edge-lite work right now? | `10_edge.md`, `11_edge_lite_feasibility.md` |
 | What do quick-start readers see first? | `../README.md`, `../backend/README.md`, `../edge/README.md` |
 

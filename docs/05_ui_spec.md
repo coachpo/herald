@@ -73,7 +73,7 @@
 
 ### Channels
 
-- Create/edit/delete UI for Bark, ntfy, and MQTT channels
+- Create/edit/delete UI for Bark, ntfy, MQTT, and Gotify channels
 - Type-specific form fields
 - Send-test panel per channel with optional title/body
 
@@ -102,5 +102,4 @@ Current UI gap: backend supports reading/updating rules, but the shipped fronten
 
 ## Current Form Pattern
 
-- Plain `useState` plus manual validation
-- No active `react-hook-form` or `zod` usage in shipped pages
+- Forms stay on plain `useState` and manual validation

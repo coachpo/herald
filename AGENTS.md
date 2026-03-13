@@ -4,7 +4,7 @@
 
 ## Overview
 
-Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules. This root repo is the coordination layer around three submodules plus the production FastAPI backend.
+Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules. This root repo coordinates the backend, frontend, edge runtime, shared docs, and local orchestration.
 
 ## Structure
 
@@ -59,7 +59,7 @@ Production runtime traffic flows through the FastAPI backend (`backend/`), front
 - Soft-delete uses nullable timestamps: `deleted_at`, `revoked_at`, `disabled_at`.
 - Channel configs are encrypted at rest in `config_json_encrypted`.
 - Ingest accepts both dashed UUID and dashless hex endpoint IDs.
-- Frontend forms currently use plain React state; `react-hook-form` and `zod` are installed but unused.
+- Frontend forms currently use plain React state plus manual validation.
 - Vite proxies `/api`, `/health`, and `/admin` to the backend in local dev, but production still uses direct browser-to-backend requests via `VITE_API_URL`.
 
 ## Anti-Patterns (Do Not)

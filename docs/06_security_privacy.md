@@ -53,7 +53,7 @@ Backend also redacts header names matching patterns such as `token`, `secret`, `
 
 ### Backend worker
 
-- Bark, ntfy, and MQTT providers run SSRF checks before dispatch.
+- Bark, ntfy, MQTT, and Gotify providers run SSRF checks before dispatch.
 - Loopback and link-local addresses are always blocked.
 - Private-network blocking is configurable per provider and enabled by default.
 - Provider requests use short timeouts.

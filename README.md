@@ -43,7 +43,7 @@ herald/
 - `docs/06_security_privacy.md` - tokens, SSRF, redaction, safety constraints
 - `docs/07_operations.md` - env vars, deploy/runtime notes, health endpoints
 - `docs/08_bark_v2.md` - Bark-specific provider behavior
-- `docs/09_repo_structure.md` - repo/submodule conventions
+- `docs/09_repo_structure.md` - repo layout and package boundaries
 - `docs/10_edge.md` - current Cloudflare lite runtime
 - `docs/11_edge_lite_feasibility.md` - edge-lite tradeoffs and scope boundaries
 
