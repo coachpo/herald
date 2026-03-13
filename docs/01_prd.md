@@ -8,7 +8,7 @@ Herald lets a single user ingest structured JSON messages, store them, inspect t
 
 - Accept machine-generated events over HTTP without requiring a full webhook provider integration
 - Preserve the incoming message plus request metadata for later inspection
-- Route matching messages to Bark, ntfy, or MQTT with user-controlled templates
+- Route matching messages to Bark, ntfy, MQTT, or Gotify with user-controlled templates
 - Offer a lightweight dashboard for setup, triage, and cleanup
 
 ## Current User-Facing Features
@@ -45,6 +45,7 @@ Herald lets a single user ingest structured JSON messages, store them, inspect t
 - Bark channels with `server_base_url`, `device_key`/`device_keys`, and default Bark payload JSON
 - ntfy channels with server URL, topic, optional bearer/basic auth, and default headers JSON
 - MQTT channels with broker, topic, auth, TLS, QoS, retain, client id, and keepalive settings
+- Gotify channels with server URL and application token
 - Immediate send-test action per channel
 
 ### Rules
@@ -82,7 +83,7 @@ Herald lets a single user ingest structured JSON messages, store them, inspect t
 
 - Unverified users can log in, but write actions are gated and ingest may be blocked depending on settings
 - Dashboard auth is browser-to-backend JWT, not server-side session auth
-- SQLite is the default runtime storage in this repo
+- PostgreSQL is the production and supported backend database
 - Edge-lite is intentionally narrower and less safe than the backend worker
 
 ## Success Criteria

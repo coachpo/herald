@@ -111,7 +111,7 @@ Notes:
 
 - `id`
 - `user_id`
-- `type` (`bark`, `ntfy`, `mqtt`)
+- `type` (`bark`, `ntfy`, `mqtt`, `gotify`)
 - `name`
 - `config_json_encrypted`
 - `created_at`
@@ -121,7 +121,8 @@ Logical config fields:
 
 - Bark: `server_base_url`, `device_key` or `device_keys`, `default_payload_json`
 - ntfy: `server_base_url`, `topic`, optional bearer/basic auth, `default_headers_json`
-- MQTT: `broker_host`, `broker_port`, `topic`, optional auth/TLS/QoS/retain/client_id/keepalive_seconds`
+- MQTT: `broker_host`, `broker_port`, `topic`, optional auth/TLS/QoS/retain/client_id/keepalive_seconds
+- Gotify: `server_base_url`, `app_token`, optional `default_priority` (0-10), `default_extras_json`, `default_payload_json`
 
 ## Forwarding Rules
 

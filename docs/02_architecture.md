@@ -4,9 +4,11 @@
 
 ### Backend (`backend/`)
 
-- Django 5.2 + DRF
+- FastAPI + SQLAlchemy 2.0 + asyncpg (async PostgreSQL)
 - Owns auth, ingest, message storage, channel/rule CRUD, and edge-config export
-- Runs a polling delivery worker for Bark, ntfy, and MQTT
+- Runs an async delivery worker for Bark, ntfy, MQTT, and Gotify
+- Pure ASGI middleware (CORS, request ID, access logging)
+- Structured logging via structlog
 
 ### Frontend (`frontend/`)
 
@@ -26,7 +28,7 @@
 ```text
 Browser -> Backend /api/* via VITE_API_URL
 Ingest -> Backend Message row + Delivery rows
-Worker -> Bark / ntfy / MQTT
+Worker -> Bark / ntfy / MQTT / Gotify
 Backend /api/edge-config -> KV snapshot -> Edge lite
 Edge lite -> Bark / ntfy HTTP only
 ```
@@ -60,17 +62,17 @@ Edge lite -> Bark / ntfy HTTP only
 
 ## Storage Model
 
-- SQLite is the default runtime DB in this repo.
-- `DATABASE_URL` parsing exists for alternate backends, but no Postgres driver is installed here.
-- SQLite runtime is tuned for API + worker concurrency using WAL and timeout settings.
+- PostgreSQL is the production database, accessed via SQLAlchemy 2.0 async engine with asyncpg.
+- The FastAPI backend requires PostgreSQL; SQLite is not supported. `DATABASE_URL` configures the connection.
 - Delivery queue state lives in the database, not in an external queue system.
 
 ## Worker Model
 
-- Implemented as `python manage.py deliveries_worker`
-- Polls `queued` and `retry` rows
-- Uses `select_for_update(skip_locked=True)` to avoid duplicate processing
+- Implemented as `python -m backend.worker`
+- Async event loop polls `queued` and `retry` rows
+- Uses `SELECT ... FOR UPDATE SKIP LOCKED` to avoid duplicate processing
 - Retries with exponential backoff until `DELIVERY_MAX_ATTEMPTS`
+- Dispatches to Bark, ntfy, MQTT, and Gotify providers
 
 ## Frontend Architecture Notes
 

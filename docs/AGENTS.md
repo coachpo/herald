@@ -43,7 +43,7 @@ docs/
 - Document implemented behavior first; if something is aspirational, label it clearly.
 - `openapi.yaml` is the API schema source of truth; keep markdown API docs aligned with it.
 - Keep backend `GET /health` separate from edge `GET /healthz`.
-- Default database language must match code: SQLite first, optional `DATABASE_URL` override.
+- Default database language must match code: PostgreSQL is the only supported backend database.
 - Frontend form guidance must match current code (`useState`) unless implementation changes.
 - Edge docs must describe the current KV snapshot shape and current `token_hash` auth caveat exactly as implemented.
 

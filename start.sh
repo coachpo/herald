@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+# Local FastAPI startup helper.
+# Production deployments can use: docker compose up (FastAPI + PostgreSQL + worker)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
-BACKEND_PORT="${BACKEND_PORT:-8000}"
+BACKEND_PORT="${BACKEND_PORT:-8001}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 MODE="${1:-${START_MODE:-headless}}"
 CLEANED_UP=false
@@ -87,9 +89,6 @@ fi
 echo "Installing backend dependencies..."
 "$BACKEND_DIR/.venv/bin/pip" install -q -r "$BACKEND_DIR/requirements.txt"
 
-echo "Applying backend migrations..."
-(cd "$BACKEND_DIR" && "$BACKEND_DIR/.venv/bin/python" manage.py migrate --noinput)
-
 if [ "$START_FRONTEND" = true ]; then
     # --- Frontend setup ---
     if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
@@ -104,7 +103,7 @@ fi
 
 # --- Start backend ---
 echo "Starting backend on port $BACKEND_PORT..."
-(cd "$BACKEND_DIR" && "$BACKEND_DIR/.venv/bin/python" manage.py runserver "0.0.0.0:$BACKEND_PORT") &
+(cd "$ROOT_DIR" && "$BACKEND_DIR/.venv/bin/uvicorn" backend.main:app --host 0.0.0.0 --port "$BACKEND_PORT") &
 BACKEND_PID=$!
 
 if [ "$START_FRONTEND" = true ]; then
@@ -125,7 +124,6 @@ if [ "$START_FRONTEND" = true ]; then
 else
     echo "  Frontend: disabled (headless mode)"
 fi
-echo "  Admin:    http://localhost:$BACKEND_PORT/admin"
 echo "========================================="
 echo ""
 

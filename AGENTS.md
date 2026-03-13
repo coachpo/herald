@@ -4,17 +4,18 @@
 
 ## Overview
 
-Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, or MQTT via user-defined rules. This root repo is the coordination layer around three submodules: Django backend, React/Vite frontend, and Cloudflare Worker lite edge.
+Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules. This root repo is the coordination layer around three submodules plus the production FastAPI backend.
 
 ## Structure
 
 ```text
 herald/
-├── backend/        # Django 5.2 + DRF API + polling delivery worker
+├── backend/        # Production FastAPI backend (async PostgreSQL + structlog)
 ├── frontend/       # React 19 + Vite + React Router dashboard
 ├── edge/           # Cloudflare Worker lite mode (KV config, HTTP dispatch)
 ├── docs/           # Product, architecture, data model, API, security, ops
 ├── .github/        # Docker image builds and cleanup workflows
+├── docker-compose.yml # Local dev orchestration (FastAPI + PostgreSQL + worker)
 ├── start.sh        # Local startup helper (headless|full)
 └── .gitmodules     # Submodule remotes and tracked branches
 ```
@@ -25,10 +26,14 @@ Git submodules: `backend/`, `frontend/`, and `edge/` each track their own `main`
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Auth and user lifecycle | `backend/accounts/`, `backend/api/views_auth.py` | Custom user, JWT, refresh rotation, email flows |
-| Ingest endpoint | `backend/api/ingest.py` | JSON-only, `body` required, 1 MB limit, dashed or dashless UUID |
-| Resource API | `backend/api/views_resources.py`, `backend/api/serializers.py` | Messages, channels, rules, ingest endpoints |
-| Delivery worker | `backend/core/management/commands/deliveries_worker.py` | Polling DB queue, exponential backoff |
+| Auth and user lifecycle | `backend/routes/auth.py`, `backend/services/auth.py` | JWT access/refresh lifecycle and account management |
+| Ingest endpoint | `backend/routes/ingest.py` | JSON-only, `body` required, 1 MB limit, dashed or dashless UUID |
+| Resource API | `backend/routes/`, `backend/services/` | Messages, channels, rules, ingest endpoints |
+| Delivery worker | `backend/worker.py` | Async delivery loop with exponential backoff |
+| FastAPI backend | `backend/` | Production-ready async stack |
+| Structured logging | `backend/logging_config.py` | structlog setup with JSON/console output |
+| Error handling | `backend/errors.py` | Global exception handlers |
+| Docker | `backend/Dockerfile`, `docker-compose.yml` | Container builds and local dev |
 | Frontend auth and routing | `frontend/src/lib/auth.tsx`, `frontend/src/router.tsx` | `sessionStorage` refresh token, BrowserRouter route tree |
 | Frontend API URLs | `frontend/src/lib/api.ts`, `frontend/src/lib/public-api.ts` | Direct browser-to-backend calls via `VITE_API_URL` |
 | Edge lite runtime | `edge/src/lite.mjs` | KV config, local rule eval, Bark/ntfy dispatch |
@@ -39,17 +44,17 @@ Git submodules: `backend/`, `frontend/`, and `edge/` each track their own `main`
 
 ```text
 Frontend browser --VITE_API_URL--> Backend /api/*
-Backend ingest -> DB Message + Delivery rows -> polling worker -> Bark/ntfy/MQTT
+Backend ingest -> DB Message + Delivery rows -> async worker -> Bark/ntfy/MQTT/Gotify
 Backend /api/edge-config -> exported snapshot -> Cloudflare KV EDGE_CONFIG
 Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 ```
 
-No shared runtime code crosses package boundaries; synchronization happens through JSON APIs, the database, and KV snapshots.
+Production runtime traffic flows through the FastAPI backend (`backend/`), frontend, and edge.
 
 ## Conventions
 
-- Backend prefers custom implementations over helper libraries: JWT auth, CORS middleware, and `.env` loading are all in-repo.
-- SQLite is the default runtime database in this repo; `DATABASE_URL` parsing exists, but no Postgres driver is installed here.
+- Backend prefers custom implementations over helper libraries: JWT auth, CORS middleware, `.env` loading, and `DATABASE_URL` parsing are all in-repo.
+- PostgreSQL is the only supported database for the backend. `DATABASE_URL` configures the connection via asyncpg with optional pool settings.
 - All model primary keys are UUID v4.
 - Soft-delete uses nullable timestamps: `deleted_at`, `revoked_at`, `disabled_at`.
 - Channel configs are encrypted at rest in `config_json_encrypted`.
@@ -73,11 +78,14 @@ No shared runtime code crosses package boundaries; synchronization happens throu
 ./start.sh headless   # backend only
 ./start.sh full       # backend + frontend
 
-# Backend (from backend/)
-python manage.py migrate --noinput
-python manage.py test
-python manage.py runserver 0.0.0.0:8000
-python manage.py deliveries_worker
+# Backend (from repo root)
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --host 0.0.0.0 --port 8001
+python -m backend.worker
+python -m pytest backend/tests/ -v
+
+# Docker Compose
+docker compose up
 
 # Frontend (from frontend/)
 pnpm install
@@ -95,5 +103,5 @@ npm run dev
 ## Notes
 
 - Backend health endpoint is `GET /health`; edge-lite health endpoint is `GET /healthz`.
-- `start.sh` creates the backend virtualenv on demand, runs migrations, and can launch frontend dev with matching `APP_BASE_URL` and `CORS_ALLOWED_ORIGINS`.
+- `start.sh` creates the backend virtualenv on demand and can launch frontend dev with matching `APP_BASE_URL` and `CORS_ALLOWED_ORIGINS`.
 - Edge-lite currently compares `X-Herald-Ingest-Key` directly against exported `token_hash` values in KV config; document that caveat accurately whenever editing edge docs.

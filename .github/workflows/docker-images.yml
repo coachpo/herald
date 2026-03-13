@@ -81,11 +81,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve image name
+        id: image
+        run: |
+          case "${{ matrix.service }}" in
+            backend)          echo "name=${{ env.IMAGE_NAME_BACKEND }}" >> "$GITHUB_OUTPUT" ;;
+            frontend)         echo "name=${{ env.IMAGE_NAME_FRONTEND }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service == 'backend' && env.IMAGE_NAME_BACKEND || env.IMAGE_NAME_FRONTEND }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.image.outputs.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr

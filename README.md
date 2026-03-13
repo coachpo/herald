@@ -1,10 +1,10 @@
 # Herald
 
-Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, or MQTT via user-defined rules.
+Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules.
 
 This repository is the coordination layer around three git submodules:
 
-- `backend/` - Django 5.2 + DRF API + polling delivery worker
+- `backend/` - Production FastAPI backend with async PostgreSQL, structured logging, and Docker support
 - `frontend/` - React 19 + Vite + React Router dashboard
 - `edge/` - Cloudflare Worker lite mode (KV config, local rule eval, HTTP dispatch)
 
@@ -14,7 +14,7 @@ This repository is the coordination layer around three git submodules:
 - Multiple ingest endpoints per user with token-based auth
 - Structured JSON ingest with `body` required and optional `title`, `group`, `priority`, `tags`, `url`, `extras`
 - Message history with filters, detail view, soft delete, and batch delete
-- Channel types: Bark, ntfy, MQTT
+- Channel types: Bark, ntfy, MQTT, Gotify
 - Forwarding rules with endpoint/body/priority/tag/group filters and Mustache-style payload templates
 - Background delivery worker with exponential backoff retries
 - Edge-lite mode for Bark/ntfy HTTP fanout from Cloudflare Workers
@@ -28,6 +28,7 @@ herald/
 ├── edge/
 ├── docs/
 ├── .github/workflows/
+├── docker-compose.yml
 └── start.sh
 ```
 
@@ -54,16 +55,23 @@ Initialize submodules first:
 git submodule update --init --recursive
 ```
 
-Run backend only:
+### FastAPI Backend (recommended)
 
 ```bash
-./start.sh headless
+# With Docker Compose
+docker compose up
+
+# Manual
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --host 0.0.0.0 --port 8001
+python -m backend.worker
 ```
 
-Run backend + frontend:
+### Local Helper Script
 
 ```bash
-./start.sh full
+./start.sh headless   # backend only
+./start.sh full       # backend + frontend
 ```
 
 Manual package commands live in `docs/07_operations.md` and the package `AGENTS.md` files.

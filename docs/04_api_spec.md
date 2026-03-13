@@ -111,6 +111,50 @@ Supported list filters:
 - `DELETE /api/channels/{id}`
 - `POST /api/channels/{id}/test`
 
+### Channel Configs
+
+Channel creation and updates require a `config` object specific to the provider type.
+
+#### Bark
+```json
+{
+  "server_base_url": "https://api.day.app",
+  "device_key": "your_key",
+  "default_payload_json": { "sound": "glass" }
+}
+```
+
+#### ntfy
+```json
+{
+  "server_base_url": "https://ntfy.sh",
+  "topic": "your_topic",
+  "default_headers_json": { "Priority": "high" }
+}
+```
+
+#### MQTT
+```json
+{
+  "broker_host": "broker.emqx.io",
+  "broker_port": 1883,
+  "topic": "herald/messages"
+}
+```
+
+#### Gotify
+```json
+{
+  "server_base_url": "https://gotify.example.com",
+  "app_token": "Apx...",
+  "default_priority": 5,
+  "default_extras_json": {
+    "client::display": { "contentType": "text/markdown" }
+  }
+}
+```
+
+
 Channel test sends immediately and returns provider metadata. It does not create a stored message or delivery row.
 
 ### Rules
@@ -148,4 +192,4 @@ Rendering rules:
 - Edge-lite health: `GET /healthz`
 - Edge snapshot export: `GET /api/edge-config`
 
-`GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy channels and rules for edge-lite consumption. MQTT is excluded.
+`GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy/gotify channels and rules for edge-lite consumption. MQTT is excluded.

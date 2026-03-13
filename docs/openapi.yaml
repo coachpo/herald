@@ -280,7 +280,7 @@ components:
         id: { $ref: "#/components/schemas/UUID" }
         type:
           type: string
-          enum: [bark, ntfy, mqtt]
+          enum: [bark, ntfy, mqtt, gotify]
         name: { type: string }
         created_at: { $ref: "#/components/schemas/Timestamp" }
         disabled_at:
@@ -416,6 +416,37 @@ components:
         name: { type: string }
         config: { $ref: "#/components/schemas/MqttChannelConfig" }
       required: [type, name, config]
+    GotifyChannelConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        server_base_url:
+          type: string
+          description: Base URL of the Gotify server (e.g. https://gotify.example.com).
+        app_token:
+          type: string
+          description: Application token for Gotify.
+        default_priority:
+          type: integer
+          minimum: 0
+          maximum: 10
+        default_extras_json:
+          type: object
+          additionalProperties: true
+        default_payload_json:
+          type: object
+          additionalProperties: true
+      required: [server_base_url, app_token]
+    GotifyChannelUpsertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [gotify]
+        name: { type: string }
+        config: { $ref: "#/components/schemas/GotifyChannelConfig" }
+      required: [type, name, config]
     BarkChannelDetail:
       type: object
       additionalProperties: false
@@ -437,16 +468,25 @@ components:
         channel: { $ref: "#/components/schemas/Channel" }
         config: { $ref: "#/components/schemas/MqttChannelConfig" }
       required: [channel, config]
+    GotifyChannelDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        channel: { $ref: "#/components/schemas/Channel" }
+        config: { $ref: "#/components/schemas/GotifyChannelConfig" }
+      required: [channel, config]
     ChannelUpsertRequest:
       oneOf:
         - { $ref: "#/components/schemas/BarkChannelUpsertRequest" }
         - { $ref: "#/components/schemas/NtfyChannelUpsertRequest" }
         - { $ref: "#/components/schemas/MqttChannelUpsertRequest" }
+        - { $ref: "#/components/schemas/GotifyChannelUpsertRequest" }
     ChannelDetail:
       oneOf:
         - { $ref: "#/components/schemas/BarkChannelDetail" }
         - { $ref: "#/components/schemas/NtfyChannelDetail" }
         - { $ref: "#/components/schemas/MqttChannelDetail" }
+        - { $ref: "#/components/schemas/GotifyChannelDetail" }
     Rule:
       type: object
       additionalProperties: false
@@ -588,7 +628,7 @@ components:
         matches: { type: boolean }
         channel_type:
           type: string
-          enum: [bark, ntfy, mqtt]
+          enum: [bark, ntfy, mqtt, gotify]
         rendered_payload:
           type: object
           additionalProperties: true
@@ -601,7 +641,7 @@ components:
         channel: { $ref: "#/components/schemas/Channel" }
         channel_type:
           type: string
-          enum: [bark, ntfy, mqtt]
+          enum: [bark, ntfy, mqtt, gotify]
         rendered_payload:
           type: object
           additionalProperties: true
@@ -642,7 +682,7 @@ components:
         channel_id: { $ref: "#/components/schemas/UUID" }
         channel_type:
           type: string
-          enum: [bark, ntfy, mqtt]
+          enum: [bark, ntfy, mqtt, gotify]
         provider_response:
           type: object
           additionalProperties: true
@@ -775,7 +815,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "503":
-          description: Temporary backend unavailability (for example SQLite lock contention during refresh)
+          description: Temporary backend unavailability (for example database contention during refresh)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1430,13 +1470,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-  /api/rules/{id}/test:
+  /api/rules/{rule_id}/test:
     post:
       tags: [rules]
       security: [{ bearerAuth: [] }]
       summary: Test rule against a sample message (no send)
       parameters:
-        - $ref: "#/components/parameters/IdParam"
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
