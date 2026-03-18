@@ -4,13 +4,6 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths:
-      - "backend"
-      - "backend/**"
-      - "frontend"
-      - "frontend/**"
-      - ".github/workflows/docker-images.yml"
-      - ".gitmodules"
   pull_request:
     branches: [main]
     paths:
@@ -41,7 +34,6 @@ env:
   IMAGE_NAME_BACKEND: ${{ github.event.repository.name }}-backend
   IMAGE_NAME_FRONTEND: ${{ github.event.repository.name }}-frontend
   VITE_API_URL: ${{ secrets.VITE_API_URL != '' && secrets.VITE_API_URL }}
-
   BUILD_PLATFORM: linux/arm64
 
 jobs:
