@@ -28,7 +28,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "8000:8000"
     environment:
       DATABASE_URL: postgresql://herald:herald@db:5432/herald_dev
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure}

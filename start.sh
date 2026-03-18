@@ -253,7 +253,7 @@ if [ ! -d "$BACKEND_DIR/.venv" ]; then
 fi
 
 echo "Installing backend dependencies..."
-"$BACKEND_DIR/.venv/bin/pip" install -q -r "$BACKEND_DIR/requirements.txt"
+"$BACKEND_DIR/.venv/bin/pip" install -q -e "$BACKEND_DIR"
 
 if [ "$START_FRONTEND" = true ]; then
     # --- Frontend setup ---
@@ -274,7 +274,7 @@ echo "Ensuring local database schema..."
 
 # --- Start backend ---
 echo "Starting backend on port $BACKEND_PORT..."
-(cd "$ROOT_DIR" && exec "$BACKEND_DIR/.venv/bin/uvicorn" backend.main:app --host 0.0.0.0 --port "$BACKEND_PORT") &
+(cd "$ROOT_DIR" && exec "$BACKEND_DIR/.venv/bin/herald-backend" --host 0.0.0.0 --port "$BACKEND_PORT" --workers 1) &
 BACKEND_PID=$!
 wait_for_listener "$BACKEND_PORT" "Backend" 30
 
