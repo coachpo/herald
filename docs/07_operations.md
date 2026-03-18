@@ -3,7 +3,7 @@
 ## Runtime Processes
 
 - `backend`: FastAPI backend serving `/api/*` and `GET /health`.
-- `worker`: `python -m backend.worker` (async delivery loop).
+- `worker`: typically run as `uv run --project backend python -m backend.worker` (async delivery loop).
 - `frontend`: Vite dev server in development, static files + `GET /health` in the container image.
 - `edge`: optional Cloudflare Worker lite deployment.
 
@@ -26,16 +26,16 @@ docker compose up          # FastAPI + PostgreSQL + worker
 | Backend | `38000` |
 | Frontend | `35173` |
 
-`start.sh full` creates `backend/.venv`, installs backend dependencies there, runs `bootstrap_dev_db.py`, and points the frontend directly at the helper backend with `VITE_API_URL=http://localhost:$BACKEND_PORT`.
+`start.sh full` creates or refreshes `backend/.venv` with `uv sync`, runs `bootstrap_dev_db.py`, and points the frontend directly at the helper backend with `VITE_API_URL=http://localhost:$BACKEND_PORT`.
 
 ### Backend (from repo root)
 
 ```bash
-python -m pip install -e "backend[test]"
-python backend/bootstrap_dev_db.py
-python -m pytest backend/tests/ -v
-herald-backend
-python -m backend.worker
+uv sync --project backend
+uv run --project backend python backend/bootstrap_dev_db.py
+uv run --project backend pytest backend/tests/ -v
+uv run --project backend herald-backend
+uv run --project backend python -m backend.worker
 ```
 
 The manual/container examples use the package defaults (`5432` / `8000`). They are distinct from the helper script ports above.

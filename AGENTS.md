@@ -79,11 +79,11 @@ git submodule update --init --recursive
 docker compose up
 
 # Backend (from repo root)
-python -m pip install -e "backend[test]"
-python backend/bootstrap_dev_db.py
-python -m pytest backend/tests/ -v
-herald-backend
-python -m backend.worker
+uv sync --project backend
+uv run --project backend python backend/bootstrap_dev_db.py
+uv run --project backend pytest backend/tests/ -v
+uv run --project backend herald-backend
+uv run --project backend python -m backend.worker
 
 # Frontend (from frontend/)
 pnpm install

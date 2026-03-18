@@ -36,7 +36,6 @@ Herald lets a single user ingest structured JSON messages, store them, inspect t
 - Message detail showing body, structured fields, extras, headers, query params, and delivery history.
 - Soft delete for individual messages.
 - Batch delete for messages older than N days, optionally scoped to one ingest endpoint.
-- The dashboard currently renders extra search/group/tag controls, but the backend does not honor them yet.
 
 ### Channels
 

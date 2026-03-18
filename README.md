@@ -62,9 +62,9 @@ git submodule update --init --recursive
 docker compose up
 
 # Manual
-python -m pip install -e "backend[test]"
-herald-backend
-python -m backend.worker
+uv sync --project backend
+uv run --project backend herald-backend
+uv run --project backend python -m backend.worker
 ```
 
 ### Local Helper Script

@@ -55,10 +55,9 @@ The forgot/reset/verify pages expect tokens from an out-of-band flow. The curren
 
 ### Messages
 
-- Filter controls for search, endpoint, group, priority range, tag, and time range.
+- Filter controls for endpoint, priority range, and time range.
 - Batch delete form for messages older than N days, with optional ingest-endpoint scoping.
 - Message table with priority badges, tags, group, and delivery summaries.
-- Current backend gap: only endpoint, priority range, and time range filters affect the server response today.
 
 ### Message detail
 
@@ -78,7 +77,6 @@ The forgot/reset/verify pages expect tokens from an out-of-band flow. The curren
 ### Channels
 
 - Create/delete UI for Bark, ntfy, MQTT, and Gotify channels, plus a send-test panel.
-- An edit form exists, but the current summary-only channel detail API does not return config, so edit hydration is not aligned end-to-end.
 - Type-specific form fields.
 - Send-test panel per channel with optional title/body.
 

@@ -53,7 +53,7 @@ Herald passes through arbitrary JSON keys, so Bark V2 fields can be set in rule 
 
 ## Test Endpoint
 
-`POST /api/channels/{id}/test` for Bark:
+`POST /api/channels/{channel_id}/test` for Bark:
 
 - merges `default_payload_json`
 - treats optional `payload_json` as the synthetic test message input

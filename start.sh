@@ -12,6 +12,11 @@ FRONTEND_PORT="${FRONTEND_PORT:-35173}"
 MODE="${1:-${START_MODE:-full}}"
 CLEANED_UP=false
 
+python_supports_backend() {
+    local python_bin="$1"
+    "$python_bin" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 13) else 1)' >/dev/null 2>&1
+}
+
 usage() {
     echo "Usage: $0 [headless|full]"
     echo ""
@@ -211,8 +216,22 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "python3 is required but not installed."
+if command -v python3.13 >/dev/null 2>&1; then
+    BACKEND_PYTHON="$(command -v python3.13)"
+elif command -v python3 >/dev/null 2>&1; then
+    BACKEND_PYTHON="$(command -v python3)"
+else
+    echo "python3.13 or python3 is required but not installed."
+    exit 1
+fi
+
+if ! python_supports_backend "$BACKEND_PYTHON"; then
+    echo "Herald backend requires Python 3.13+. Found: $($BACKEND_PYTHON --version 2>&1)"
+    exit 1
+fi
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "uv is required but not installed. Install it from https://docs.astral.sh/uv/."
     exit 1
 fi
 
@@ -247,13 +266,13 @@ compose_db up -d db
 wait_for_db
 
 # --- Backend setup ---
-if [ ! -d "$BACKEND_DIR/.venv" ]; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv "$BACKEND_DIR/.venv"
+if [ -d "$BACKEND_DIR/.venv" ] && [ -x "$BACKEND_DIR/.venv/bin/python" ] && ! python_supports_backend "$BACKEND_DIR/.venv/bin/python"; then
+    echo "Recreating backend environment with $BACKEND_PYTHON..."
+    rm -rf "$BACKEND_DIR/.venv"
 fi
 
-echo "Installing backend dependencies..."
-"$BACKEND_DIR/.venv/bin/pip" install -q -e "$BACKEND_DIR"
+echo "Syncing backend dependencies with uv..."
+uv sync --project "$BACKEND_DIR" --locked --python "$BACKEND_PYTHON"
 
 if [ "$START_FRONTEND" = true ]; then
     # --- Frontend setup ---
@@ -270,11 +289,11 @@ fi
 export DATABASE_URL="postgresql://herald:herald@127.0.0.1:$DB_PORT/herald_dev"
 
 echo "Ensuring local database schema..."
-"$BACKEND_DIR/.venv/bin/python" "$BACKEND_DIR/bootstrap_dev_db.py"
+uv run --project "$BACKEND_DIR" --locked python "$BACKEND_DIR/bootstrap_dev_db.py"
 
 # --- Start backend ---
 echo "Starting backend on port $BACKEND_PORT..."
-(cd "$ROOT_DIR" && exec "$BACKEND_DIR/.venv/bin/herald-backend" --host 0.0.0.0 --port "$BACKEND_PORT" --workers 1) &
+(cd "$ROOT_DIR" && exec uv run --project "$BACKEND_DIR" --locked herald-backend --host 0.0.0.0 --port "$BACKEND_PORT" --workers 1) &
 BACKEND_PID=$!
 wait_for_listener "$BACKEND_PORT" "Backend" 30
 

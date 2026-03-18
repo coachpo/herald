@@ -82,20 +82,20 @@ Behavior notes:
 
 - `GET /api/ingest-endpoints`
 - `POST /api/ingest-endpoints`
-- `GET /api/ingest-endpoints/{id}`
-- `PATCH /api/ingest-endpoints/{id}`
-- `POST /api/ingest-endpoints/{id}/revoke`
-- `DELETE /api/ingest-endpoints/{id}`
+- `GET /api/ingest-endpoints/{endpoint_id}`
+- `PATCH /api/ingest-endpoints/{endpoint_id}`
+- `POST /api/ingest-endpoints/{endpoint_id}/revoke`
+- `DELETE /api/ingest-endpoints/{endpoint_id}`
 
 `POST` returns the ingest key once together with the created endpoint and canonical ingest URL.
 
 ### Messages
 
 - `GET /api/messages`
-- `GET /api/messages/{id}`
-- `DELETE /api/messages/{id}`
+- `GET /api/messages/{message_id}`
+- `DELETE /api/messages/{message_id}`
 - `POST /api/messages/batch-delete`
-- `GET /api/messages/{id}/deliveries`
+- `GET /api/messages/{message_id}/deliveries`
 
 Supported list filters today:
 
@@ -105,27 +105,22 @@ Supported list filters today:
 - `from`
 - `to`
 
-The frontend currently sends `q`, `group`, and `tag` too, but the backend does not honor them yet.
-
 ### Channels
 
 - `GET /api/channels`
 - `POST /api/channels`
-- `GET /api/channels/{id}`
-- `PATCH /api/channels/{id}`
-- `DELETE /api/channels/{id}`
-- `POST /api/channels/{id}/test`
+- `DELETE /api/channels/{channel_id}`
+- `POST /api/channels/{channel_id}/test`
 
 Current response behavior:
 
-- `GET /api/channels/{id}` returns channel summary metadata only.
-- `POST` and `PATCH` return channel metadata plus decrypted `config`.
+- `POST` returns channel metadata plus decrypted `config`.
 
 Channel test sends immediately and returns provider metadata. It does not create a stored message or delivery row.
 
 ### Channel Configs
 
-Channel creation and updates require a `config` object specific to the provider type.
+Channel creation requires a `config` object specific to the provider type.
 
 #### Bark
 
@@ -174,11 +169,11 @@ Channel creation and updates require a `config` object specific to the provider 
 
 - `GET /api/rules`
 - `POST /api/rules`
-- `GET /api/rules/{id}`
-- `PATCH /api/rules/{id}`
-- `DELETE /api/rules/{id}`
+- `GET /api/rules/{rule_id}`
+- `PATCH /api/rules/{rule_id}`
+- `DELETE /api/rules/{rule_id}`
 - `POST /api/rules/test`
-- `POST /api/rules/{id}/test`
+- `POST /api/rules/{rule_id}/test`
 
 Rule test endpoints only evaluate filters and render payload previews. They do not dispatch notifications.
 
