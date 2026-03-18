@@ -2,11 +2,11 @@
 
 ## Current Backend Behavior
 
-Backend Bark delivery is implemented in `backend/core/bark.py`.
+Backend Bark delivery is implemented in `backend/providers/bark.py`.
 
 - Normal dispatch is `POST {server_base_url}/push` with JSON.
 - `server_base_url` is normalized to remove trailing slashes and duplicate `/push`.
-- If a POST returns `404` or `405`, backend falls back to the legacy GET URL form.
+- If a POST returns `404` or `405`, backend falls back to the legacy GET URL form when the payload contains a single `device_key` plus `body`.
 
 ## Channel Config
 
@@ -30,7 +30,7 @@ Notes:
 
 ## Useful Bark Fields
 
-Herald passes through arbitrary JSON keys, so common Bark payload fields can be set in the rule template or default payload JSON, including:
+Herald passes through arbitrary JSON keys, so Bark V2 fields can be set in rule templates or `default_payload_json`, including:
 
 - `title`
 - `body`
@@ -47,13 +47,16 @@ Herald passes through arbitrary JSON keys, so common Bark payload fields can be 
 - `isArchive`
 - `url`
 - `action`
+- `device_keys`
+- `ciphertext`
+- `iv`
 
 ## Test Endpoint
 
 `POST /api/channels/{id}/test` for Bark:
 
 - merges `default_payload_json`
-- overlays optional `payload_json`
+- treats optional `payload_json` as the synthetic test message input
 - fills in default `title` / `body` if absent
 - injects configured `device_key` or `device_keys`
 - returns provider metadata under `provider_response`
@@ -61,5 +64,6 @@ Herald passes through arbitrary JSON keys, so common Bark payload fields can be 
 ## Safety And Limits
 
 - Backend applies SSRF checks to Bark destination URLs.
+- Backend uses a 5 second HTTP timeout by default.
 - Response metadata is stored as capped snippets plus parsed JSON when available.
-- Do not document Bark support as edge/backend identical; the edge package has a narrower safety model.
+- Edge uses the same `/push` payload model, but does not implement backend SSRF checks or the legacy GET fallback.

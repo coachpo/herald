@@ -52,13 +52,23 @@ components:
       type: object
       additionalProperties: false
       properties:
-        code:
-          type: string
-        message:
-          type: string
-        details:
-          type: object
-      required: [code, message]
+        detail:
+          anyOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+            - type: array
+              items: {}
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              field: { type: string }
+              message: { type: string }
+            required: [field, message]
+      required: [detail]
     UUID:
       type: string
       format: uuid
@@ -168,6 +178,12 @@ components:
         ingest_url:
           type: string
       required: [endpoint, ingest_key, ingest_url]
+    IngestEndpointResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        endpoint: { $ref: "#/components/schemas/IngestEndpoint" }
+      required: [endpoint]
     MessageSummary:
       type: object
       additionalProperties: false
@@ -261,7 +277,6 @@ components:
         older_than_days:
           type: integer
           minimum: 1
-          maximum: 36500
         ingest_endpoint_id:
           anyOf:
             - { $ref: "#/components/schemas/UUID" }
@@ -487,6 +502,12 @@ components:
         - { $ref: "#/components/schemas/NtfyChannelDetail" }
         - { $ref: "#/components/schemas/MqttChannelDetail" }
         - { $ref: "#/components/schemas/GotifyChannelDetail" }
+    ChannelResponseEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        channel: { $ref: "#/components/schemas/Channel" }
+      required: [channel]
     Rule:
       type: object
       additionalProperties: false
@@ -725,6 +746,19 @@ components:
             - type: object
             - type: "null"
       required: [id, message_id, rule_id, rule_name, channel_id, channel_name, status, attempt_count, next_attempt_at, sent_at, last_error, provider_response]
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        database:
+          type: string
+          enum: [connected, unavailable]
+        version:
+          type: string
+      required: [status, database, version]
 paths:
   /api/auth/signup:
     post:
@@ -824,7 +858,7 @@ paths:
       tags: [auth]
       summary: Logout (clears session)
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -860,10 +894,10 @@ paths:
     post:
       tags: [auth]
       security: [{ bearerAuth: [] }]
-      summary: Resend verification email
+      summary: Create verification token
       responses:
         "204":
-          description: Sent (or no-op if already verified)
+          description: Verification token created and logged (or no-op if already verified)
   /api/auth/verify-email:
     post:
       tags: [auth]
@@ -884,9 +918,10 @@ paths:
   /api/auth/forgot-password:
     post:
       tags: [auth]
-      summary: Request password reset email
+      summary: Request password reset token
       description: |
         Returns 204 regardless of whether the email exists to avoid user enumeration.
+        The current repo records the reset token server-side but does not send mail.
       requestBody:
         required: true
         content:
@@ -894,7 +929,7 @@ paths:
             schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
       responses:
         "204":
-          description: Sent (or no-op)
+          description: Token created and logged (or no-op)
   /api/auth/reset-password:
     post:
       tags: [auth]
@@ -1063,7 +1098,12 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/IngestEndpointCreateResponse" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
+        "503":
+          description: Temporary backend unavailability
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /api/ingest-endpoints/{id}/revoke:
     post:
       tags: [ingest_endpoints]
@@ -1075,13 +1115,62 @@ paths:
         "204":
           description: Revoked
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Temporary backend unavailability
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /api/ingest-endpoints/{id}:
+    get:
+      tags: [ingest_endpoints]
+      security: [{ bearerAuth: [] }]
+      summary: Get ingest endpoint detail
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestEndpointResponse" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [ingest_endpoints]
+      security: [{ bearerAuth: [] }]
+      summary: Rename an ingest endpoint
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IngestEndpointCreateRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestEndpointResponse" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Temporary backend unavailability
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       tags: [ingest_endpoints]
       security: [{ bearerAuth: [] }]
@@ -1095,9 +1184,14 @@ paths:
         "204":
           description: Archived
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Temporary backend unavailability
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1111,16 +1205,6 @@ paths:
           in: query
           required: false
           schema: { $ref: "#/components/schemas/UUID" }
-        - name: q
-          in: query
-          required: false
-          description: Substring search on body field.
-          schema: { type: string }
-        - name: group
-          in: query
-          required: false
-          description: Filter by group (exact match).
-          schema: { type: string }
         - name: priority_min
           in: query
           required: false
@@ -1131,11 +1215,6 @@ paths:
           required: false
           description: Maximum priority (1-5).
           schema: { type: integer, minimum: 1, maximum: 5 }
-        - name: tag
-          in: query
-          required: false
-          description: Filter by tag (message must have this tag).
-          schema: { type: string }
         - name: from
           in: query
           required: false
@@ -1174,7 +1253,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/BatchDeleteResponse" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
   /api/messages/{id}:
     get:
       tags: [messages]
@@ -1208,7 +1287,7 @@ paths:
         "204":
           description: Deleted
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
           content:
@@ -1248,14 +1327,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ChannelDetail" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "503":
           description: Temporary backend unavailability while writing the channel row
   /api/channels/{id}:
     get:
       tags: [channels]
       security: [{ bearerAuth: [] }]
-      summary: Get channel detail
+      summary: Get channel summary
       parameters:
         - $ref: "#/components/parameters/IdParam"
       responses:
@@ -1263,7 +1342,7 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ChannelDetail" }
+              schema: { $ref: "#/components/schemas/ChannelResponseEnvelope" }
         "404":
           description: Not found
           content:
@@ -1292,7 +1371,12 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
+        "503":
+          description: Temporary backend unavailability
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       tags: [channels]
       security: [{ bearerAuth: [] }]
@@ -1303,9 +1387,14 @@ paths:
         "204":
           description: Deleted
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Temporary backend unavailability
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1317,7 +1406,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/IdParam"
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/ChannelTestRequest" }
@@ -1333,7 +1422,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
           content:
@@ -1383,7 +1472,12 @@ paths:
                   rule: { $ref: "#/components/schemas/Rule" }
                 required: [rule]
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
+        "503":
+          description: Temporary backend unavailability
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /api/rules/test:
     post:
       tags: [rules]
@@ -1401,7 +1495,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RulesTestResponse" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
           content:
@@ -1453,7 +1547,12 @@ paths:
                   rule: { $ref: "#/components/schemas/Rule" }
                 required: [rule]
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
+        "503":
+          description: Temporary backend unavailability
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       tags: [rules]
       security: [{ bearerAuth: [] }]
@@ -1464,9 +1563,14 @@ paths:
         "204":
           description: Deleted
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Temporary backend unavailability
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1494,7 +1598,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RuleTestResponse" }
         "403":
-          description: Permission denied or email not verified for unsafe methods
+          description: Permission denied
         "404":
           description: Not found
           content:
@@ -1527,17 +1631,15 @@ paths:
       description: Returns server health status. No authentication required.
       responses:
         "200":
-          description: OK
+          description: Database connected
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  status:
-                    type: string
-                    enum: [ok]
-                required: [status]
+              schema: { $ref: "#/components/schemas/HealthResponse" }
+        "503":
+          description: Database unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthResponse" }
   /api/edge-config:
     get:
       tags: [edge]

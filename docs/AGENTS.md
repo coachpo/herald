@@ -43,11 +43,14 @@ docs/
 - Document implemented behavior first; if something is aspirational, label it clearly.
 - `openapi.yaml` is the API schema source of truth; keep markdown API docs aligned with it.
 - `../AGENTS.md` governs repo coordination; `docs/AGENTS.md` governs spec accuracy and maintenance.
-- Keep backend `GET /health` separate from edge `GET /healthz`.
-- Default database language must match code: PostgreSQL is the only supported backend database.
-- Frontend form guidance must match current code (`useState`) unless implementation changes.
-- Auth and ingest docs must preserve verified-email gating where the current backend enforces it.
+- Keep backend `GET /health` separate from edge `GET /healthz`; backend health returns `200` when the database is connected and `503` with `status: degraded` when it is not.
+- Verified email is currently required for backend ingest; the shipped frontend also disables common mutating dashboard flows for unverified users. Do not invent `REQUIRE_VERIFIED_EMAIL_FOR_INGEST` or claim universal backend write gating unless the code changes.
+- Message list docs should only promise the filters the backend actually honors today: `ingest_endpoint_id`, `priority_min`, `priority_max`, `from`, and `to`.
+- `GET /api/channels/{id}` returns channel summary metadata without decrypted config; channel create/update responses return `{channel, config}`.
+- `GET /api/ingest-endpoints/{id}` and `PATCH /api/ingest-endpoints/{id}` exist in the backend even if older prose omitted them.
+- Verification and password-reset request endpoints create hashed tokens and log events; do not describe repo-local email delivery that the code does not implement.
 - Edge docs must describe the current KV snapshot shape and current `token_hash` auth caveat exactly as implemented.
+- Only MQTT exposes an SSRF/private-network env toggle; Bark, ntfy, and Gotify use default blocking in code.
 - Batch delete is synchronous in the current backend; do not document it as queued or async.
 
 ## Anti-Patterns
@@ -58,3 +61,5 @@ docs/
 - Do not state that same-origin deployment is required when the app uses direct browser-to-backend calls plus CORS.
 - Do not hide dashed UUID ingest support or the edge-lite `token_hash` comparison behavior.
 - Do not document batch delete as asynchronous unless the backend implementation changes.
+- Do not claim `q`, `group`, or `tag` message filters, decrypted channel detail responses, or repo-local verification/reset emails unless the code changes.
+- Do not mention non-existent auth/ingest env toggles or per-provider SSRF toggles beyond MQTT.

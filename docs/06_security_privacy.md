@@ -10,8 +10,9 @@
 ## Verification Gating
 
 - Unverified users can authenticate and read data.
-- Unsafe resource methods are blocked by verified-email permission checks.
-- Ingest is separately blocked when `REQUIRE_VERIFIED_EMAIL_FOR_INGEST=true`.
+- The shipped frontend blocks common mutating dashboard flows for unverified users.
+- The current backend does not universally enforce verified-email checks across every dashboard write route.
+- Ingest is also blocked when `email_verified_at` is null. There is no `REQUIRE_VERIFIED_EMAIL_FOR_INGEST` toggle in the current codebase.
 
 ## Token Handling
 
@@ -53,21 +54,21 @@ Backend also redacts header names matching patterns such as `token`, `secret`, `
 
 ### Backend worker
 
-- Bark, ntfy, MQTT, and Gotify providers run SSRF checks before dispatch.
+- Bark, ntfy, and Gotify providers run SSRF checks before dispatch and use default private-network blocking in code.
+- MQTT validates the broker host with the SSRF helper and exposes `MQTT_BLOCK_PRIVATE_NETWORKS` plus `MQTT_SOCKET_TIMEOUT_SECONDS`.
 - Loopback and link-local addresses are always blocked.
-- Private-network blocking is configurable per provider and enabled by default.
-- Provider requests use short timeouts.
+- Provider timeouts default to about 5 seconds in the current code.
 
 ### Edge lite
 
 - Edge-lite does not currently implement backend-style SSRF checks.
 - Keep that distinction explicit in docs and threat models.
 
-## Email Flows
+## Verification And Reset Request Flows
 
-- Verification emails point to `/verify-email?token=...` on `APP_BASE_URL`.
-- Reset emails point to `/reset-password?token=...` on `APP_BASE_URL`.
-- Email send failures are logged and treated as best-effort in the API flows.
+- `POST /api/auth/resend-verification` and `POST /api/auth/forgot-password` create hashed tokens in PostgreSQL and log the event.
+- The current repo does not send email or expose raw verification/reset tokens.
+- Verification and reset pages in the frontend therefore depend on tokens arriving from an external or out-of-band mechanism.
 
 ## Edge-Lite Auth Caveat
 

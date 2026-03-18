@@ -6,16 +6,18 @@
 
 ### Dashboard APIs
 
-- Access token via `Authorization: Bearer <token>`
-- Refresh token sent in JSON body to `POST /api/auth/refresh`
-- Browser requests use `credentials: "omit"`
-- Unverified users can log in and read, but unsafe resource methods are blocked
+- Access token via `Authorization: Bearer <token>`.
+- Refresh token sent in JSON body to `POST /api/auth/refresh`.
+- Browser requests use `credentials: "omit"`.
+- Unverified users can log in and read.
+- The shipped frontend disables common mutating flows for unverified users, but current backend verified-email enforcement is guaranteed for ingest, not all dashboard write routes.
 
 ### Ingest API
 
-- `POST /api/ingest/{endpoint_id}`
-- Header: `X-Herald-Ingest-Key`
-- Accepts dashed UUID and dashless hex endpoint IDs
+- `POST /api/ingest/{endpoint_id}`.
+- Header: `X-Herald-Ingest-Key`.
+- Accepts dashed UUID and dashless hex endpoint IDs.
+- Requires the endpoint owner to be active and email-verified.
 
 ## Auth Endpoints
 
@@ -37,6 +39,8 @@ Behavior notes:
 - Signup can be disabled by backend settings.
 - Refresh token rotation is mandatory; clients must store the newest refresh token returned.
 - Password reset and password change revoke all refresh tokens.
+- `resend-verification` and `forgot-password` create hashed tokens server-side, but the current repo does not send email or expose raw tokens.
+- `change-email` clears `email_verified_at`; the user becomes unverified until a valid verification token is submitted.
 
 ## Ingest Contract
 
@@ -63,8 +67,8 @@ Behavior notes:
 
 - `400` for invalid UTF-8 or invalid JSON
 - `401` for unknown endpoint, missing key, wrong key, revoked endpoint, or deleted endpoint
-- `403` when the endpoint's user is inactive or ingest is blocked for unverified email
-- `413` for payloads above configured size
+- `403` when the endpoint's user is inactive or unverified
+- `413` for payloads above 1 MB
 - `415` for non-JSON content types
 - `422` for schema/validation failures such as missing `body` or unknown top-level keys
 
@@ -78,6 +82,8 @@ Behavior notes:
 
 - `GET /api/ingest-endpoints`
 - `POST /api/ingest-endpoints`
+- `GET /api/ingest-endpoints/{id}`
+- `PATCH /api/ingest-endpoints/{id}`
 - `POST /api/ingest-endpoints/{id}/revoke`
 - `DELETE /api/ingest-endpoints/{id}`
 
@@ -91,16 +97,15 @@ Behavior notes:
 - `POST /api/messages/batch-delete`
 - `GET /api/messages/{id}/deliveries`
 
-Supported list filters:
+Supported list filters today:
 
 - `ingest_endpoint_id`
-- `q`
-- `group`
 - `priority_min`
 - `priority_max`
-- `tag`
 - `from`
 - `to`
+
+The frontend currently sends `q`, `group`, and `tag` too, but the backend does not honor them yet.
 
 ### Channels
 
@@ -111,11 +116,19 @@ Supported list filters:
 - `DELETE /api/channels/{id}`
 - `POST /api/channels/{id}/test`
 
+Current response behavior:
+
+- `GET /api/channels/{id}` returns channel summary metadata only.
+- `POST` and `PATCH` return channel metadata plus decrypted `config`.
+
+Channel test sends immediately and returns provider metadata. It does not create a stored message or delivery row.
+
 ### Channel Configs
 
 Channel creation and updates require a `config` object specific to the provider type.
 
 #### Bark
+
 ```json
 {
   "server_base_url": "https://api.day.app",
@@ -125,6 +138,7 @@ Channel creation and updates require a `config` object specific to the provider 
 ```
 
 #### ntfy
+
 ```json
 {
   "server_base_url": "https://ntfy.sh",
@@ -134,6 +148,7 @@ Channel creation and updates require a `config` object specific to the provider 
 ```
 
 #### MQTT
+
 ```json
 {
   "broker_host": "broker.emqx.io",
@@ -143,6 +158,7 @@ Channel creation and updates require a `config` object specific to the provider 
 ```
 
 #### Gotify
+
 ```json
 {
   "server_base_url": "https://gotify.example.com",
@@ -153,9 +169,6 @@ Channel creation and updates require a `config` object specific to the provider 
   }
 }
 ```
-
-
-Channel test sends immediately and returns provider metadata. It does not create a stored message or delivery row.
 
 ### Rules
 
@@ -182,14 +195,16 @@ Templates can reference:
 
 Rendering rules:
 
-- Missing values render as empty strings
-- Priority renders as a string in template output
-- Tags render as a comma-joined string
+- Missing values render as empty strings.
+- Priority renders as a string in template output.
+- Tags render as a comma-joined string.
 
 ## Health And Edge Snapshot
 
 - Backend health: `GET /health`
 - Edge-lite health: `GET /healthz`
 - Edge snapshot export: `GET /api/edge-config`
+
+`GET /health` returns `200` with `status: ok` when the database is reachable, or `503` with `status: degraded` when it is not.
 
 `GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy channels and rules for edge-lite consumption. MQTT and Gotify are excluded.

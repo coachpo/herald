@@ -20,6 +20,7 @@ herald/
 - `backend`, `frontend`, and `edge` are separate repositories mounted as git submodules.
 - Each submodule tracks its own `main` branch in `.gitmodules`.
 - Root repo owns shared documentation, orchestration, and CI/CD wiring.
+- `docs/` is part of the root repo, not a submodule.
 
 ## Documentation Surfaces
 
@@ -29,9 +30,9 @@ herald/
 
 ## Startup
 
-- `docker compose up` runs backend + PostgreSQL + worker.
-- `./start.sh headless` runs backend only.
-- `./start.sh full` runs backend + frontend.
+- `docker compose up` runs backend + PostgreSQL + worker using the package/container defaults (`5432` / `8001`).
+- `./start.sh headless` runs PostgreSQL + backend using helper defaults (`35432` / `38000`).
+- `./start.sh full` runs backend + frontend using helper defaults (`35432` / `38000` / `35173`).
 
 ## Current Package Boundaries
 
