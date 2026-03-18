@@ -88,7 +88,7 @@ npm run deploy
 | `SENTRY_DSN` | (empty) | Sentry DSN |
 | `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Sentry traces sample rate |
 | `SENTRY_ENVIRONMENT` | `production` | Sentry environment tag |
-| `APP_VERSION` | from `backend/VERSION` | Version string in health response |
+| `APP_VERSION` | installed `herald-backend` version, fallback `0.9.0` | Version string in health response |
 | `MQTT_BLOCK_PRIVATE_NETWORKS` | `true` | Block private network MQTT targets |
 | `MQTT_SOCKET_TIMEOUT_SECONDS` | `5.0` | MQTT socket timeout |
 
