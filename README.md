@@ -62,8 +62,8 @@ git submodule update --init --recursive
 docker compose up
 
 # Manual
-pip install -r backend/requirements.txt
-uvicorn backend.main:app --host 0.0.0.0 --port 8001
+python -m pip install -e "backend[test]"
+herald-backend
 python -m backend.worker
 ```
 

@@ -31,14 +31,14 @@ docker compose up          # FastAPI + PostgreSQL + worker
 ### Backend (from repo root)
 
 ```bash
-python -m pip install -r backend/requirements.txt
+python -m pip install -e "backend[test]"
 python backend/bootstrap_dev_db.py
 python -m pytest backend/tests/ -v
-uvicorn backend.main:app --host 0.0.0.0 --port 8001
+herald-backend
 python -m backend.worker
 ```
 
-The manual/container examples use the package defaults (`5432` / `8001`). They are distinct from the helper script ports above.
+The manual/container examples use the package defaults (`5432` / `8000`). They are distinct from the helper script ports above.
 
 ### Frontend
 

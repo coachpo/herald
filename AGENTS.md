@@ -53,7 +53,7 @@ Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 - `backend/`, `frontend/`, and `edge/` remain git submodules; update boundaries through `.gitmodules`, not ad hoc copies.
 - Production frontend traffic is direct browser-to-backend via `VITE_API_URL`; Vite proxy config is local-dev-only.
 - `start.sh` defaults to helper ports `35432` (db), `38000` (backend), and `35173` (frontend) unless env overrides are provided.
-- Manual and container examples still use the package defaults (`uvicorn ... --port 8001`, Vite `3000`, deploy server `3100`); docs should distinguish those from `start.sh` helper ports.
+- Manual and container examples still use the package defaults (`herald-backend` on `8000`, Vite `3000`, deploy server `3100`); docs should distinguish those from `start.sh` helper ports.
 - `docker-compose.yml` starts PostgreSQL, API, and worker only; it does not launch frontend or edge.
 - Root CI builds and cleans up `backend` and `frontend` arm64 images in GHCR; `edge/` deployment is manual or external to root workflows.
 
@@ -79,10 +79,10 @@ git submodule update --init --recursive
 docker compose up
 
 # Backend (from repo root)
-python -m pip install -r backend/requirements.txt
+python -m pip install -e "backend[test]"
 python backend/bootstrap_dev_db.py
 python -m pytest backend/tests/ -v
-uvicorn backend.main:app --host 0.0.0.0 --port 8001
+herald-backend
 python -m backend.worker
 
 # Frontend (from frontend/)

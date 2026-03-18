@@ -30,7 +30,7 @@ herald/
 
 ## Startup
 
-- `docker compose up` runs backend + PostgreSQL + worker using the package/container defaults (`5432` / `8001`).
+- `docker compose up` runs backend + PostgreSQL + worker using the package/container defaults (`5432` / `8000`).
 - `./start.sh headless` runs PostgreSQL + backend using helper defaults (`35432` / `38000`).
 - `./start.sh full` runs backend + frontend using helper defaults (`35432` / `38000` / `35173`).
 
