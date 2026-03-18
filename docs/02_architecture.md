@@ -71,7 +71,7 @@ Edge lite -> Bark / ntfy HTTP only
 
 ## Worker Model
 
-- Typically launched as `uv run --project backend python -m backend.worker`.
+- Typically launched as `uv run --project backend --locked python -m backend.worker`.
 - Async event loop polls `queued` and `retry` rows.
 - Uses `SELECT ... FOR UPDATE SKIP LOCKED` to avoid duplicate processing.
 - Retries with exponential backoff until `DELIVERY_MAX_ATTEMPTS`.

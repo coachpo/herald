@@ -53,6 +53,7 @@ Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 - `backend/`, `frontend/`, and `edge/` remain git submodules; update boundaries through `.gitmodules`, not ad hoc copies.
 - Production frontend traffic is direct browser-to-backend via `VITE_API_URL`; Vite proxy config is local-dev-only.
 - `start.sh` defaults to helper ports `35432` (db), `38000` (backend), and `35173` (frontend) unless env overrides are provided.
+- Backend developer commands expect Python 3.13+ and the committed `backend/uv.lock`; refresh it with `uv lock --project backend` only when dependency metadata changes intentionally.
 - Manual and container examples still use the package defaults (`herald-backend` on `8000`, Vite `3000`, deploy server `3100`); docs should distinguish those from `start.sh` helper ports.
 - `docker-compose.yml` starts PostgreSQL, API, and worker only; it does not launch frontend or edge.
 - Root CI builds and cleans up `backend` and `frontend` arm64 images in GHCR; `edge/` deployment is manual or external to root workflows.
@@ -79,11 +80,11 @@ git submodule update --init --recursive
 docker compose up
 
 # Backend (from repo root)
-uv sync --project backend
-uv run --project backend python backend/bootstrap_dev_db.py
-uv run --project backend pytest backend/tests/ -v
-uv run --project backend herald-backend
-uv run --project backend python -m backend.worker
+uv sync --project backend --locked
+uv run --project backend --locked python backend/bootstrap_dev_db.py
+uv run --project backend --locked pytest backend/tests/ -v
+uv run --project backend --locked herald-backend
+uv run --project backend --locked python -m backend.worker
 
 # Frontend (from frontend/)
 pnpm install

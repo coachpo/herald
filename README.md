@@ -58,14 +58,17 @@ git submodule update --init --recursive
 ### FastAPI Backend (recommended)
 
 ```bash
-# With Docker Compose
+# With Docker Compose (from repo root)
 docker compose up
 
-# Manual
-uv sync --project backend
-uv run --project backend herald-backend
-uv run --project backend python -m backend.worker
+# Manual (from repo root, Python 3.13+)
+uv sync --project backend --locked
+uv run --project backend --locked python backend/bootstrap_dev_db.py
+uv run --project backend --locked herald-backend
+uv run --project backend --locked python -m backend.worker
 ```
+
+`backend/uv.lock` is committed. Refresh it with `uv lock --project backend` when you intentionally change backend dependency metadata.
 
 ### Local Helper Script
 
