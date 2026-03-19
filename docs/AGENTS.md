@@ -36,6 +36,7 @@ docs/
 | What does Bark integration support? | `08_bark_v2.md` |
 | How is the repo laid out across packages? | `09_repo_structure.md` |
 | How does edge-lite work right now? | `10_edge.md`, `11_edge_lite_feasibility.md` |
+| Where do test and verification expectations live? | `../backend/AGENTS.md`, `../frontend/AGENTS.md`, `../edge/AGENTS.md`, `07_operations.md` |
 | What do quick-start readers see first? | `../README.md`, `../backend/README.md`, `../frontend/README.md`, `../edge/README.md` |
 
 ## Conventions

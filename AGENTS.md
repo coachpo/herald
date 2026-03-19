@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Generated:** 2026-03-18 **Commit:** 1b3d6aa **Branch:** main
+**Generated:** 2026-03-19 **Commit:** 5948880 **Branch:** main
 
 ## Overview
 
@@ -27,14 +27,16 @@ Git submodules: `backend/`, `frontend/`, and `edge/` each track `main`. `docs/` 
 | Task | Location | Notes |
 |------|----------|-------|
 | Repo/package boundaries | `.gitmodules`, `docs/09_repo_structure.md` | Root repo coordinates submodules, docs, and orchestration |
+| Backend runtime entry | `backend/cli.py`, `backend/main.py`, `backend/app.py` | `herald-backend` CLI -> uvicorn -> FastAPI app factory |
 | Backend package guide | `backend/AGENTS.md`, `backend/README.md` | Auth, ingest, worker, providers, edge export |
 | Frontend package guide | `frontend/AGENTS.md`, `frontend/src/router.tsx` | Routes, auth state, API helpers, deploy server |
+| Frontend deploy entry | `frontend/deploy/server.mjs`, `frontend/package.json` | Built SPA server on `3100`; Vite stays a local-dev tool |
 | Edge package guide | `edge/AGENTS.md`, `edge/src/lite.mjs` | KV snapshot ingest, rule eval, Bark/ntfy dispatch |
 | Spec governance | `docs/AGENTS.md`, `docs/openapi.yaml` | Docs index plus schema source of truth |
-| Local startup | `start.sh`, `docker-compose.yml` | `start.sh` uses helper ports; compose runs db/api/worker only |
-| CI/CD scope | `.github/workflows/docker-images.yml`, `.github/workflows/cleanup.yml` | Root CI builds backend/frontend images only |
+| Local startup | `start.sh`, `docker-compose.yml` | `start.sh` bootstraps db schema plus backend and optional frontend; compose runs db/api/worker |
+| CI/CD scope | `.github/workflows/docker-images.yml`, `.github/workflows/cleanup.yml` | Root CI builds backend/frontend arm64 images only; `workflow_dispatch` can target one service |
 | Auth and ingest | `backend/routes/auth.py`, `backend/routes/ingest.py` | JWT lifecycle, verified-email gate, JSON ingest validation |
-| Delivery pipeline | `backend/worker.py`, `backend/channel_dispatch.py` | Retry loop plus provider dispatch |
+| Delivery pipeline | `backend/worker.py`, `backend/channel_dispatch.py` | Worker retry loop plus provider dispatch; not started by `start.sh` |
 | Edge snapshot export | `backend/edge_config.py`, `edge/src/lite.mjs` | Backend export -> KV snapshot -> edge-lite ingest |
 | Frontend auth storage | `frontend/src/lib/auth.tsx`, `frontend/src/lib/public-api.ts` | `sessionStorage` refresh token, access token in memory, ingest URL hex conversion |
 
@@ -53,6 +55,8 @@ Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 - `backend/`, `frontend/`, and `edge/` remain git submodules; update boundaries through `.gitmodules`, not ad hoc copies.
 - Production frontend traffic is direct browser-to-backend via `VITE_API_URL`; Vite proxy config is local-dev-only.
 - `start.sh` defaults to helper ports `35432` (db), `38000` (backend), and `35173` (frontend) unless env overrides are provided.
+- `start.sh` manages PostgreSQL, backend, and optional frontend only; run `docker compose up` or `uv run --project backend --locked python -m backend.worker` when worker behavior matters.
+- `frontend/deploy/server.mjs` is the production static server on `3100`; `pnpm dev` remains the local Vite path on `3000`.
 - Backend developer commands expect Python 3.13+ and the committed `backend/uv.lock`; refresh it with `uv lock --project backend` only when dependency metadata changes intentionally.
 - Manual and container examples still use the package defaults (`herald-backend` on `8000`, Vite `3000`, deploy server `3100`); docs should distinguish those from `start.sh` helper ports.
 - `docker-compose.yml` starts PostgreSQL, API, and worker only; it does not launch frontend or edge.
@@ -65,6 +69,7 @@ Edge lite -> local rule eval -> Bark/ntfy HTTP dispatch only
 - Never move auth tokens into `localStorage`; refresh stays in `sessionStorage`, access stays in memory.
 - Never treat edge-lite as backend-equivalent durability or safety; it is best-effort only and skips backend-style SSRF checks.
 - Never assume root CI covers `edge/`; check `edge/` commands or external deployment steps explicitly.
+- Never assume `start.sh` and `docker compose` start the same services or use the same ports.
 - Never suppress type errors with `as any`, `@ts-ignore`, or `@ts-expect-error`.
 
 ## Commands
@@ -103,6 +108,7 @@ npm run deploy
 ## Notes
 
 - Backend health is `GET /health` and returns `200` when the database is connected or `503` with `status: degraded` when it is not.
+- Backend runtime enters through `backend/cli.py` -> `backend.main:app`; the async worker still runs separately from `python -m backend.worker`.
 - Edge-lite health is `GET /healthz`; the frontend deploy server also exposes `GET /health`.
 - `docs/openapi.yaml` is the API schema source of truth and should stay aligned with the implemented routes, not older markdown claims.
 - Edge-lite currently compares `X-Herald-Ingest-Key` directly against exported `token_hash` values in KV config; docs must describe implemented behavior exactly.
