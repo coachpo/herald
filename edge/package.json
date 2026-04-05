@@ -1,0 +1,15 @@
+{
+  "name": "herald-edge",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "lint": "node --check src/cloudflare-worker.mjs src/lite.mjs src/rules.mjs src/template.mjs src/providers.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.32.0"
+  }
+}

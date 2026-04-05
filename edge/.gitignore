@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+
+# Wrangler can load local vars from this file; keep it local.
+.dev.vars
+
+.env
+.env.*
+
+.DS_Store
