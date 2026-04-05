@@ -4,23 +4,22 @@
 
 ```text
 herald/
-├── backend/                 # git submodule: FastAPI backend + async worker
-├── frontend/                # git submodule: React/Vite dashboard
-├── edge/                    # git submodule: Cloudflare lite worker
+├── backend/                 # FastAPI backend + async worker
+├── frontend/                # React/Vite dashboard
+├── edge/                    # Cloudflare lite worker
 ├── docs/                    # maintained markdown specs + OpenAPI
 ├── .github/workflows/       # Docker builds and cleanup automation
 ├── docker-compose.yml       # local API/DB/worker orchestration
 ├── start.sh                 # local startup helper (backend or backend+frontend)
-├── AGENTS.md                # root repo guidance
-└── .gitmodules              # submodule remotes and tracked branches
+└── AGENTS.md                # root repo guidance
 ```
 
-## Submodule Conventions
+## Monorepo Conventions
 
-- `backend`, `frontend`, and `edge` are separate repositories mounted as git submodules.
-- Each submodule tracks its own `main` branch in `.gitmodules`.
+- `backend`, `frontend`, and `edge` are first-class directories in this repository.
+- The packages are versioned together in one checkout.
 - Root repo owns shared documentation, orchestration, and CI/CD wiring.
-- `docs/` is part of the root repo, not a submodule.
+- `docs/` is part of the root repo.
 
 ## Documentation Surfaces
 
