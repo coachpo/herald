@@ -2,7 +2,7 @@
 
 ## Overview
 
-Repository knowledge base and external-facing specs. This directory documents implemented behavior; it is not a parking lot for stale proposals.
+Repository knowledge base and external-facing specs. This directory documents implemented behavior; it is not a parking lot for stale proposals or guessed features.
 
 ## Structure
 
@@ -29,7 +29,7 @@ docs/
 | What does the product do today? | `01_prd.md` |
 | How do backend, frontend, worker, and edge fit together? | `02_architecture.md` |
 | Which fields are stored for each model? | `03_data_model.md` |
-| What are the endpoints and payloads? | `04_api_spec.md`, `openapi.yaml` |
+| What are the endpoints and payloads? | `openapi.yaml`, `04_api_spec.md` |
 | What does the dashboard actually expose? | `05_ui_spec.md` |
 | How are auth, tokens, SSRF, and redaction handled? | `06_security_privacy.md` |
 | How is the repo run or deployed? | `07_operations.md` |
@@ -39,10 +39,17 @@ docs/
 | Where do test and verification expectations live? | `../backend/AGENTS.md`, `../frontend/AGENTS.md`, `../edge/AGENTS.md`, `07_operations.md` |
 | What do quick-start readers see first? | `../README.md`, `../backend/README.md`, `../frontend/README.md`, `../edge/README.md` |
 
+## Source of Truth
+
+- When docs and implementation disagree, code and `openapi.yaml` win first; update prose immediately.
+- `openapi.yaml` is the API schema source of truth. `04_api_spec.md` is the human-readable companion, not a competing source.
+- `03_data_model.md` is the field and entity reference for stored backend data.
+- `08_bark_v2.md` is provider-specific; do not generalize Bark behavior to all channels.
+- `11_edge_lite_feasibility.md` is a boundary and tradeoff document, not a roadmap.
+
 ## Conventions
 
 - Document implemented behavior first; if something is aspirational, label it clearly.
-- `openapi.yaml` is the API schema source of truth; keep markdown API docs aligned with it.
 - `../AGENTS.md` governs repo coordination; `docs/AGENTS.md` governs spec accuracy and maintenance.
 - Keep backend `GET /health` separate from edge `GET /healthz`; backend health returns `200` when the database is connected and `503` with `status: degraded` when it is not.
 - Verified email is currently required for backend ingest; the shipped frontend also disables common mutating dashboard flows for unverified users. Do not invent `REQUIRE_VERIFIED_EMAIL_FOR_INGEST` or claim universal backend write gating unless the code changes.
@@ -53,6 +60,7 @@ docs/
 - Edge docs must describe the current KV snapshot shape and current `token_hash` auth caveat exactly as implemented.
 - Only MQTT exposes an SSRF/private-network env toggle; Bark, ntfy, and Gotify use default blocking in code.
 - Batch delete is synchronous in the current backend; do not document it as queued or async.
+- Keep package-local verification and runtime details in child AGENTS files; link outward instead of duplicating those sections here.
 
 ## Anti-Patterns
 
@@ -64,3 +72,4 @@ docs/
 - Do not document batch delete as asynchronous unless the backend implementation changes.
 - Do not claim `q`, `group`, or `tag` message filters, deleted channel detail/update routes, or repo-local verification/reset emails unless the code changes.
 - Do not mention non-existent auth/ingest env toggles or per-provider SSRF toggles beyond MQTT.
+- Do not let markdown API prose drift from `openapi.yaml`.
