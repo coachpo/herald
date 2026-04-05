@@ -4,6 +4,7 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version as package_version
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI, HTTPException
@@ -24,6 +25,17 @@ from .models import HealthResponse
 from .routes import router, auth_router, ingest_router
 
 
+ROOT_VERSION_PATH = Path(__file__).resolve().parent.parent / "VERSION"
+
+
+def _get_repo_version() -> str:
+    try:
+        version = ROOT_VERSION_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+    return version or "unknown"
+
+
 def _get_app_version() -> str:
     env_version = os.environ.get("APP_VERSION")
     if env_version:
@@ -31,7 +43,7 @@ def _get_app_version() -> str:
     try:
         return package_version("herald-backend")
     except PackageNotFoundError:
-        return "0.9.0"
+        return _get_repo_version()
 
 
 _APP_VERSION = _get_app_version()
