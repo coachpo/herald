@@ -90,7 +90,7 @@ npm run deploy
 | `SENTRY_DSN` | (empty) | Sentry DSN |
 | `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Sentry traces sample rate |
 | `SENTRY_ENVIRONMENT` | `production` | Sentry environment tag |
-| `APP_VERSION` | installed `herald-backend` version, fallback `0.9.0` | Version string in health response |
+| `APP_VERSION` | installed `herald-backend` version, fallback root `VERSION` | Version string in health response |
 | `MQTT_BLOCK_PRIVATE_NETWORKS` | `true` | Block private network MQTT targets |
 | `MQTT_SOCKET_TIMEOUT_SECONDS` | `5.0` | MQTT socket timeout |
 
@@ -130,6 +130,7 @@ docker compose logs -f api     # follow API logs
 
 ## CI/CD
 
+- `.github/workflows/ci.yml` validates root/package version alignment, provisions PostgreSQL for backend tests, bootstraps the backend schema, and runs backend/frontend/edge verification.
 - `.github/workflows/docker-images.yml` builds arm64 backend/frontend images and publishes to GHCR on push/tag events.
 - `.github/workflows/cleanup.yml` prunes old workflow runs and untagged container images.
 - Root CI does not build or deploy `edge/`.

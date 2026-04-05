@@ -57,6 +57,8 @@ When you bump the release version, keep these files aligned with it:
 - `frontend/package.json`
 - `edge/package.json`
 
+The backend health/version response prefers explicit `APP_VERSION`, then installed package metadata, then falls back to the repo `VERSION` file so local checkouts and CI stay aligned with the monorepo release value.
+
 ## Quick Start
 
 Clone the repo once; `backend/`, `frontend/`, and `edge/` are part of the same checkout.
@@ -87,7 +89,7 @@ Manual package commands live in `docs/07_operations.md` and the package `AGENTS.
 
 ## CI/CD
 
-- `.github/workflows/ci.yml` validates version alignment and runs backend tests, frontend lint/build, and edge test/lint on pushes and pull requests.
+- `.github/workflows/ci.yml` validates version alignment, provisions PostgreSQL for backend tests, bootstraps the backend schema, then runs backend tests, frontend lint/build, and edge test/lint on pushes and pull requests.
 - `.github/workflows/docker-images.yml` builds and publishes backend/frontend arm64 container images.
 - `.github/workflows/cleanup.yml` prunes old workflow runs and untagged container images.
 
