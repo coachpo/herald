@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "herald-backend"
+version = "0.9.0"
+description = "Async FastAPI backend for Herald"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "asyncpg==0.30.0",
+    "cryptography==46.0.5",
+    "fastapi==0.135.0",
+    "httpx==0.28.1",
+    "paho-mqtt==2.1.0",
+    "PyJWT==2.11.0",
+    "sentry-sdk[fastapi]==2.20.0",
+    "sqlalchemy==2.0.48",
+    "structlog==25.4.0",
+    "uvicorn==0.41.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
+]
+
+[project.scripts]
+herald-backend = "backend.cli:main"
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.setuptools]
+packages = [
+    "backend",
+    "backend.auth",
+    "backend.core",
+    "backend.providers",
+    "backend.routes",
+    "backend.schemas",
+    "backend.services",
+]
+
+[tool.setuptools.package-dir]
+backend = "."
+"backend.auth" = "auth"
+"backend.core" = "core"
+"backend.providers" = "providers"
+"backend.routes" = "routes"
+"backend.schemas" = "schemas"
+"backend.services" = "services"
