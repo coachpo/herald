@@ -2,7 +2,7 @@
 
 Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules.
 
-This repository is the coordination layer around three git submodules:
+This repository is a monorepo containing three first-class packages:
 
 - `backend/` - Production FastAPI backend with async PostgreSQL, structured logging, and Docker support
 - `frontend/` - React 19 + Vite + React Router dashboard
@@ -47,13 +47,19 @@ herald/
 - `docs/10_edge.md` - current Cloudflare lite runtime
 - `docs/11_edge_lite_feasibility.md` - edge-lite tradeoffs and scope boundaries
 
+## Versioning
+
+`VERSION` at the repo root is the monorepo version source of truth.
+
+When you bump the release version, keep these files aligned with it:
+
+- `backend/pyproject.toml`
+- `frontend/package.json`
+- `edge/package.json`
+
 ## Quick Start
 
-Initialize submodules first:
-
-```bash
-git submodule update --init --recursive
-```
+Clone the repo once; `backend/`, `frontend/`, and `edge/` are part of the same checkout.
 
 ### FastAPI Backend (recommended)
 
@@ -78,3 +84,11 @@ uv run --project backend --locked python -m backend.worker
 ```
 
 Manual package commands live in `docs/07_operations.md` and the package `AGENTS.md` files.
+
+## CI/CD
+
+- `.github/workflows/ci.yml` validates version alignment and runs backend tests, frontend lint/build, and edge test/lint on pushes and pull requests.
+- `.github/workflows/docker-images.yml` builds and publishes backend/frontend arm64 container images.
+- `.github/workflows/cleanup.yml` prunes old workflow runs and untagged container images.
+
+The local commands in this README mirror the package checks used by CI.

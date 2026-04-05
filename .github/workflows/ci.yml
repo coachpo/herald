@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  version-alignment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check version alignment
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import tomllib
+
+          root = Path(".")
+          version = root.joinpath("VERSION").read_text().strip()
+          backend = tomllib.loads(root.joinpath("backend/pyproject.toml").read_text())["project"]["version"]
+          frontend = json.loads(root.joinpath("frontend/package.json").read_text())["version"]
+          edge = json.loads(root.joinpath("edge/package.json").read_text())["version"]
+
+          values = {
+              "VERSION": version,
+              "backend/pyproject.toml": backend,
+              "frontend/package.json": frontend,
+              "edge/package.json": edge,
+          }
+
+          if len(set(values.values())) != 1:
+              raise SystemExit(f"Version mismatch: {values}")
+
+          print(f"Aligned version: {version}")
+          PY
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: version-alignment
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --locked
+
+      - name: Run backend tests
+        run: uv run --project backend --locked pytest backend/tests/ -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: version-alignment
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Lint frontend
+        run: pnpm --dir frontend lint
+
+      - name: Build frontend
+        run: pnpm --dir frontend build
+
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: version-alignment
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: edge/package-lock.json
+
+      - name: Install edge dependencies
+        run: npm --prefix edge ci
+
+      - name: Run edge tests
+        run: npm --prefix edge test
+
+      - name: Lint edge
+        run: npm --prefix edge run lint
