@@ -13,7 +13,7 @@ TEST_ENCRYPTION_KEY = "dKkPUi_l6pJiD24yQWhv14jArlTc95xJMu38xpv8uKc="
 @pytest.fixture(autouse=True)
 def configure_backend_test_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
-    monkeypatch.setenv("DJANGO_SECRET_KEY", TEST_SECRET_KEY)
+    monkeypatch.setenv("SECRET_KEY", TEST_SECRET_KEY)
     monkeypatch.setenv("JWT_SIGNING_KEY", TEST_JWT_SIGNING_KEY)
     monkeypatch.setenv("CHANNEL_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     get_settings.cache_clear()

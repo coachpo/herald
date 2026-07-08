@@ -21,7 +21,7 @@ async def create_refresh_token(
     user_agent: str | None = None,
 ) -> tuple[str, uuid.UUID]:
     """Create a new refresh token and return (raw_token, token_id)."""
-    from .tokens import generate_token, hash_token
+    from .tokens import generate_secret_token, hash_token
 
     settings = get_settings()
     tables = await get_tables()
@@ -30,7 +30,7 @@ async def create_refresh_token(
     expires_at = now + timedelta(seconds=settings.jwt_refresh_ttl_seconds)
 
     # Generate raw token
-    raw_token = generate_token()
+    raw_token = generate_secret_token()
     token_hash = hash_token(raw_token)
 
     token_id = uuid.uuid4()
@@ -67,7 +67,7 @@ async def rotate_refresh_token(
     Returns: (new_raw_token, refresh_token_row)
     Raises: ValueError if token is invalid, revoked, or expired
     """
-    from .tokens import generate_token, hash_token as hash_new_token
+    from .tokens import generate_secret_token, hash_token as hash_new_token
 
     tables = await get_tables()
     now = datetime.now(timezone.utc)
@@ -114,7 +114,7 @@ async def rotate_refresh_token(
         raise ValueError("refresh_expired")
 
     # Generate new token
-    new_raw_token = generate_token()
+    new_raw_token = generate_secret_token()
     new_token_hash = hash_new_token(new_raw_token)
 
     # Create new token in same family

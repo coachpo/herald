@@ -63,17 +63,14 @@ def create_app() -> FastAPI:
     setup_logging()
 
     settings = get_settings()
-    if settings.sentry_dsn:
-        import sentry_sdk
+    try:
+        from .observability import init_sentry
         from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.starlette import StarletteIntegration
 
-        sentry_sdk.init(
-            dsn=settings.sentry_dsn,
-            integrations=[StarletteIntegration(), FastApiIntegration()],
-            traces_sample_rate=settings.sentry_traces_sample_rate,
-            environment=settings.sentry_environment,
-        )
+        init_sentry(extra_integrations=(StarletteIntegration(), FastApiIntegration()))
+    except ImportError:
+        pass
 
     app = FastAPI(title="Herald FastAPI", lifespan=lifespan)
     app.add_exception_handler(HTTPException, http_exception_handler)

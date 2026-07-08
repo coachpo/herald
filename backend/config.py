@@ -36,6 +36,16 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 
+def _env_float(key: str, default: float) -> float:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    try:
+        return float(raw.strip())
+    except ValueError:
+        return default
+
+
 def _env_str(key: str, default: str) -> str:
     raw = os.environ.get(key)
     if raw is None:
@@ -61,6 +71,7 @@ _load_env_file(BACKEND_DIR / ".env")
 class Settings:
     root_dir: Path
     backend_dir: Path
+    app_env: str
     raw_database_url: str
     async_database_url: str
     secret_key: str
@@ -83,12 +94,30 @@ class Settings:
     sentry_traces_sample_rate: float
     sentry_environment: str
     allow_user_signup: bool
+    edge_sync_token: str
+    forwarded_allow_ips: str
+    rate_limit_ingest_per_minute: int
+    rate_limit_auth_per_minute: int
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     raw_database_url = os.environ.get("DATABASE_URL", "")
-    secret_key = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure")
+    app_env = _env_str("APP_ENV", "development").lower()
+    secret_key = os.environ.get("SECRET_KEY", "dev-insecure")
+    channel_config_encryption_key = os.environ.get("CHANNEL_CONFIG_ENCRYPTION_KEY", "")
+    jwt_signing_key = os.environ.get("JWT_SIGNING_KEY") or secret_key
+
+    if app_env == "production":
+        problems = []
+        if secret_key in ("", "dev-insecure"):
+            problems.append("SECRET_KEY must be set to a strong value")
+        if jwt_signing_key == "dev-insecure":
+            problems.append("JWT_SIGNING_KEY must not be a default value")
+        if not channel_config_encryption_key:
+            problems.append("CHANNEL_CONFIG_ENCRYPTION_KEY must be set")
+        if problems:
+            raise RuntimeError("refusing to start in production: " + "; ".join(problems))
 
     # Parse CORS origins
     cors_raw = os.environ.get("CORS_ALLOWED_ORIGINS", "")
@@ -97,17 +126,16 @@ def get_settings() -> Settings:
     return Settings(
         root_dir=ROOT_DIR,
         backend_dir=BACKEND_DIR,
+        app_env=app_env,
         raw_database_url=raw_database_url,
         async_database_url=_to_async_database_url(raw_database_url),
         secret_key=secret_key,
-        jwt_signing_key=os.environ.get("JWT_SIGNING_KEY", secret_key),
+        jwt_signing_key=jwt_signing_key,
         jwt_access_ttl_seconds=_env_int("JWT_ACCESS_TTL_SECONDS", 900),
         jwt_refresh_ttl_seconds=_env_int("JWT_REFRESH_TTL_SECONDS", 2592000),
-        channel_config_encryption_key=os.environ.get(
-            "CHANNEL_CONFIG_ENCRYPTION_KEY", ""
-        ),
+        channel_config_encryption_key=channel_config_encryption_key,
         cors_allowed_origins=cors_origins,
-        worker_poll_seconds=float(os.environ.get("WORKER_POLL_SECONDS", "1.0")),
+        worker_poll_seconds=_env_float("WORKER_POLL_SECONDS", 1.0),
         worker_batch_size=_env_int("WORKER_BATCH_SIZE", 50),
         delivery_max_attempts=_env_int("DELIVERY_MAX_ATTEMPTS", 10),
         delivery_backoff_base_seconds=_env_int("DELIVERY_BACKOFF_BASE_SECONDS", 5),
@@ -118,11 +146,13 @@ def get_settings() -> Settings:
         log_level=_env_str("LOG_LEVEL", "INFO").upper(),
         log_format=_env_str("LOG_FORMAT", "json").lower(),
         sentry_dsn=os.environ.get("SENTRY_DSN", ""),
-        sentry_traces_sample_rate=float(
-            os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1")
-        ),
+        sentry_traces_sample_rate=_env_float("SENTRY_TRACES_SAMPLE_RATE", 0.1),
         sentry_environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
         allow_user_signup=(
             os.environ.get("ALLOW_USER_SIGNUP", "true").lower() in {"true", "1", "yes"}
         ),
+        edge_sync_token=os.environ.get("EDGE_SYNC_TOKEN", ""),
+        forwarded_allow_ips=_env_str("FORWARDED_ALLOW_IPS", ""),
+        rate_limit_ingest_per_minute=_env_int("RATE_LIMIT_INGEST_PER_MINUTE", 120),
+        rate_limit_auth_per_minute=_env_int("RATE_LIMIT_AUTH_PER_MINUTE", 10),
     )
