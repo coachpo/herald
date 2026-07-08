@@ -4,25 +4,15 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/docker-images.yml"
   pull_request:
     branches: [main]
     paths:
-      - "backend"
       - "backend/**"
-      - "frontend"
-      - "frontend/**"
       - ".github/workflows/docker-images.yml"
   workflow_dispatch:
-    inputs:
-      service:
-        description: Select service to build
-        type: choice
-        required: true
-        default: all
-        options:
-          - all
-          - backend
-          - frontend
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,9 +20,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_BACKEND: ${{ github.event.repository.name }}-backend
-  IMAGE_NAME_FRONTEND: ${{ github.event.repository.name }}-frontend
-  VITE_API_URL: ${{ secrets.VITE_API_URL != '' && secrets.VITE_API_URL }}
+  IMAGE_NAME: ${{ github.event.repository.name }}-backend
   BUILD_PLATFORM: linux/amd64,linux/arm64
 
 jobs:
@@ -42,11 +30,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        service: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.service != 'all' && format('["{0}"]', inputs.service) || '["backend","frontend"]') }}
 
     steps:
       - name: Checkout repository
@@ -71,19 +54,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve image name
-        id: image
-        run: |
-          case "${{ matrix.service }}" in
-            backend)          echo "name=${{ env.IMAGE_NAME_BACKEND }}" >> "$GITHUB_OUTPUT" ;;
-            frontend)         echo "name=${{ env.IMAGE_NAME_FRONTEND }}" >> "$GITHUB_OUTPUT" ;;
-          esac
-
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.image.outputs.name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -96,16 +71,15 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           builder: ${{ steps.buildx.outputs.name }}
-          context: ./${{ matrix.service }}
-          file: ./${{ matrix.service }}/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
-            type=gha,scope=${{ matrix.service }}
+            type=gha,scope=backend
           cache-to: |
-            type=gha,scope=${{ matrix.service }},mode=max
+            type=gha,scope=backend,mode=max
           platforms: ${{ env.BUILD_PLATFORM }}
           provenance: false
           sbom: false
-          build-args: ${{ matrix.service == 'frontend' && format('VITE_API_URL={0}', env.VITE_API_URL || 'http://localhost:8100') || '' }}

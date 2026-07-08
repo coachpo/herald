@@ -5,15 +5,14 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: write
-  packages: write
+permissions: {}
 
 jobs:
   cleanup-workflow-runs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      actions: write
     steps:
       - name: Delete workflow runs
         uses: Mattraks/delete-workflow-runs@v2.0.6
@@ -26,17 +25,15 @@ jobs:
   cleanup-untagged:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [backend, frontend]
+    permissions:
+      packages: write
     steps:
-      - name: Delete untagged package versions for ${{ matrix.service }}
+      - name: Delete untagged backend package versions
         uses: actions/delete-package-versions@v5
         with:
           owner: ${{ github.repository_owner }}
           package-type: container
-          package-name: ${{ format('{0}-{1}', github.event.repository.name, matrix.service) }}
+          package-name: ${{ github.event.repository.name }}-backend
           delete-only-untagged-versions: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
