@@ -13,7 +13,7 @@ from backend.database import clear_database_state
 from backend.migrate import apply_migrations
 
 TEST_DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
+    "TEST_DATABASE_URL",
     "postgresql://herald:herald@127.0.0.1:5432/herald",
 )
 TEST_JWT_SIGNING_KEY = "test-jwt-signing-key-0123456789abcdef"
