@@ -67,7 +67,11 @@ def _channel_test_failed_error(error: str) -> HTTPException:
 # ── Edge config endpoint ────────────────────────────────────────────────
 
 
-@router.get("/edge-config", response_model=EdgeConfigResponse)
+@router.get(
+    "/edge-config",
+    response_model=EdgeConfigResponse,
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
 async def get_edge_config(
     request: Request,
     session: AsyncSession = Depends(get_session),

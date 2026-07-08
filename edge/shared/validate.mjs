@@ -26,20 +26,38 @@ export function validatePayload(json) {
   if (json.group != null && typeof json.group !== "string") {
     return { ok: false, error: "invalid_group" };
   }
-  if (json.priority != null) {
-    const p = Number(json.priority);
-    if (!Number.isInteger(p) || p < 1 || p > 5) {
+  if (Object.hasOwn(json, "priority")) {
+    if (
+      typeof json.priority !== "number" ||
+      !Number.isInteger(json.priority) ||
+      json.priority < 1 ||
+      json.priority > 5
+    ) {
       return { ok: false, error: "invalid_priority" };
     }
   }
-  if (json.tags != null && !Array.isArray(json.tags)) {
-    return { ok: false, error: "invalid_tags" };
+  if (Object.hasOwn(json, "tags")) {
+    if (!Array.isArray(json.tags) || json.tags.some((tag) => typeof tag !== "string")) {
+      return { ok: false, error: "invalid_tags" };
+    }
   }
-  if (json.url != null && typeof json.url !== "string") {
-    return { ok: false, error: "invalid_url" };
+  if (json.url != null) {
+    if (typeof json.url !== "string") return { ok: false, error: "invalid_url" };
+    if (json.url.trim()) {
+      try {
+        new URL(json.url.trim());
+      } catch {
+        return { ok: false, error: "invalid_url" };
+      }
+    }
   }
-  if (json.extras != null && (typeof json.extras !== "object" || Array.isArray(json.extras))) {
-    return { ok: false, error: "invalid_extras" };
+  if (Object.hasOwn(json, "extras")) {
+    if (typeof json.extras !== "object" || json.extras === null || Array.isArray(json.extras)) {
+      return { ok: false, error: "invalid_extras" };
+    }
+    if (Object.values(json.extras).some((value) => typeof value !== "string")) {
+      return { ok: false, error: "invalid_extras" };
+    }
   }
 
   return { ok: true };

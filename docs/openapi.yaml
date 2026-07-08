@@ -1388,8 +1388,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Duplicate relay message",
+          "201": {
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
@@ -1398,8 +1398,8 @@
               }
             }
           },
-          "201": {
-            "description": "Successful Response",
+          "200": {
+            "description": "Duplicate relay message",
             "content": {
               "application/json": {
                 "schema": {

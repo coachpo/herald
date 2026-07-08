@@ -50,12 +50,10 @@ The backend exports endpoint digests from `GET /api/edge-config` with `Authoriza
 Sync both relays with:
 
 ```bash
-python3 scripts/sync_edge_config.py \
-  --backend-url https://backend.example.com \
-  --sync-token "$EDGE_SYNC_TOKEN" \
-  --relay-admin-token "$RELAY_ADMIN_TOKEN" \
-  --cloudflare-url https://cf.example.workers.dev \
-  --edgeone-url https://edge.example.cn
+EDGE_SYNC_TOKEN="$EDGE_SYNC_TOKEN" RELAY_ADMIN_TOKEN="$RELAY_ADMIN_TOKEN" \
+  python3 scripts/sync_edge_config.py \
+    --backend https://backend.example.com \
+    --edges https://cf.example.workers.dev,https://edge.example.cn
 ```
 
 ## Admin Endpoints

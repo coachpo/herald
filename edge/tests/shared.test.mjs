@@ -37,6 +37,21 @@ test("validatePayload rejects unknown and missing body", () => {
   assert.deepEqual(validatePayload({ title: "x" }), { ok: false, error: "missing_body" });
 });
 
+test("validatePayload matches backend field types", () => {
+  for (const bad of [
+    { body: "ok", priority: "3" },
+    { body: "ok", priority: true },
+    { body: "ok", priority: null },
+  ]) {
+    assert.deepEqual(validatePayload(bad), { ok: false, error: "invalid_priority" });
+  }
+  assert.deepEqual(validatePayload({ body: "ok", tags: ["a", 1] }), { ok: false, error: "invalid_tags" });
+  assert.deepEqual(validatePayload({ body: "ok", tags: null }), { ok: false, error: "invalid_tags" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "not a url" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", extras: null }), { ok: false, error: "invalid_extras" });
+  assert.deepEqual(validatePayload({ body: "ok", extras: { count: 1 } }), { ok: false, error: "invalid_extras" });
+});
+
 test("parseRelayHeaders validates id and cleans via", () => {
   const id = "550e8400-e29b-41d4-a716-446655440000";
   const req = new Request("https://x", {

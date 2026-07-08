@@ -35,6 +35,44 @@ def _json_error(
     "/api/ingest/{endpoint_id}",
     response_model=IngestMessageResponse,
     status_code=201,
+    responses={
+        200: {
+            "description": "Duplicate relay message",
+            "model": IngestMessageResponse,
+        },
+    },
+    openapi_extra={
+        "parameters": [
+            {
+                "name": "X-Herald-Ingest-Key",
+                "in": "header",
+                "required": True,
+                "schema": {"type": "string"},
+                "description": "Raw ingest endpoint key",
+            },
+            {
+                "name": "X-Herald-Message-Id",
+                "in": "header",
+                "required": False,
+                "schema": {"type": "string", "format": "uuid"},
+                "description": "Relay-provided idempotency id",
+            },
+            {
+                "name": "X-Herald-Received-At",
+                "in": "header",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Relay-provided receive timestamp",
+            },
+            {
+                "name": "X-Herald-Relay-Via",
+                "in": "header",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Comma-separated relay path",
+            },
+        ],
+    },
 )
 async def ingest_message(endpoint_id: str, request: Request) -> JSONResponse:
     content_type = request.headers.get("content-type", "")
