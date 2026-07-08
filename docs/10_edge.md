@@ -65,7 +65,7 @@ Both relays expose:
 - `GET /admin/status`
 - `POST /relay/drain`
 
-Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`. `/admin/status` returns pending count, dead count, oldest pending timestamp, and config version. `/relay/drain` returns drained, failed, and dead counts.
+Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`. `/admin/status` returns pending count, dead count, oldest pending timestamp, config version, and a `truncated` flag that is `true` when the counts exceed the pagination cap. `/relay/drain` returns drained, failed, and dead counts.
 
 Permanent upstream statuses are `400`, `401`, `403`, `404`, `413`, `415`, and `422`. Other failures retry with exponential backoff. Pending envelopes older than 7 days move to dead records; dead records are retained for about 30 days.
 

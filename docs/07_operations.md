@@ -57,6 +57,12 @@ docker compose up -d
 
 Docker Compose reads the root `.env` natively, so interactive shells, systemd, and cron backups do not need separate exports. `docker-compose.yml` runs `db`, one-shot `migrate`, `api`, and `worker`. It does not publish the database port and does not run frontend or edge deployments. `EDGE_SYNC_TOKEN` is optional; when unset, `/api/edge-config` returns `404`.
 
+The `api` service listens on plain HTTP `:8000`. In production, terminate TLS with any reverse proxy (Caddy, nginx, or Cloudflare) in front of it, then:
+
+- point the proxy at `http://<host>:8000`,
+- set `FORWARDED_ALLOW_IPS` to the proxy's IP so client IPs and rate limits are honored,
+- set `CORS_ALLOWED_ORIGINS` to the dashboard's origin.
+
 Generate a Fernet key:
 
 ```bash
@@ -91,7 +97,7 @@ The container exposes port `3100` and serves `/health` for probes. Put it behind
 | `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Required in production |
 | `EDGE_SYNC_TOKEN` | backend/scripts | Enables `GET /api/edge-config` |
 | `CORS_ALLOWED_ORIGINS` | backend | Comma-separated browser origins |
-| `FORWARDED_ALLOW_IPS` | backend | Trusted proxy IPs passed to uvicorn |
+| `FORWARDED_ALLOW_IPS` | backend | Trusted proxy IPs passed to uvicorn. Set this when the API is behind a reverse proxy; otherwise rate limits key on the proxy IP and every sender shares one bucket. |
 | `RATE_LIMIT_INGEST_PER_MINUTE` | backend | Ingest token bucket limit, default `120` |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | backend | Auth token bucket limit, default `10` |
 | `ALLOW_USER_SIGNUP` | backend | Set false after initial user creation if desired |
@@ -145,6 +151,14 @@ Back up PostgreSQL from cron:
 ```
 
 `scripts/backup_db.sh` runs `docker compose exec -T db pg_dump -U herald herald` from the repo root, writes `herald-<timestamp>.sql.gz.tmp`, renames it only after gzip succeeds, and deletes `herald-*.sql.gz` files older than `KEEP_DAYS` (default `14`). The root `.env` used for compose startup also covers cron.
+
+Restore from a backup (stop writers first so nothing races the load):
+
+```bash
+docker compose stop api worker
+gunzip -c backups/herald-<timestamp>.sql.gz | docker compose exec -T db psql -U herald herald
+docker compose start api worker
+```
 
 Sync edge relay config:
 
