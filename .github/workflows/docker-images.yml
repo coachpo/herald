@@ -33,7 +33,7 @@ env:
   IMAGE_NAME_BACKEND: ${{ github.event.repository.name }}-backend
   IMAGE_NAME_FRONTEND: ${{ github.event.repository.name }}-frontend
   VITE_API_URL: ${{ secrets.VITE_API_URL != '' && secrets.VITE_API_URL }}
-  BUILD_PLATFORM: linux/arm64
+  BUILD_PLATFORM: linux/amd64,linux/arm64
 
 jobs:
   build-and-push:
@@ -92,7 +92,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image (linux/arm64)
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           builder: ${{ steps.buildx.outputs.name }}
