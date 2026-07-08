@@ -27,30 +27,7 @@ jobs:
           python-version: "3.13"
 
       - name: Check version alignment
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import json
-          import tomllib
-
-          root = Path(".")
-          version = root.joinpath("VERSION").read_text().strip()
-          backend = tomllib.loads(root.joinpath("backend/pyproject.toml").read_text())["project"]["version"]
-          frontend = json.loads(root.joinpath("frontend/package.json").read_text())["version"]
-          edge = json.loads(root.joinpath("edge/package.json").read_text())["version"]
-
-          values = {
-              "VERSION": version,
-              "backend/pyproject.toml": backend,
-              "frontend/package.json": frontend,
-              "edge/package.json": edge,
-          }
-
-          if len(set(values.values())) != 1:
-              raise SystemExit(f"Version mismatch: {values}")
-
-          print(f"Aligned version: {version}")
-          PY
+        run: python3 scripts/sync_version.py --check
 
   backend:
     runs-on: ubuntu-latest

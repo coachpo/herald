@@ -57,6 +57,8 @@ When you bump the release version, keep these files aligned with it:
 - `frontend/package.json`
 - `edge/package.json`
 
+Update `VERSION` first, then run `python3 scripts/sync_version.py` to sync the managed manifests. CI runs `python3 scripts/sync_version.py --check` to prevent drift.
+
 The backend health/version response prefers explicit `APP_VERSION`, then installed package metadata, then falls back to the repo `VERSION` file so local checkouts and CI stay aligned with the monorepo release value.
 
 ## Quick Start
