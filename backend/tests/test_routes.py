@@ -30,123 +30,27 @@ async def test_health_endpoint(app):
 
 
 @pytest.mark.asyncio
-async def test_messages_list_requires_auth(app):
-    """Test messages list requires authentication."""
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("GET", "/api/messages"),
+        ("GET", "/api/channels"),
+        ("POST", "/api/channels"),
+        ("GET", "/api/rules"),
+        ("POST", "/api/rules"),
+        ("GET", "/api/ingest-endpoints"),
+        ("POST", "/api/ingest-endpoints"),
+    ],
+)
+async def test_routes_require_auth(app, method, path):
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        response = await client.get("/api/messages")
-
-        assert response.status_code == 401  # No auth header
-
-
-@pytest.mark.asyncio
-async def test_channels_list_requires_auth(app):
-    """Test channels list requires authentication."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get("/api/channels")
+        response = await client.request(
+            method, path, json={} if method == "POST" else None
+        )
 
         assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_channel_write_routes_require_auth(app):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        channel_id = "550e8400-e29b-41d4-a716-446655440000"
-        body = {
-            "type": "bark",
-            "name": "Test Channel",
-            "config": {
-                "server_base_url": "https://1.1.1.1",
-                "device_key": "abc1234567890123",
-            },
-        }
-
-        create_response = await client.post("/api/channels", json=body)
-        delete_response = await client.delete(f"/api/channels/{channel_id}")
-        test_response = await client.post(
-            f"/api/channels/{channel_id}/test",
-            json={"body": "hello"},
-        )
-
-        assert create_response.status_code == 401
-        assert delete_response.status_code == 401
-        assert test_response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_rules_list_requires_auth(app):
-    """Test rules list requires authentication."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get("/api/rules")
-
-        assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_rule_write_routes_require_auth(app):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        rule_id = "550e8400-e29b-41d4-a716-446655440000"
-        body = {
-            "name": "Test Rule",
-            "enabled": True,
-            "channel_id": "550e8400-e29b-41d4-a716-446655440001",
-            "filter": {"body": {"contains": ["alert"]}},
-            "payload_template": {"body": "{{message.body}}"},
-        }
-
-        create_response = await client.post("/api/rules", json=body)
-        patch_response = await client.patch(f"/api/rules/{rule_id}", json=body)
-        delete_response = await client.delete(f"/api/rules/{rule_id}")
-
-        assert create_response.status_code == 401
-        assert patch_response.status_code == 401
-        assert delete_response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_ingest_endpoints_list_requires_auth(app):
-    """Test ingest endpoints list requires authentication."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.get("/api/ingest-endpoints")
-
-        assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_ingest_endpoint_write_routes_require_auth(app):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        endpoint_id = "550e8400-e29b-41d4-a716-446655440000"
-
-        create_response = await client.post(
-            "/api/ingest-endpoints",
-            json={"name": "Test Endpoint"},
-        )
-        patch_response = await client.patch(
-            f"/api/ingest-endpoints/{endpoint_id}",
-            json={"name": "Renamed Endpoint"},
-        )
-        delete_response = await client.delete(f"/api/ingest-endpoints/{endpoint_id}")
-        revoke_response = await client.post(
-            f"/api/ingest-endpoints/{endpoint_id}/revoke"
-        )
-
-        assert create_response.status_code == 401
-        assert patch_response.status_code == 401
-        assert delete_response.status_code == 401
-        assert revoke_response.status_code == 401
 
 
 @pytest.mark.asyncio

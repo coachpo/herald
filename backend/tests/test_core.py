@@ -1,5 +1,7 @@
 """Test core modules - rules, template, crypto, ssrf."""
 
+import socket
+
 import pytest
 
 from backend.core.rules import rule_matches_message
@@ -35,6 +37,32 @@ class TestRules:
         message = {"body": "test", "tags_json": ["urgent", "alert"]}
         assert rule_matches_message({"tags": ["urgent"]}, message) is True
         assert rule_matches_message({"tags": ["missing"]}, message) is False
+
+    def test_body_regex_filter(self):
+        message = {"body": "Disk ALERT"}
+        assert rule_matches_message({"body": {"regex": "disk\\s+alert"}}, message) is True
+        assert rule_matches_message({"body": {"regex": "cpu"}}, message) is False
+
+    def test_invalid_regex_rejects(self):
+        assert rule_matches_message({"body": {"regex": "["}}, {"body": "x"}) is False
+
+    def test_ingest_endpoint_ids_filter(self):
+        message = {"body": "x", "ingest_endpoint_id": "ep1"}
+        assert rule_matches_message({"ingest_endpoint_ids": ["ep1"]}, message) is True
+        assert rule_matches_message({"ingest_endpoint_ids": ["ep2"]}, message) is False
+
+    def test_group_filter(self):
+        assert rule_matches_message({"group": "ops"}, {"body": "x", "group": "ops"}) is True
+        assert rule_matches_message({"group": "ops"}, {"body": "x", "group": "dev"}) is False
+
+    def test_combined_filters_are_and(self):
+        filt = {"body": {"contains": ["alert"]}, "priority": {"min": 4}, "group": "ops"}
+        assert rule_matches_message(filt, {"body": "alert", "priority": 4, "group": "ops"}) is True
+        assert rule_matches_message(filt, {"body": "alert", "priority": 3, "group": "ops"}) is False
+
+    def test_priority_defaults_to_three(self):
+        assert rule_matches_message({"priority": {"min": 3}}, {"body": "x"}) is True
+        assert rule_matches_message({"priority": {"min": 4}}, {"body": "x"}) is False
 
 
 class TestTemplate:
@@ -102,6 +130,17 @@ class TestCrypto:
 
 class TestSSRF:
     """Test SSRF protection."""
+
+    @pytest.fixture(autouse=True)
+    def _dns(self, monkeypatch):
+        original = socket.getaddrinfo
+
+        def wrapped(host, *args, **kwargs):
+            if host in {"example.com", "api.github.com"}:
+                return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))]
+            return original(host, *args, **kwargs)
+
+        monkeypatch.setattr(socket, "getaddrinfo", wrapped)
 
     def test_public_url_allowed(self):
         """Public URLs should be allowed."""

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from backend.providers.bark import build_bark_payload, build_push_url
 from backend.providers.gotify import build_gotify_payload, send_gotify_push
+from backend.providers.mqtt import _encode_payload, send_mqtt_publish
 from backend.providers.ntfy import (
     build_ntfy_request,
     build_topic_url,
@@ -154,7 +155,8 @@ class TestNtfy:
         assert headers["Authorization"] == "Bearer secret-token"
         assert auth is None  # Token takes precedence
 
-    def test_build_ntfy_request_priority_mapping(self):
+    @pytest.mark.parametrize("msg_priority,expected", [(5, "urgent"), (1, "min")])
+    def test_build_ntfy_request_priority_mapping(self, msg_priority, expected):
         """Test priority mapping to ntfy format."""
         channel_config = {
             "server_base_url": "https://ntfy.sh",
@@ -163,8 +165,7 @@ class TestNtfy:
         payload_template = {}
         endpoint = {"name": "test"}
 
-        # Test priority 5 -> urgent
-        message = {"body": "test", "priority": 5}
+        message = {"body": "test", "priority": msg_priority}
         _, _, headers, _ = build_ntfy_request(
             channel_config=channel_config,
             payload_template=payload_template,
@@ -172,18 +173,7 @@ class TestNtfy:
             ingest_endpoint=endpoint,
             block_private_networks=False,
         )
-        assert headers["Priority"] == "urgent"
-
-        # Test priority 1 -> min
-        message = {"body": "test", "priority": 1}
-        _, _, headers, _ = build_ntfy_request(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-            block_private_networks=False,
-        )
-        assert headers["Priority"] == "min"
+        assert headers["Priority"] == expected
 
     def test_build_ntfy_request_missing_config(self):
         """Missing required config should raise ValueError."""
@@ -226,51 +216,21 @@ class TestGotify:
         assert payload["message"] == "test body"
         assert payload["title"] == "test title"
 
-    def test_build_gotify_payload_priority_mapping(self):
+    @pytest.mark.parametrize("msg_priority,expected", [(1, 0), (2, 2), (4, 7), (5, 10)])
+    def test_build_gotify_payload_priority_mapping(self, msg_priority, expected):
         """Test priority mapping: 1→0, 2→2, 4→7, 5→10."""
         channel_config = {}
         payload_template = {}
         endpoint = {"name": "test"}
 
-        # Priority 1 → 0
-        message = {"body": "test", "priority": 1}
+        message = {"body": "test", "priority": msg_priority}
         payload = build_gotify_payload(
             channel_config=channel_config,
             payload_template=payload_template,
             message=message,
             ingest_endpoint=endpoint,
         )
-        assert payload["priority"] == 0
-
-        # Priority 2 → 2
-        message = {"body": "test", "priority": 2}
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-        assert payload["priority"] == 2
-
-        # Priority 4 → 7
-        message = {"body": "test", "priority": 4}
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-        assert payload["priority"] == 7
-
-        # Priority 5 → 10
-        message = {"body": "test", "priority": 5}
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-        assert payload["priority"] == 10
+        assert payload["priority"] == expected
 
     def test_build_gotify_payload_default_extras(self):
         """Test default_extras_json merges into extras."""
@@ -399,3 +359,57 @@ class TestGotify:
             assert call_args[1]["headers"]["X-Gotify-Key"] == "test-token"
             assert call_args[1]["headers"]["Content-Type"] == "application/json"
             assert "https://gotify.example.com/message" in call_args[0]
+
+
+class TestMqtt:
+    def test_encode_payload_variants(self):
+        assert _encode_payload(b"raw") == b"raw"
+        assert _encode_payload("str") == b"str"
+        assert _encode_payload({"a": 1}) == b'{"a":1}'
+
+    def test_send_mqtt_publish_success(self, monkeypatch):
+        calls = {}
+
+        def fake_single(topic, **kwargs):
+            calls["topic"] = topic
+            calls["kwargs"] = kwargs
+
+        monkeypatch.setenv("MQTT_BLOCK_PRIVATE_NETWORKS", "false")
+        monkeypatch.setattr(
+            "socket.getaddrinfo",
+            lambda *args, **kwargs: [(0, 0, 0, "", ("93.184.216.34", 0))],
+        )
+        monkeypatch.setattr("paho.mqtt.publish.single", fake_single)
+        ok, meta = send_mqtt_publish(
+            broker_host="broker.example.com",
+            broker_port=1883,
+            topic="t/x",
+            payload="hello",
+            username=None,
+            password=None,
+            qos=0,
+            retain=False,
+            tls=False,
+            tls_insecure=False,
+            client_id=None,
+            keepalive_seconds=60,
+        )
+        assert ok is True and calls["topic"] == "t/x"
+        assert meta["broker_host"] == "broker.example.com"
+
+    def test_send_mqtt_publish_rejects_private_host(self):
+        with pytest.raises(Exception):
+            send_mqtt_publish(
+                broker_host="192.168.1.10",
+                broker_port=1883,
+                topic="t",
+                payload="x",
+                username=None,
+                password=None,
+                qos=0,
+                retain=False,
+                tls=False,
+                tls_insecure=False,
+                client_id=None,
+                keepalive_seconds=60,
+            )
