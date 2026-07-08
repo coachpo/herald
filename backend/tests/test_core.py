@@ -117,15 +117,20 @@ class TestCrypto:
 
     def test_decrypt_with_wrong_key_fails(self, monkeypatch):
         """Decrypting with wrong key should fail."""
-        plaintext = '{"test": "data"}'
+        from cryptography.fernet import Fernet, InvalidToken
 
-        encrypted = encrypt_json_bytes(plaintext.encode("utf-8"))
-        monkeypatch.setenv("CHANNEL_CONFIG_ENCRYPTION_KEY", "different-key")
+        token = encrypt_json_bytes(b'{"test": "data"}')
+        monkeypatch.setenv(
+            "CHANNEL_CONFIG_ENCRYPTION_KEY",
+            Fernet.generate_key().decode(),
+        )
         get_settings.cache_clear()
         crypto_mod._fernet_from_settings.cache_clear()
-
-        with pytest.raises(Exception):
-            decrypt_json_bytes(encrypted)
+        try:
+            with pytest.raises(InvalidToken):
+                decrypt_json_bytes(token)
+        finally:
+            crypto_mod._fernet_from_settings.cache_clear()
 
 
 class TestSSRF:

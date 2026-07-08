@@ -1,3 +1,5 @@
+import uuid as _uuid
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -50,3 +52,46 @@ async def test_auth_rate_limit_returns_429(monkeypatch):
             statuses.append(r.status_code)
     assert 429 in statuses
     assert statuses[0] != 429
+
+
+def _fresh_app(monkeypatch, **env):
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    from backend.config import get_settings
+
+    get_settings.cache_clear()
+    return create_app()
+
+
+@pytest.mark.asyncio
+async def test_ingest_rate_limit_bucket_is_canonical(monkeypatch):
+    app = _fresh_app(monkeypatch, RATE_LIMIT_INGEST_PER_MINUTE="2")
+    eid = _uuid.uuid4()
+    forms = [str(eid), eid.hex, str(eid).upper()]
+    statuses = []
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        for form in forms:
+            r = await c.post(
+                f"/api/ingest/{form}",
+                json={"body": "x"},
+                headers={"X-Herald-Ingest-Key": "bogus"},
+            )
+            statuses.append(r.status_code)
+    assert statuses == [401, 401, 429]
+
+
+@pytest.mark.asyncio
+async def test_ingest_rate_limit_differs_per_endpoint(monkeypatch):
+    app = _fresh_app(monkeypatch, RATE_LIMIT_INGEST_PER_MINUTE="1")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r1 = await c.post(
+            f"/api/ingest/{_uuid.uuid4()}",
+            json={"body": "x"},
+            headers={"X-Herald-Ingest-Key": "bogus"},
+        )
+        r2 = await c.post(
+            f"/api/ingest/{_uuid.uuid4()}",
+            json={"body": "x"},
+            headers={"X-Herald-Ingest-Key": "bogus"},
+        )
+    assert (r1.status_code, r2.status_code) == (401, 401)

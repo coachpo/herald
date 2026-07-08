@@ -1,5 +1,5 @@
 import { jsonResponse, bearerToken } from "./_shared/http.mjs";
-import { authenticateIngest } from "./_shared/auth.mjs";
+import { authenticateIngest, timingSafeEqualStrings } from "./_shared/auth.mjs";
 import { parseIngestEndpointIdFromPath, validatePayload } from "./_shared/validate.mjs";
 import {
   buildEnvelope,
@@ -12,6 +12,8 @@ import { makeConfigLoader } from "./_shared/config-cache.mjs";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 const DRAIN_BATCH = 20;
+const DRAIN_SCAN_PAGE = 100;
+const DRAIN_SCAN_MAX_PAGES = 5;
 const DEAD_RETENTION_MS = 30 * 24 * 3600 * 1000;
 let configLoader = null;
 
@@ -52,8 +54,9 @@ async function saveOutcome(kv, key, envelope, outcome, now) {
     return "drained";
   }
   if (outcome.permanent) {
+    const diedTs = String(now).padStart(16, "0");
     await kv.put(
-      `d_${key.slice(2)}`,
+      `d_${diedTs}_${key.slice(19)}`,
       JSON.stringify({ ...envelope, ingest_key: "[redacted]", last_error: outcome.error }),
     );
     await kv.delete(key);
@@ -69,38 +72,65 @@ async function saveOutcome(kv, key, envelope, outcome, now) {
   return "failed";
 }
 
-export async function drainPending(env, limit, skipKey = null) {
+export async function drainPending(env, { eligible = DRAIN_BATCH, force = false, skipKey = null } = {}) {
   const kv = kvBinding();
-  const listed = await kv.list({ prefix: "p_", limit });
-  const keys = (listed?.keys || []).map((k) => k.key ?? k.name ?? k);
+  const now = Date.now();
   let drained = 0;
   let failed = 0;
   let dead = 0;
-  const now = Date.now();
-  for (const key of keys) {
-    if (key === skipKey) continue;
-    const envelope = await kv.get(key, { type: "json" });
-    if (!envelope) continue;
-    const createdMs = envelope.created_ms || msFromKey(key);
-    let outcome;
-    if (now - createdMs > MAX_PENDING_AGE_MS) {
-      outcome = { ok: false, permanent: true, error: "max_age_exceeded" };
-    } else if (envelope.next_attempt_ms && envelope.next_attempt_ms > now) {
-      continue;
-    } else {
-      outcome = await forwardEnvelope(envelope, env.UPSTREAM_URL);
+  let processed = 0;
+  let cursor = null;
+  for (let page = 0; page < DRAIN_SCAN_MAX_PAGES && processed < eligible; page++) {
+    const listed = await kv.list({
+      prefix: "p_",
+      limit: DRAIN_SCAN_PAGE,
+      ...(cursor ? { cursor } : {}),
+    });
+    const keys = (listed?.keys || []).map((k) => k.key ?? k.name ?? k);
+    for (const key of keys) {
+      if (processed >= eligible) break;
+      if (key === skipKey) continue;
+      const envelope = await kv.get(key, { type: "json" });
+      if (!envelope) continue;
+      const createdMs = envelope.created_ms || msFromKey(key);
+      let outcome;
+      if (now - createdMs > MAX_PENDING_AGE_MS) {
+        outcome = { ok: false, permanent: true, error: "max_age_exceeded" };
+      } else if (!force && envelope.next_attempt_ms && envelope.next_attempt_ms > now) {
+        continue;
+      } else {
+        outcome = await forwardEnvelope(envelope, env.UPSTREAM_URL);
+      }
+      processed++;
+      const saved = await saveOutcome(kv, key, envelope, outcome, now);
+      if (saved === "drained") {
+        drained++;
+      } else if (saved === "dead") {
+        dead++;
+      } else {
+        failed++;
+      }
     }
-    const saved = await saveOutcome(kv, key, envelope, outcome, now);
-    if (saved === "drained") {
-      drained++;
-    } else if (saved === "dead") {
-      dead++;
-    } else {
-      failed++;
-    }
+    if (listed?.complete || !listed?.cursor) break;
+    cursor = listed.cursor;
   }
   await purgeExpiredDead(kv, now);
   return { drained, failed, dead };
+}
+
+async function countPrefix(kv, prefix, maxPages = 40) {
+  let count = 0;
+  let firstKey = null;
+  let cursor = null;
+  for (let page = 0; page < maxPages; page++) {
+    const listed = await kv.list({ prefix, limit: 256, ...(cursor ? { cursor } : {}) });
+    const keys = (listed?.keys || []).map((k) => k.key ?? k.name ?? k);
+    if (firstKey === null && keys.length) firstKey = keys[0];
+    count += keys.length;
+    if (listed?.complete || !listed?.cursor) return { count, firstKey, truncated: false };
+    cursor = listed.cursor;
+  }
+  return { count, firstKey, truncated: true };
 }
 
 async function handleIngest(request, env, url, waitUntil) {
@@ -154,7 +184,7 @@ async function handleIngest(request, env, url, waitUntil) {
   waitUntil((async () => {
     const result = await forwardEnvelope(envelope, env.UPSTREAM_URL);
     await saveOutcome(kvBinding(), key, envelope, result, Date.now());
-    await drainPending(env, 3, key);
+    await drainPending(env, { eligible: 3, skipKey: key });
   })());
 
   return jsonResponse({ message_id: envelope.id, status: "relayed" }, 202);
@@ -171,7 +201,10 @@ export async function onRequest(context) {
   const isAdmin = url.pathname === "/admin/config" || url.pathname === "/admin/status" ||
     url.pathname === "/relay/drain";
   if (isAdmin) {
-    if (!env.RELAY_ADMIN_TOKEN || bearerToken(request) !== env.RELAY_ADMIN_TOKEN) {
+    if (
+      !env.RELAY_ADMIN_TOKEN ||
+      !(await timingSafeEqualStrings(bearerToken(request), env.RELAY_ADMIN_TOKEN))
+    ) {
       return jsonResponse({ code: "forbidden" }, 403);
     }
     if (url.pathname === "/admin/config" && request.method === "POST") {
@@ -186,20 +219,21 @@ export async function onRequest(context) {
       return jsonResponse({ ok: true }, 200);
     }
     if (url.pathname === "/relay/drain" && request.method === "POST") {
-      return jsonResponse(await drainPending(env, DRAIN_BATCH), 200);
+      return jsonResponse(await drainPending(env, { eligible: DRAIN_BATCH, force: true }), 200);
     }
     if (url.pathname === "/admin/status") {
-      const pending = await kvBinding().list({ prefix: "p_", limit: 256 });
-      const deadKeys = await kvBinding().list({ prefix: "d_", limit: 256 });
+      const kv = kvBinding();
+      const pending = await countPrefix(kv, "p_");
+      const deadKeys = await countPrefix(kv, "d_");
       const config = await getConfigLoader()();
-      const pendingKeys = (pending?.keys || []).map((k) => k.key ?? k.name ?? k);
       return jsonResponse({
-        pending: pendingKeys.length,
-        dead: (deadKeys?.keys || []).length,
+        pending: pending.count,
+        dead: deadKeys.count,
         config_version: config?.version ?? null,
-        oldest_pending_at: pendingKeys.length
-          ? new Date(msFromKey(pendingKeys[0])).toISOString()
+        oldest_pending_at: pending.firstKey
+          ? new Date(msFromKey(pending.firstKey)).toISOString()
           : null,
+        truncated: pending.truncated || deadKeys.truncated,
       }, 200);
     }
     return jsonResponse({ code: "method_not_allowed" }, 405);

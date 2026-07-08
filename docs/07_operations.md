@@ -46,16 +46,16 @@ npm --prefix edge run lint
 
 ## Production Compose
 
-Set the required backend secrets before `docker compose up -d`:
+Create a root `.env` from the template, then start the production stack:
 
 ```bash
-export POSTGRES_PASSWORD='<database password>'
-export SECRET_KEY='<random backend secret>'
-export CHANNEL_CONFIG_ENCRYPTION_KEY='<fernet key>'
+cp .env.example .env
+chmod 600 .env
+# edit POSTGRES_PASSWORD, SECRET_KEY, and CHANNEL_CONFIG_ENCRYPTION_KEY
 docker compose up -d
 ```
 
-`docker-compose.yml` runs `db`, one-shot `migrate`, `api`, and `worker`. It does not publish the database port and does not run frontend or edge deployments. `EDGE_SYNC_TOKEN` is optional; when unset, `/api/edge-config` returns `404`.
+Docker Compose reads the root `.env` natively, so interactive shells, systemd, and cron backups do not need separate exports. `docker-compose.yml` runs `db`, one-shot `migrate`, `api`, and `worker`. It does not publish the database port and does not run frontend or edge deployments. `EDGE_SYNC_TOKEN` is optional; when unset, `/api/edge-config` returns `404`.
 
 Generate a Fernet key:
 
@@ -65,6 +65,17 @@ from cryptography.fernet import Fernet
 print(Fernet.generate_key().decode())
 PY
 ```
+
+## Frontend (production)
+
+Build the static dashboard with the public backend URL baked in:
+
+```bash
+docker build -t herald-frontend --build-arg VITE_API_URL=https://api.example.com ./frontend
+docker run -d --restart unless-stopped -p 3100:3100 herald-frontend
+```
+
+The container exposes port `3100` and serves `/health` for probes. Put it behind your reverse proxy or CDN in production.
 
 ## Environment
 
@@ -133,7 +144,7 @@ Back up PostgreSQL from cron:
 0 3 * * * BACKUP_DIR=/var/backups/herald /path/to/herald/scripts/backup_db.sh
 ```
 
-`scripts/backup_db.sh` runs `docker compose exec -T db pg_dump -U herald herald` from the repo root, compresses directly to `herald-<timestamp>.sql.gz`, and deletes `herald-*.sql.gz` files older than `KEEP_DAYS` (default `14`). Production cron must provide the same compose environment as startup; the simplest path is a root `.env` readable by Docker Compose with at least `POSTGRES_PASSWORD`, `SECRET_KEY`, and `CHANNEL_CONFIG_ENCRYPTION_KEY`, plus any optional backend env used by the stack.
+`scripts/backup_db.sh` runs `docker compose exec -T db pg_dump -U herald herald` from the repo root, writes `herald-<timestamp>.sql.gz.tmp`, renames it only after gzip succeeds, and deletes `herald-*.sql.gz` files older than `KEEP_DAYS` (default `14`). The root `.env` used for compose startup also covers cron.
 
 Sync edge relay config:
 

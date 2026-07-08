@@ -32,9 +32,19 @@ def main() -> None:
 
     config = _request(f"{args.backend.rstrip('/')}/api/edge-config", sync_token)
     parsed = json.loads(config)
+    failures: list[tuple[str, str]] = []
     for edge in [e.strip().rstrip("/") for e in args.edges.split(",") if e.strip()]:
-        _request(f"{edge}/admin/config", admin_token, data=config)
-        print(f"pushed version {parsed['version']} -> {edge}")
+        try:
+            _request(f"{edge}/admin/config", admin_token, data=config)
+            print(f"pushed version {parsed['version']} -> {edge}")
+        except Exception as exc:  # noqa: BLE001
+            failures.append((edge, str(exc)))
+            print(f"FAILED -> {edge}: {exc}", file=sys.stderr)
+    if failures:
+        sys.exit(
+            f"config push failed for {len(failures)} edge(s). "
+            "Skewed edges 401 new endpoints (permanent dead-letter) - fix and re-run."
+        )
 
 
 if __name__ == "__main__":

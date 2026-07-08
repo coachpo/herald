@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -11,7 +12,10 @@ from backend.config import get_settings
 from backend.database import clear_database_state
 from backend.migrate import apply_migrations
 
-TEST_DATABASE_URL = "postgresql://herald:herald@127.0.0.1:5432/herald"
+TEST_DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://herald:herald@127.0.0.1:5432/herald",
+)
 TEST_JWT_SIGNING_KEY = "test-jwt-signing-key-0123456789abcdef"
 TEST_SECRET_KEY = "test-secret-key-0123456789abcdef"
 TEST_ENCRYPTION_KEY = "dKkPUi_l6pJiD24yQWhv14jArlTc95xJMu38xpv8uKc="

@@ -11,6 +11,7 @@ from backend.providers.ntfy import (
     build_topic_url,
     _coerce_header_value,
 )
+from backend.core.ssrf import SSRFError
 
 
 class TestBark:
@@ -396,9 +397,15 @@ class TestMqtt:
         )
         assert ok is True and calls["topic"] == "t/x"
         assert meta["broker_host"] == "broker.example.com"
+        kwargs = calls["kwargs"]
+        assert kwargs["payload"] == b"hello"
+        assert kwargs["hostname"] == "broker.example.com"
+        assert kwargs["port"] == 1883
+        assert kwargs["qos"] == 0
+        assert kwargs["retain"] is False
 
     def test_send_mqtt_publish_rejects_private_host(self):
-        with pytest.raises(Exception):
+        with pytest.raises(SSRFError):
             send_mqtt_publish(
                 broker_host="192.168.1.10",
                 broker_port=1883,

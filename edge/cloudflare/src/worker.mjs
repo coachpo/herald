@@ -1,5 +1,5 @@
 import { jsonResponse, bearerToken } from "../../shared/http.mjs";
-import { authenticateIngest } from "../../shared/auth.mjs";
+import { authenticateIngest, timingSafeEqualStrings } from "../../shared/auth.mjs";
 import { parseIngestEndpointIdFromPath, validatePayload } from "../../shared/validate.mjs";
 import {
   buildEnvelope,
@@ -20,9 +20,9 @@ function getConfigLoader(env) {
   return configLoader;
 }
 
-function requireAdmin(request, env) {
-  const token = bearerToken(request);
-  return env.RELAY_ADMIN_TOKEN && token === env.RELAY_ADMIN_TOKEN;
+async function requireAdmin(request, env) {
+  if (!env.RELAY_ADMIN_TOKEN) return false;
+  return timingSafeEqualStrings(bearerToken(request), env.RELAY_ADMIN_TOKEN);
 }
 
 async function handleIngest(request, env, url) {
@@ -85,7 +85,7 @@ export async function handleRequest(request, env) {
     return jsonResponse({ ok: true, mode: "relay", platform: "cloudflare" }, 200);
   }
   if (url.pathname === "/admin/config" && request.method === "POST") {
-    if (!requireAdmin(request, env)) return jsonResponse({ code: "forbidden" }, 403);
+    if (!(await requireAdmin(request, env))) return jsonResponse({ code: "forbidden" }, 403);
     const body = await request.text();
     try {
       JSON.parse(body);
@@ -97,7 +97,7 @@ export async function handleRequest(request, env) {
     return jsonResponse({ ok: true }, 200);
   }
   if (url.pathname === "/admin/status" || url.pathname === "/relay/drain") {
-    if (!requireAdmin(request, env)) return jsonResponse({ code: "forbidden" }, 403);
+    if (!(await requireAdmin(request, env))) return jsonResponse({ code: "forbidden" }, 403);
     const stub = env.RELAY_BUFFER.get(env.RELAY_BUFFER.idFromName("global"));
     if (url.pathname === "/relay/drain") {
       if (request.method !== "POST") return jsonResponse({ code: "method_not_allowed" }, 405);
@@ -150,9 +150,8 @@ export class RelayBuffer {
         now,
         now,
       );
-      const result = await this.forward(e.id);
-      await this.rearmAlarm(now);
-      return Response.json({ ok: true, forwarded: result.ok });
+      await this.ctx.storage.setAlarm(now);
+      return Response.json({ ok: true });
     }
     if (url.pathname === "/drain" && request.method === "POST") {
       return Response.json(await this.drainDue(true));

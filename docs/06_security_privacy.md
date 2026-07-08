@@ -38,3 +38,9 @@ Relays only fetch fixed upstream URLs. They do not fetch user-controlled provide
 - Do not commit `.env` files or copied keys.
 - Do not log raw auth headers, ingest keys, passwords, refresh tokens, or decrypted channel configs.
 - Do not move frontend auth tokens into `localStorage`.
+
+## Relay Threat Model Notes
+
+1. Buffered raw ingest keys: relays must replay the original key to the next hop. Exposure is limited to pending buffers (Cloudflare Durable Object SQLite / EdgeOne KV), platform storage encryption, and successful forwarding deletes the record. Dead records redact `ingest_key` as `"[redacted]"`. Keep buffers draining normally and restrict KV/DO read access to the same trust level as `RELAY_ADMIN_TOKEN`.
+2. Global primary-key idempotency oracle: an authenticated sender that guesses a UUID can learn `duplicate:true` if that id exists for any user. Accepted because valid ids are random UUIDv4 values, `user_id` always comes from the authenticated endpoint, and no cross-user reads or writes result. Herald does not split idempotency scope per tenant.
+3. Single worker instance assumption: stale `sending` sweep plus multiple active workers can double-send. Production compose runs a single `worker`; do not scale it horizontally until delivery claims include an instance identifier.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { authenticateIngest, sha256Hex } from "../shared/auth.mjs";
+import { authenticateIngest, sha256Hex, timingSafeEqualStrings } from "../shared/auth.mjs";
 import { makeConfigLoader } from "../shared/config-cache.mjs";
 import {
   backoffSeconds,
@@ -26,6 +26,12 @@ test("authenticateIngest matches endpoint digest", async () => {
   assert.equal(await authenticateIngest(config, ep.id.replaceAll("-", ""), key), ep);
   assert.equal(await authenticateIngest(config, ep.id, "wrong"), null);
   assert.equal(await authenticateIngest(config, crypto.randomUUID(), key), null);
+});
+
+test("timingSafeEqualStrings", async () => {
+  assert.equal(await timingSafeEqualStrings("secret-token", "secret-token"), true);
+  assert.equal(await timingSafeEqualStrings("secret-token", "other"), false);
+  assert.equal(await timingSafeEqualStrings("", ""), false);
 });
 
 test("validatePayload rejects unknown and missing body", () => {
@@ -134,4 +140,22 @@ test("makeConfigLoader caches with ttl", async () => {
   assert.equal((await load(0)).version, "1");
   assert.equal((await load(50)).version, "1");
   assert.equal((await load(101)).version, "2");
+});
+
+test("makeConfigLoader serves stale cache when getRaw throws", async () => {
+  let call = 0;
+  const load = makeConfigLoader(async () => {
+    call++;
+    if (call === 1) return { version: "v1" };
+    throw new Error("kv down");
+  }, 1000);
+  assert.deepEqual(await load(0), { version: "v1" });
+  assert.deepEqual(await load(5000), { version: "v1" });
+});
+
+test("makeConfigLoader returns null when cold and getRaw throws", async () => {
+  const load = makeConfigLoader(async () => {
+    throw new Error("kv down");
+  });
+  assert.equal(await load(0), null);
 });

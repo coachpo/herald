@@ -63,6 +63,13 @@ async def test_validation_errors(app, setup):
 
 
 @pytest.mark.asyncio
+async def test_integral_float_priority_accepted(app, setup):
+    _, ep = setup
+    assert (await _post(app, ep, {"body": "x", "priority": 3.0})).status_code == 201
+    assert (await _post(app, ep, {"body": "x", "priority": 3.5})).status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_ingest_rate_limit_429(setup, monkeypatch):
     _, ep = setup
     monkeypatch.setenv("RATE_LIMIT_INGEST_PER_MINUTE", "2")

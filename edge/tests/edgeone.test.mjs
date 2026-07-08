@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { sha256Hex } from "../shared/auth.mjs";
-import { onRequest } from "../edgeone/edge-functions/[[default]].js";
+import { drainPending, onRequest } from "../edgeone/edge-functions/[[default]].js";
 
 class MemoryKV {
   constructor() {
@@ -19,13 +19,15 @@ class MemoryKV {
   async delete(key) {
     this.map.delete(key);
   }
-  async list({ prefix = "", limit = 256 } = {}) {
+  async list({ prefix = "", limit = 256, cursor = null } = {}) {
+    const all = [...this.map.keys()].filter((key) => key.startsWith(prefix)).sort();
+    const start = cursor ? Number(cursor) : 0;
+    const page = all.slice(start, start + limit);
+    const next = start + page.length;
     return {
-      keys: [...this.map.keys()]
-        .filter((key) => key.startsWith(prefix))
-        .sort()
-        .slice(0, limit)
-        .map((key) => ({ key })),
+      keys: page.map((key) => ({ key })),
+      complete: next >= all.length,
+      cursor: next < all.length ? String(next) : undefined,
     };
   }
 }
@@ -97,6 +99,7 @@ test("admin status reports config cache ttl and oldest pending", async () => {
       dead: 0,
       config_version: "v1",
       oldest_pending_at: new Date(now).toISOString(),
+      truncated: false,
     });
 
     await globalThis.EDGE_CONFIG.put("config", JSON.stringify({ version: "v2", ingest_endpoints: [] }));
@@ -200,4 +203,111 @@ test("drain succeeds then empty drain is no-op", async () => {
 
   const empty = await onRequest(context(request).ctx);
   assert.deepEqual(await empty.json(), { drained: 0, failed: 0, dead: 0 });
+});
+
+function makeEnvelope({ id, createdMs, nextAttemptMs = null }) {
+  return {
+    id,
+    endpoint_id: id,
+    received_at: new Date(createdMs).toISOString(),
+    via: "edgeone",
+    ingest_key: "k",
+    body: JSON.stringify({ body: "x" }),
+    attempts: 0,
+    last_error: null,
+    created_ms: createdMs,
+    ...(nextAttemptMs ? { next_attempt_ms: nextAttemptMs } : {}),
+  };
+}
+
+function pendingKeyOf(envelope) {
+  return `p_${String(envelope.created_ms).padStart(16, "0")}_${envelope.id.replace(/-/g, "")}`;
+}
+
+function uid(i) {
+  return `${String(i).padStart(8, "0")}-0000-4000-8000-000000000000`;
+}
+
+function stubFetch(status = 200) {
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    return new Response("{}", { status });
+  };
+  return calls;
+}
+
+test("drain skips backoff keys without head-of-line blocking (cross-page)", async () => {
+  const base = Date.now();
+  const future = base + 3600_000;
+  for (let i = 0; i < 120; i++) {
+    const envelope = makeEnvelope({
+      id: uid(i),
+      createdMs: base - 10_000 + i,
+      nextAttemptMs: future,
+    });
+    await globalThis.EDGE_CONFIG.put(pendingKeyOf(envelope), JSON.stringify(envelope));
+  }
+  const eligible = makeEnvelope({ id: uid(200), createdMs: base - 5_000 });
+  await globalThis.EDGE_CONFIG.put(pendingKeyOf(eligible), JSON.stringify(eligible));
+  const calls = stubFetch(200);
+  const result = await drainPending({ UPSTREAM_URL: "https://up.example" }, { eligible: 20 });
+  assert.equal(result.drained, 1);
+  assert.equal(calls.length, 1);
+  assert.equal(result.failed, 0);
+});
+
+test("force drain retries keys still in backoff", async () => {
+  const envelope = makeEnvelope({
+    id: uid(1),
+    createdMs: Date.now() - 1000,
+    nextAttemptMs: Date.now() + 3600_000,
+  });
+  await globalThis.EDGE_CONFIG.put(pendingKeyOf(envelope), JSON.stringify(envelope));
+  const calls = stubFetch(200);
+  const result = await drainPending({ UPSTREAM_URL: "https://up.example" }, { eligible: 20, force: true });
+  assert.equal(result.drained, 1);
+  assert.equal(calls.length, 1);
+});
+
+test("dead keys are stamped with death time and purged after 30d", async () => {
+  const envelope = makeEnvelope({ id: uid(2), createdMs: Date.now() - 1000 });
+  await globalThis.EDGE_CONFIG.put(pendingKeyOf(envelope), JSON.stringify(envelope));
+  stubFetch(422);
+  await drainPending({ UPSTREAM_URL: "https://up.example" }, { eligible: 5 });
+  const deadKeys = (await globalThis.EDGE_CONFIG.list({ prefix: "d_", limit: 10 })).keys.map((k) => k.key);
+  assert.equal(deadKeys.length, 1);
+  const stamp = Number(deadKeys[0].slice(2, 18));
+  assert.ok(Math.abs(stamp - Date.now()) < 60_000);
+
+  const realNow = Date.now;
+  try {
+    const later = realNow() + 31 * 24 * 3600_000;
+    Date.now = () => later;
+    stubFetch(200);
+    await drainPending({ UPSTREAM_URL: "https://up.example" }, { eligible: 5 });
+    assert.equal((await globalThis.EDGE_CONFIG.list({ prefix: "d_", limit: 10 })).keys.length, 0);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("admin status paginates counts past one page", async () => {
+  const base = Date.now();
+  for (let i = 0; i < 300; i++) {
+    const envelope = makeEnvelope({
+      id: uid(i),
+      createdMs: base - 300 + i,
+      nextAttemptMs: base + 3600_000,
+    });
+    await globalThis.EDGE_CONFIG.put(pendingKeyOf(envelope), JSON.stringify(envelope));
+  }
+  await writeConfig();
+  const res = await onRequest(context(new Request("https://edge/admin/status", {
+    headers: { Authorization: "Bearer admin" },
+  })).ctx);
+  const body = await res.json();
+  assert.equal(body.pending, 300);
+  assert.equal(body.truncated, false);
+  assert.ok(body.oldest_pending_at);
 });

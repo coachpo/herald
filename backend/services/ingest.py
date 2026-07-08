@@ -117,6 +117,8 @@ def validate_ingest_payload(data: dict[str, Any]) -> IngestPayload:
         raise _validation_error("'group' must be a string")
 
     priority_val = data.get("priority", 3)
+    if isinstance(priority_val, float) and priority_val.is_integer():
+        priority_val = int(priority_val)
     if not isinstance(priority_val, int) or isinstance(priority_val, bool):
         raise _validation_error("'priority' must be an integer")
     if priority_val < 1 or priority_val > 5:

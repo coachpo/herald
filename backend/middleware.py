@@ -120,13 +120,21 @@ class RateLimitMiddleware:
             return None
         path = scope.get("path", "")
         settings = get_settings()
+        client = scope.get("client") or ("", 0)
         if path.startswith("/api/ingest/"):
+            segment = path.rsplit("/", 1)[-1]
+            try:
+                canonical = uuid.UUID(segment).hex
+            except ValueError:
+                try:
+                    canonical = uuid.UUID(hex=segment).hex
+                except ValueError:
+                    canonical = segment
             return (
-                f"ingest:{path.rsplit('/', 1)[-1]}",
+                f"ingest:{client[0]}:{canonical}",
                 settings.rate_limit_ingest_per_minute,
             )
         if path in self._AUTH_PATHS:
-            client = scope.get("client") or ("", 0)
             return (f"auth:{client[0]}", settings.rate_limit_auth_per_minute)
         return None
 
@@ -138,7 +146,11 @@ class RateLimitMiddleware:
             self._buckets[key] = (tokens, now)
             return False
         if len(self._buckets) > 10_000:
-            self._buckets.clear()  # ponytail: crude flush beats an LRU nobody needs
+            cutoff = now - 120.0
+            for stale_key in [
+                k for k, (_, ts) in self._buckets.items() if ts < cutoff
+            ]:
+                del self._buckets[stale_key]
         self._buckets[key] = (tokens - 1.0, now)
         return True
 

@@ -191,6 +191,7 @@ test("ingest authenticates and enqueues envelope", async () => {
   const body = await res.json();
   assert.equal(body.message_id, "11111111-1111-4111-8111-111111111111");
   assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://do/enqueue");
   const envelope = JSON.parse(calls[0].init.body);
   assert.equal(envelope.via, "edgeone,cloudflare");
   assert.equal(envelope.ingest_key, key);
@@ -237,10 +238,12 @@ test("RelayBuffer retries temporary failures and reports status", async () => {
     }));
     assert.equal(res.status, 200);
     assert.equal(sql.pending.size, 1);
+    assert.equal(alarms.length, 1);
+    assert.equal((await res.json()).ok, true);
+    await buffer.alarm();
     const row = sql.pending.get("msg-1");
     assert.equal(row.attempts, 1);
     assert.equal(row.last_error, "upstream_status_500");
-    assert.equal(alarms.length, 1);
 
     const status = await (await buffer.fetch(new Request("https://do/status"))).json();
     assert.equal(status.pending, 1);
@@ -265,9 +268,9 @@ test("RelayBuffer drains successes and moves permanent failures to dead", async 
         body: "{}",
       }),
     }));
-    assert.equal(ok.sql.pending.size, 0);
+    assert.equal(ok.sql.pending.size, 1);
     assert.deepEqual(await (await ok.buffer.fetch(new Request("https://do/drain", { method: "POST" }))).json(), {
-      drained: 0,
+      drained: 1,
       failed: 0,
       dead: 0,
     });
@@ -288,11 +291,57 @@ test("RelayBuffer drains successes and moves permanent failures to dead", async 
         body: "{}",
       }),
     }));
-    assert.equal(dead.sql.pending.size, 0);
+    assert.equal(dead.sql.pending.size, 1);
+    assert.deepEqual(await (await dead.buffer.fetch(new Request("https://do/drain", { method: "POST" }))).json(), {
+      drained: 0,
+      failed: 1,
+      dead: 1,
+    });
     assert.equal(dead.sql.dead.size, 1);
     const stored = JSON.parse(dead.sql.dead.get("msg-dead").envelope);
     assert.equal(stored.ingest_key, "[redacted]");
   } finally {
     dead.restore();
+  }
+});
+
+test("RelayBuffer alarm only forwards due rows", async () => {
+  const calls = [];
+  const { buffer, sql, restore } = relayBuffer(async (url, init) => {
+    calls.push({ url, init });
+    return new Response("ok", { status: 201 });
+  });
+  try {
+    const now = Date.now();
+    sql.pending.set("due", {
+      id: "due",
+      endpoint_id: "ep",
+      received_at: "2026-01-01T00:00:00Z",
+      via: "cloudflare",
+      ingest_key: "raw-key",
+      body: "{}",
+      attempts: 0,
+      next_attempt_ms: now - 1,
+      last_error: null,
+      created_ms: now - 10,
+    });
+    sql.pending.set("later", {
+      id: "later",
+      endpoint_id: "ep",
+      received_at: "2026-01-01T00:00:00Z",
+      via: "cloudflare",
+      ingest_key: "raw-key",
+      body: "{}",
+      attempts: 0,
+      next_attempt_ms: now + 60_000,
+      last_error: null,
+      created_ms: now - 9,
+    });
+    await buffer.alarm();
+    assert.equal(calls.length, 1);
+    assert.equal(sql.pending.has("due"), false);
+    assert.equal(sql.pending.has("later"), true);
+  } finally {
+    restore();
   }
 });

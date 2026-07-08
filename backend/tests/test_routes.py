@@ -20,9 +20,9 @@ async def test_health_endpoint(app):
     ) as client:
         response = await client.get("/health")
 
-        assert response.status_code in (200, 503)
+        assert response.status_code == 200
         data = response.json()
-        assert data["status"] in ("ok", "degraded")
+        assert data["status"] == "ok"
         assert "database" in data
         assert "version" in data
         assert isinstance(data["version"], str)

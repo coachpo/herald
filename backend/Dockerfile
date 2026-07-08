@@ -19,6 +19,7 @@ RUN uv sync --locked --no-dev --no-install-project
 
 COPY . .
 RUN uv sync --locked --no-dev
+RUN chmod -R a+rX /app
 
 USER herald
 

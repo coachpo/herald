@@ -109,7 +109,7 @@ EdgeOne Pages injects the KV binding as global `EDGE_CONFIG`, not `context.env.E
 Provisioning requirements:
 
 - Create or link the EdgeOne Pages project.
-- Create a Pages KV namespace and bind it to the function as `EDGE_CONFIG`.
+- In the EdgeOne Pages console, create a Pages KV namespace and bind it to the project with binding name `EDGE_CONFIG`. EdgeOne injects this as a global variable, not on `context.env`.
 - Set `UPSTREAM_URL` to the Cloudflare Worker base URL.
 - Set `RELAY_ADMIN_TOKEN` as an EdgeOne environment variable.
 - Deploy the function, then run `scripts/sync_edge_config.py` so `/admin/config` writes the active endpoint digest config.
@@ -128,5 +128,5 @@ China mainland service requires an ICP-filed domain. Without that, use a non-mai
 
 `.github/workflows/edge-drain.yml` calls the EdgeOne `/relay/drain` endpoint every five minutes. Configure repository secrets:
 
-- `EDGEONE_DRAIN_URL`: full EdgeOne drain URL including `/relay/drain`
+- `EDGEONE_DRAIN_URL`: full EdgeOne drain URL including `/relay/drain`, for example `https://edge.example.cn/relay/drain`
 - `RELAY_ADMIN_TOKEN`

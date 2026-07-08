@@ -21,6 +21,7 @@ async def apply_migrations(database_url: str) -> list[str]:
     conn = await asyncpg.connect(database_url)
     applied: list[str] = []
     try:
+        await conn.execute("SELECT pg_advisory_lock(727001)")
         await conn.execute(
             "CREATE TABLE IF NOT EXISTS schema_migrations ("
             "version TEXT PRIMARY KEY, "

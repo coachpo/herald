@@ -12,7 +12,10 @@ cd "$(dirname "$0")/.."
 
 mkdir -p "$BACKUP_DIR"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+target="$BACKUP_DIR/herald-$stamp.sql.gz"
 docker compose exec -T "$COMPOSE_DB_SERVICE" pg_dump -U herald herald \
-  | gzip > "$BACKUP_DIR/herald-$stamp.sql.gz"
+  | gzip > "$target.tmp"
+mv "$target.tmp" "$target"
 find "$BACKUP_DIR" -name 'herald-*.sql.gz' -mtime "+$KEEP_DAYS" -delete
-echo "backup written: $BACKUP_DIR/herald-$stamp.sql.gz"
+find "$BACKUP_DIR" -name '*.sql.gz.tmp' -mtime +1 -delete
+echo "backup written: $target"

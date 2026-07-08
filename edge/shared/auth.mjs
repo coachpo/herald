@@ -12,6 +12,14 @@ export async function sha256Hex(text) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export async function timingSafeEqualStrings(a, b) {
+  const sa = String(a || "");
+  const sb = String(b || "");
+  if (!sa || !sb) return false;
+  const [da, db] = await Promise.all([sha256Hex(sa), sha256Hex(sb)]);
+  return constantTimeEqual(da, db);
+}
+
 export async function authenticateIngest(config, endpointId, rawKey) {
   const wanted = String(endpointId || "").replace(/-/g, "");
   const endpoint = (config?.ingest_endpoints || []).find(

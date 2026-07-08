@@ -3,7 +3,12 @@ export function makeConfigLoader(getRaw, ttlMs = 60_000) {
   let cachedAt = 0;
   return async function load(nowMs = Date.now()) {
     if (cached && nowMs - cachedAt < ttlMs) return cached;
-    const raw = await getRaw();
+    let raw = null;
+    try {
+      raw = await getRaw();
+    } catch {
+      return cached;
+    }
     if (raw) {
       cached = raw;
       cachedAt = nowMs;
