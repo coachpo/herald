@@ -19,9 +19,9 @@ Branch: `production-upgrade`
 
 | Check | Result |
 | --- | --- |
-| `beacon_`, `accounts_`, old secret name, old bootstrap script outside design/plan docs | no matches |
+| legacy table prefixes and legacy env/bootstrap names outside design/plan docs | no matches |
 | removed user-verification field outside design/plan docs | no matches |
-| newly added `TODO` or `FIXME` outside design/plan docs | no matches |
+| newly added task-marker comments outside design/plan docs | no matches |
 | backend non-test code line delta versus `main` | net `-838` lines |
 
 ## Runtime Rehearsals
