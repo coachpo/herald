@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .channel_dispatch import dispatch_channel_message
 from .config import get_settings
-from .database import get_session, get_tables
+from .database import get_sessionmaker, get_tables
 from .logging_config import setup_logging
+from .observability import init_sentry
 
 logger = structlog.get_logger(__name__)
 
@@ -77,6 +78,21 @@ async def claim_due_deliveries(
     await session.commit()
 
     return deliveries
+
+
+async def _sweep_stale_sending(session: AsyncSession, *, now: datetime) -> int:
+    """Requeue deliveries stranded in 'sending' by a crashed worker."""
+    tables = await get_tables()
+    result = await session.execute(
+        update(tables.deliveries)
+        .where(
+            tables.deliveries.c.status == "sending",
+            tables.deliveries.c.updated_at < now - timedelta(minutes=10),
+        )
+        .values(status="retry", next_attempt_at=now, updated_at=now)
+    )
+    await session.commit()
+    return result.rowcount or 0
 
 
 async def process_delivery(
@@ -262,30 +278,33 @@ async def process_delivery(
         await session.commit()
 
 
-async def process_delivery_batch() -> None:
+async def process_delivery_batch() -> int:
     settings = get_settings()
-    batch_size = settings.worker_batch_size
     now = datetime.now(tz.utc)
+    sessionmaker = get_sessionmaker()
 
-    async for session in get_session():
+    async with sessionmaker() as session:
+        swept = await _sweep_stale_sending(session, now=now)
+        if swept:
+            logger.warning("stale_sending_requeued", count=swept)
         deliveries = await claim_due_deliveries(
             session,
             now=now,
-            batch_size=batch_size,
+            batch_size=settings.worker_batch_size,
         )
 
-        if not deliveries:
-            break
-
-        tasks = [process_delivery(session, d) for d in deliveries]
-        await asyncio.gather(*tasks, return_exceptions=True)
-        break
+    # ponytail: serial, one session per delivery; provider HTTP is the bottleneck.
+    for delivery in deliveries:
+        async with sessionmaker() as session:
+            await process_delivery(session, delivery)
+    return len(deliveries)
 
 
 async def delivery_worker() -> None:
     global _shutdown_requested
 
     setup_logging()
+    init_sentry()
 
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
@@ -297,8 +316,9 @@ async def delivery_worker() -> None:
 
     while not _shutdown_requested:
         try:
-            await process_delivery_batch()
-            await asyncio.sleep(poll_seconds)
+            claimed = await process_delivery_batch()
+            if claimed < settings.worker_batch_size:
+                await asyncio.sleep(poll_seconds)
         except Exception as exc:
             logger.exception("worker_error", error=str(exc))
             await asyncio.sleep(5)
