@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from ..database import serialize_uuid
-from ..models import Delivery, DeliveryCounters, MessageDetail, MessageSummary
+from ..schemas import Delivery, DeliveryCounters, MessageDetail, MessageSummary
 
 
 def message_summary_from_row(

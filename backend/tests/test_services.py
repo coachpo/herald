@@ -2,8 +2,8 @@
 
 import pytest
 
-from ..services import ChannelConfigValidationError
 from ..services.channel_validation import _normalize_channel_config
+from ..services.exceptions import ChannelConfigValidationError
 
 
 class TestGotifyChannelConfig:

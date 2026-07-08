@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import AuthenticatedUser, get_current_user
 from ..database import get_session
 from ..edge_config import build_edge_config
-from ..models import EdgeConfigResponse
+from ..schemas import EdgeConfigResponse
 
 from .channels import router as channels_router
 from .ingest_endpoints import router as ingest_endpoints_router

@@ -4,7 +4,9 @@ import pytest
 
 from backend.core.rules import rule_matches_message
 from backend.core.template import build_template_context, render_template
-from backend.core.crypto import encrypt_config, decrypt_config
+from backend.config import get_settings
+from backend.core.crypto import decrypt_json_bytes, encrypt_json_bytes
+from backend.core import crypto as crypto_mod
 from backend.core.ssrf import assert_ssrf_safe, SSRFError
 
 
@@ -77,25 +79,25 @@ class TestCrypto:
 
     def test_encrypt_decrypt_roundtrip(self):
         """Encrypt and decrypt should be reversible."""
-        key = "test-encryption-key-32-bytes!!"
         plaintext = '{"server": "https://example.com", "token": "secret"}'
 
-        encrypted = encrypt_config(plaintext, key)
-        decrypted = decrypt_config(encrypted, key)
+        encrypted = encrypt_json_bytes(plaintext.encode("utf-8"))
+        decrypted = decrypt_json_bytes(encrypted).decode("utf-8")
 
         assert decrypted == plaintext
         assert encrypted != plaintext
 
-    def test_decrypt_with_wrong_key_fails(self):
+    def test_decrypt_with_wrong_key_fails(self, monkeypatch):
         """Decrypting with wrong key should fail."""
-        key1 = "test-encryption-key-32-bytes!!"
-        key2 = "different-key-32-bytes-long!!"
         plaintext = '{"test": "data"}'
 
-        encrypted = encrypt_config(plaintext, key1)
+        encrypted = encrypt_json_bytes(plaintext.encode("utf-8"))
+        monkeypatch.setenv("CHANNEL_CONFIG_ENCRYPTION_KEY", "different-key")
+        get_settings.cache_clear()
+        crypto_mod._fernet_from_settings.cache_clear()
 
         with pytest.raises(Exception):
-            decrypt_config(encrypted, key2)
+            decrypt_json_bytes(encrypted)
 
 
 class TestSSRF:

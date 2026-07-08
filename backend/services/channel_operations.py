@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..channel_dispatch import dispatch_channel_message
 from ..database import get_tables, serialize_uuid
-from ..models import Channel
+from ..schemas import Channel
 from .channel_records import ChannelRecord, channel_from_row, channel_to_dict
 from .channel_validation import (
     _normalize_channel_config,

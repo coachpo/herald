@@ -7,14 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.jwt import get_current_user_id
 from ..database import get_session
-from ..models import (
+from ..schemas import (
     Rule,
     RuleCreateRequest,
     RuleResponse,
     RuleUpdateRequest,
     RulesResponse,
 )
-from ..requests import (
+from ..schemas import (
     AllRulesTestResponse,
     MatchPreview,
     RuleTestResponse,

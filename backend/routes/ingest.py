@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from ..database import get_session
-from ..models import IngestMessageResponse
+from ..schemas import IngestMessageResponse
 from ..services.ingest import (
     authenticate_ingest_request,
     create_ingest_message,

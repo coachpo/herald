@@ -21,7 +21,7 @@ from .errors import (
 )
 from .logging_config import setup_logging
 from .middleware import AccessLogMiddleware, CorsMiddleware, RequestIDMiddleware
-from .models import HealthResponse
+from .schemas import HealthResponse
 from .routes import router, auth_router, ingest_router
 
 

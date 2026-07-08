@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.tokens import generate_secret_token, hash_token
 from ..database import get_tables
-from ..models import IngestEndpoint
+from ..schemas import IngestEndpoint
 from .exceptions import NotFoundError
 from .ingest_endpoint_records import ingest_endpoint_from_row, ingest_endpoint_to_dict
 

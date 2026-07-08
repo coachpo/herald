@@ -8,7 +8,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_tables
-from ..models import (
+from ..schemas import (
     Delivery,
     DeliveryCounters,
     MessageDetail,

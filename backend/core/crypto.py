@@ -1,31 +1,10 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import base64
 import hashlib
-from functools import lru_cache
 
 from cryptography.fernet import Fernet
-
-
-@lru_cache(maxsize=1)
-def _get_fernet(key: str) -> Fernet:
-    if not key:
-        raise ValueError("encryption_key_required")
-    try:
-        return Fernet(key.encode("utf-8"))
-    except (ValueError, TypeError):
-        derived = hashlib.sha256(key.encode("utf-8")).digest()
-        return Fernet(base64.urlsafe_b64encode(derived))
-
-
-def encrypt_config(plaintext: str, key: str) -> str:
-    fernet = _get_fernet(key)
-    return fernet.encrypt(plaintext.encode("utf-8")).decode("utf-8")
-
-
-def decrypt_config(ciphertext: str, key: str) -> str:
-    fernet = _get_fernet(key)
-    return fernet.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
 
 
 @lru_cache(maxsize=1)

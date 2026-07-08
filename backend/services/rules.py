@@ -9,7 +9,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_tables, serialize_uuid
-from ..models import Rule
+from ..schemas import Rule
 from .channel_operations import get_channel_record, rule_to_dict
 from .channel_records import ChannelRecord
 from .channel_validation import require_string_field

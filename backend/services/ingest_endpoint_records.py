@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from ..database import serialize_uuid
-from ..models import IngestEndpoint
+from ..schemas import IngestEndpoint
 
 
 def ingest_endpoint_to_dict(row: Any) -> dict[str, Any]:
