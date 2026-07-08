@@ -106,3 +106,22 @@ def test_rate_limit_bounded_under_fresh_key_flood():
         assert mw._allow(f"ingest:1.2.3.4:garbage-{i}", 120) is True
 
     assert len(mw._buckets) <= 10_000
+
+
+def test_ingest_rate_limit_caps_invalid_endpoint_bucket_key():
+    from backend.middleware import RateLimitMiddleware
+
+    segment = "garbage-" + ("x" * 200)
+    mw = RateLimitMiddleware(app=None)
+    matched = mw._match(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": f"/api/ingest/{segment}",
+            "client": ("1.2.3.4", 123),
+        }
+    )
+
+    assert matched is not None
+    key, _ = matched
+    assert key == f"ingest:1.2.3.4:{segment[:64]}"
