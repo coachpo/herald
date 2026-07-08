@@ -28,8 +28,6 @@ class ReflectedTables:
     messages: Table
     deliveries: Table
     refresh_tokens: Table
-    email_verification_tokens: Table
-    password_reset_tokens: Table
 
 
 _engine: AsyncEngine | None = None
@@ -89,15 +87,13 @@ async def get_tables() -> ReflectedTables:
 
         metadata = MetaData()
         only_tables = [
-            "accounts_user",
-            "beacon_ingestendpoint",
-            "beacon_channel",
-            "beacon_forwardingrule",
-            "beacon_message",
-            "beacon_delivery",
-            "accounts_refreshtoken",
-            "accounts_emailverificationtoken",
-            "accounts_passwordresettoken",
+            "users",
+            "ingest_endpoints",
+            "channels",
+            "rules",
+            "messages",
+            "deliveries",
+            "refresh_tokens",
         ]
 
         async with get_engine().begin() as connection:
@@ -117,17 +113,13 @@ async def get_tables() -> ReflectedTables:
                 )
 
         _tables = ReflectedTables(
-            users=metadata.tables["accounts_user"],
-            ingest_endpoints=metadata.tables["beacon_ingestendpoint"],
-            channels=metadata.tables["beacon_channel"],
-            rules=metadata.tables["beacon_forwardingrule"],
-            messages=metadata.tables["beacon_message"],
-            deliveries=metadata.tables["beacon_delivery"],
-            refresh_tokens=metadata.tables["accounts_refreshtoken"],
-            email_verification_tokens=metadata.tables[
-                "accounts_emailverificationtoken"
-            ],
-            password_reset_tokens=metadata.tables["accounts_passwordresettoken"],
+            users=metadata.tables["users"],
+            ingest_endpoints=metadata.tables["ingest_endpoints"],
+            channels=metadata.tables["channels"],
+            rules=metadata.tables["rules"],
+            messages=metadata.tables["messages"],
+            deliveries=metadata.tables["deliveries"],
+            refresh_tokens=metadata.tables["refresh_tokens"],
         )
         return _tables
 
