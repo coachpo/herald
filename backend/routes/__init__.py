@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import hmac
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import AuthenticatedUser, get_current_user
+from ..config import get_settings
 from ..database import get_session
 from ..edge_config import build_edge_config
 from ..schemas import EdgeConfigResponse
@@ -67,8 +69,15 @@ def _channel_test_failed_error(error: str) -> HTTPException:
 
 @router.get("/edge-config", response_model=EdgeConfigResponse)
 async def get_edge_config(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    config = await build_edge_config(session=session, user_id=current_user.id)
+    settings = get_settings()
+    if not settings.edge_sync_token:
+        raise HTTPException(status_code=404, detail="not_found")
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if not hmac.compare_digest(token, settings.edge_sync_token):
+        raise HTTPException(status_code=401, detail="not_authenticated")
+    config = await build_edge_config(session=session)
     return EdgeConfigResponse(**config)

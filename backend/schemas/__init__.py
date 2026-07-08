@@ -21,7 +21,7 @@ from .channels import (
     ChannelsResponse,
 )
 from .common import HealthResponse
-from .edge import EdgeChannel, EdgeConfigResponse, EdgeIngestEndpoint, EdgeRule
+from .edge import EdgeConfigResponse, EdgeIngestEndpoint
 from .ingest import (
     IngestEndpoint,
     IngestEndpointCreateRequest,
@@ -72,10 +72,8 @@ __all__ = [
     "DeliveriesResponse",
     "Delivery",
     "DeliveryCounters",
-    "EdgeChannel",
     "EdgeConfigResponse",
     "EdgeIngestEndpoint",
-    "EdgeRule",
     "HealthResponse",
     "IngestEndpoint",
     "IngestEndpointCreateRequest",
