@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: herald_dev
+      POSTGRES_USER: herald
+      POSTGRES_PASSWORD: herald
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U herald -d herald_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build: ./backend
+    command: ["python", "-m", "backend.migrate"]
+    environment: &backend_env
+      APP_ENV: development
+      DATABASE_URL: postgresql://herald:herald@db:5432/herald_dev
+      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      CHANNEL_CONFIG_ENCRYPTION_KEY: ${CHANNEL_CONFIG_ENCRYPTION_KEY:-}
+      EDGE_SYNC_TOKEN: ${EDGE_SYNC_TOKEN:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-console}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment: *backend_env
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "backend.worker"]
+    environment:
+      <<: *backend_env
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-1.0}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-50}
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:

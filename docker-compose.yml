@@ -1,63 +1,67 @@
-# Herald local development stack (FastAPI + PostgreSQL + Worker)
-#
-# Usage:
-#   docker compose up              # start all services
-#   docker compose up -d db        # start PostgreSQL only
-#   docker compose up api          # start API + DB
-#   docker compose logs -f api     # follow API logs
-
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: herald_dev
+      POSTGRES_DB: herald
       POSTGRES_USER: herald
-      POSTGRES_PASSWORD: herald
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U herald -d herald_dev"]
+      test: ["CMD-SHELL", "pg_isready -U herald -d herald"]
       interval: 5s
       timeout: 3s
       retries: 5
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
-  api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://herald:herald@db:5432/herald_dev
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-insecure}
-      CHANNEL_CONFIG_ENCRYPTION_KEY: ${CHANNEL_CONFIG_ENCRYPTION_KEY:-}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+  migrate:
+    build: ./backend
+    command: ["python", "-m", "backend.migrate"]
+    environment: &backend_env
+      APP_ENV: production
+      DATABASE_URL: postgresql://herald:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/herald
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      CHANNEL_CONFIG_ENCRYPTION_KEY: ${CHANNEL_CONFIG_ENCRYPTION_KEY:?set CHANNEL_CONFIG_ENCRYPTION_KEY}
+      EDGE_SYNC_TOKEN: ${EDGE_SYNC_TOKEN:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LOG_FORMAT: ${LOG_FORMAT:-console}
+      LOG_FORMAT: json
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
-      db:
-        condition: service_healthy
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment: *backend_env
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *logging
 
   worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: ./backend
     command: ["python", "-m", "backend.worker"]
-    environment:
-      DATABASE_URL: postgresql://herald:herald@db:5432/herald_dev
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
-      CHANNEL_CONFIG_ENCRYPTION_KEY: ${CHANNEL_CONFIG_ENCRYPTION_KEY:-}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LOG_FORMAT: ${LOG_FORMAT:-console}
-      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-1.0}
-      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-50}
+    restart: unless-stopped
+    environment: *backend_env
     depends_on:
-      db:
-        condition: service_healthy
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    logging: *logging
 
 volumes:
   pgdata:

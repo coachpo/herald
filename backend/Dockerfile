@@ -24,4 +24,7 @@ USER herald
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD curl -fsS http://localhost:8000/health || exit 1
+
 CMD ["herald-backend"]

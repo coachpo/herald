@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Production deployments can use: docker compose up (FastAPI + PostgreSQL + worker)
+# Production deployments can use: docker compose up (PostgreSQL + migrate + API + worker).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
-COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.dev.yml"
 DB_PORT="${DB_PORT:-35432}"
 BACKEND_PORT="${BACKEND_PORT:-38000}"
 FRONTEND_PORT="${FRONTEND_PORT:-35173}"
@@ -287,9 +287,11 @@ if [ "$START_FRONTEND" = true ]; then
 fi
 
 export DATABASE_URL="postgresql://herald:herald@127.0.0.1:$DB_PORT/herald_dev"
+export APP_ENV="${APP_ENV:-development}"
+export SECRET_KEY="${SECRET_KEY:-dev-insecure}"
 
 echo "Ensuring local database schema..."
-uv run --project "$BACKEND_DIR" --locked python "$BACKEND_DIR/bootstrap_dev_db.py"
+uv run --project "$BACKEND_DIR" --locked python -m backend.migrate
 
 # --- Start backend ---
 echo "Starting backend on port $BACKEND_PORT..."
