@@ -48,6 +48,8 @@ test("validatePayload matches backend field types", () => {
   assert.deepEqual(validatePayload({ body: "ok", tags: ["a", 1] }), { ok: false, error: "invalid_tags" });
   assert.deepEqual(validatePayload({ body: "ok", tags: null }), { ok: false, error: "invalid_tags" });
   assert.deepEqual(validatePayload({ body: "ok", url: "not a url" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "mailto:a@example.com" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "javascript:alert(1)" }), { ok: false, error: "invalid_url" });
   assert.deepEqual(validatePayload({ body: "ok", extras: null }), { ok: false, error: "invalid_extras" });
   assert.deepEqual(validatePayload({ body: "ok", extras: { count: 1 } }), { ok: false, error: "invalid_extras" });
 });

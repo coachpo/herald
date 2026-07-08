@@ -42,7 +42,7 @@ function context(request) {
   };
 }
 
-async function writeConfig(key = "raw-key") {
+async function writeConfig(key = "raw-key", version = "v1") {
   const endpoint = {
     id: "550e8400-e29b-41d4-a716-446655440000",
     key_sha256: await sha256Hex(key),
@@ -50,7 +50,7 @@ async function writeConfig(key = "raw-key") {
   const { ctx } = context(new Request("https://edge/admin/config", {
     method: "POST",
     headers: { Authorization: "Bearer admin" },
-    body: JSON.stringify({ version: "v1", ingest_endpoints: [endpoint] }),
+    body: JSON.stringify({ version, ingest_endpoints: [endpoint] }),
   }));
   assert.equal((await onRequest(ctx)).status, 200);
   return endpoint;
@@ -71,6 +71,49 @@ test("healthz and admin auth", async () => {
   assert.deepEqual(await ok.json(), { ok: true, mode: "relay", platform: "edgeone" });
   const forbidden = await onRequest(context(new Request("https://edge/admin/status")).ctx);
   assert.equal(forbidden.status, 403);
+});
+
+test("admin status reports config cache ttl and oldest pending", async () => {
+  const realNow = Date.now;
+  let now = 1_000;
+  Date.now = () => now;
+  try {
+    await writeConfig("raw-key", "v1");
+    await globalThis.EDGE_CONFIG.put(`p_${String(now).padStart(16, "0")}_oldest`, JSON.stringify({
+      id: "oldest",
+      endpoint_id: "550e8400-e29b-41d4-a716-446655440000",
+      received_at: new Date(now).toISOString(),
+      via: "edgeone",
+      ingest_key: "raw-key",
+      body: "{}",
+      created_ms: now,
+    }));
+
+    const status1 = await onRequest(context(new Request("https://edge/admin/status", {
+      headers: { Authorization: "Bearer admin" },
+    })).ctx);
+    assert.deepEqual(await status1.json(), {
+      pending: 1,
+      dead: 0,
+      config_version: "v1",
+      oldest_pending_at: new Date(now).toISOString(),
+    });
+
+    await globalThis.EDGE_CONFIG.put("config", JSON.stringify({ version: "v2", ingest_endpoints: [] }));
+    now += 50_000;
+    const cached = await onRequest(context(new Request("https://edge/admin/status", {
+      headers: { Authorization: "Bearer admin" },
+    })).ctx);
+    assert.equal((await cached.json()).config_version, "v1");
+
+    now += 11_000;
+    const refreshed = await onRequest(context(new Request("https://edge/admin/status", {
+      headers: { Authorization: "Bearer admin" },
+    })).ctx);
+    assert.equal((await refreshed.json()).config_version, "v2");
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test("ingest stores pending then waitUntil successful forward deletes it", async () => {
@@ -131,4 +174,30 @@ test("drain moves permanent failures to dead and purges old dead", async () => {
   const body = await res.json();
   assert.equal(body.dead, 1);
   assert.equal((await globalThis.EDGE_CONFIG.list({ prefix: "d_" })).keys.length, 1);
+});
+
+test("drain succeeds then empty drain is no-op", async () => {
+  const endpoint = await writeConfig();
+  for (const id of ["a", "b"]) {
+    await globalThis.EDGE_CONFIG.put(`p_${String(Date.now()).padStart(16, "0")}_${id}`, JSON.stringify({
+      id,
+      endpoint_id: endpoint.id,
+      received_at: new Date().toISOString(),
+      via: "edgeone",
+      ingest_key: "raw-key",
+      body: "{}",
+      created_ms: Date.now(),
+    }));
+  }
+  globalThis.fetch = async () => new Response("ok", { status: 201 });
+  const request = new Request("https://edge/relay/drain", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin" },
+  });
+  const drained = await onRequest(context(request).ctx);
+  assert.deepEqual(await drained.json(), { drained: 2, failed: 0, dead: 0 });
+  assert.equal((await globalThis.EDGE_CONFIG.list({ prefix: "p_" })).keys.length, 0);
+
+  const empty = await onRequest(context(request).ctx);
+  assert.deepEqual(await empty.json(), { drained: 0, failed: 0, dead: 0 });
 });

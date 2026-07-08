@@ -45,7 +45,8 @@ export function validatePayload(json) {
     if (typeof json.url !== "string") return { ok: false, error: "invalid_url" };
     if (json.url.trim()) {
       try {
-        new URL(json.url.trim());
+        const parsed = new URL(json.url.trim());
+        if (!parsed.protocol || !parsed.host) return { ok: false, error: "invalid_url" };
       } catch {
         return { ok: false, error: "invalid_url" };
       }

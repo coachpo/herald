@@ -16,6 +16,7 @@ Documentation is expected to describe the implemented system. `docs/openapi.yaml
 - `08_bark_v2.md`: Bark provider details
 - `09_repo_structure.md`: package boundaries
 - `10_edge.md`: Cloudflare and EdgeOne relay protocol
+- `14_production_upgrade_verification.md`: verification evidence for the production upgrade
 - `openapi.yaml`: generated OpenAPI schema
 
 ## Rules
