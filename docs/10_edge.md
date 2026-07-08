@@ -1,69 +1,115 @@
-# Edge Lite
+# Edge Relay
 
-## Current Mode
+The `edge/` package contains two store-and-forward relays. Cloudflare is the upstream for international senders and forwards to the backend. EdgeOne is the China entry point and forwards to Cloudflare.
 
-The `edge/` package is a Cloudflare Worker running Herald lite mode only. It does local validation, local rule evaluation, template rendering, and Bark/ntfy HTTP dispatch from a KV snapshot.
+```text
+Sender -> EdgeOne Pages KV -> Cloudflare Worker Durable Object -> Backend -> providers
+Sender -> Cloudflare Worker Durable Object -> Backend -> providers
+```
 
-## Routes
+The backend remains the only rule engine and provider delivery engine.
+
+## Public Ingest
+
+All entry points accept the same request:
+
+```http
+POST /api/ingest/{endpoint_id}
+Content-Type: application/json
+X-Herald-Ingest-Key: <raw key>
+```
+
+Allowed JSON fields are `body`, `title`, `group`, `priority`, `tags`, `url`, and `extras`. The body limit is 1 MiB.
+
+Relays return `202 {"message_id":"...","status":"relayed"}` after the envelope is durably stored. The backend returns `201 {"message_id":"..."}` for a new message and `200 {"message_id":"...","duplicate":true}` for a repeated relay id.
+
+## Relay Headers
+
+Relays preserve the raw body and append:
+
+- `X-Herald-Message-Id`: UUID minted by the first relay
+- `X-Herald-Received-At`: ISO timestamp minted by the first relay
+- `X-Herald-Relay-Via`: `edgeone`, `cloudflare`, or `edgeone,cloudflare`
+
+The backend only trusts these headers after normal ingest-key authentication.
+
+## Config
+
+The backend exports endpoint digests from `GET /api/edge-config` with `Authorization: Bearer $EDGE_SYNC_TOKEN`.
+
+```json
+{
+  "version": "sha-prefix",
+  "updated_at": "2026-07-08T00:00:00Z",
+  "ingest_endpoints": [
+    { "id": "uuid", "key_sha256": "hex" }
+  ]
+}
+```
+
+Sync both relays with:
+
+```bash
+python3 scripts/sync_edge_config.py \
+  --backend-url https://backend.example.com \
+  --sync-token "$EDGE_SYNC_TOKEN" \
+  --relay-admin-token "$RELAY_ADMIN_TOKEN" \
+  --cloudflare-url https://cf.example.workers.dev \
+  --edgeone-url https://edge.example.cn
+```
+
+## Admin Endpoints
+
+Both relays expose:
 
 - `GET /healthz`
-- `POST /api/ingest/{endpoint_id}`
+- `POST /admin/config`
+- `GET /admin/status`
+- `POST /relay/drain`
 
-## Ingest Handling
+Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`.
 
-For `POST /api/ingest/{endpoint_id}` the worker:
+## Cloudflare
 
-1. Loads the KV snapshot from `EDGE_CONFIG`, key `config`
-2. Finds the ingest endpoint by dashed or dashless UUID
-3. Compares `X-Herald-Ingest-Key` directly to the exported `token_hash`
-4. Validates the JSON payload and 1 MB size limit
-5. Evaluates matching rules
-6. Renders templates
-7. Dispatches Bark and/or ntfy requests in parallel
-8. Returns a `201` response with dispatch results
+- Entry: `edge/cloudflare/src/worker.mjs`
+- Config: `edge/cloudflare/wrangler.toml`
+- Buffer: Durable Object SQLite
+- Retry: Durable Object alarm with exponential backoff
+- KV: `EDGE_CONFIG` stores only the config object
 
-## KV Snapshot Shape
+Commands from `edge/`:
 
-Backend exports this shape from `GET /api/edge-config`:
+```bash
+npm install
+npm test
+npm run lint
+npm run dev
+npm run deploy
+```
 
-- `ingest_endpoints`: `{id, name, token_hash}`
-- `channels`: active Bark/ntfy channels with decrypted `config`
-- `rules`: enabled rules referencing those channels
-- `updated_at`
-- `version`
+## EdgeOne
 
-MQTT and Gotify are intentionally excluded from the snapshot.
+- Entry: `edge/edgeone/edge-functions/[[default]].js`
+- Build helper: `edge/edgeone/build.sh`
+- Buffer: Pages KV keys prefixed with `p_`
+- Dead records: Pages KV keys prefixed with `d_`
+- Retry: opportunistic drain plus GitHub Actions fallback
 
-## Payload Validation
+EdgeOne Pages injects the KV binding as global `EDGE_CONFIG`, not `context.env.EDGE_CONFIG`. `context.env` carries ordinary variables such as `UPSTREAM_URL` and `RELAY_ADMIN_TOKEN`.
 
-Allowed top-level fields:
+Deploy from `edge/edgeone/`:
 
-- `body` (required)
-- `title`
-- `group`
-- `priority`
-- `tags`
-- `url`
-- `extras`
+```bash
+bash build.sh
+npx edgeone pages link
+npx edgeone pages deploy
+```
 
-The worker rejects unknown fields, missing body, invalid types, oversized payloads, and non-JSON content types.
+China mainland service requires an ICP-filed domain. Without that, use a non-mainland EdgeOne zone.
 
-## Supported Providers
+## Drain Fallback
 
-- Bark
-- ntfy
+`.github/workflows/edge-drain.yml` calls the EdgeOne `/relay/drain` endpoint every five minutes. Configure repository secrets:
 
-Not supported in edge-lite:
-
-- MQTT
-- Gotify
-- durable retries
-- stored message history
-- backend-style SSRF guardrails
-
-## Important Caveats
-
-- Current auth behavior is not backend-ingest parity: the worker expects the exported `token_hash` value directly.
-- Dispatch is best-effort only; failures are reported in the response body, not retried.
-- Regex filters can still be expensive; keep them simple.
-- `env._liteConfig` caching is in-process only and should not be treated as durable config state.
+- `EDGEONE_DRAIN_URL`
+- `RELAY_ADMIN_TOKEN`

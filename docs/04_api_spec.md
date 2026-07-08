@@ -1,84 +1,49 @@
 # API Guide
 
-`docs/openapi.yaml` is the schema source of truth. This file is the human-readable overview of the same API.
+`docs/openapi.yaml` is generated from the FastAPI app and is the schema reference.
 
-## Authentication
+## Auth
 
-### Dashboard APIs
+Dashboard APIs use `Authorization: Bearer <access token>`. Refresh tokens are sent in JSON to `/api/auth/refresh`; the frontend stores them in `sessionStorage`.
 
-- Access token via `Authorization: Bearer <token>`.
-- Refresh token sent in JSON body to `POST /api/auth/refresh`.
-- Browser requests use `credentials: "omit"`.
-- Unverified users can log in and read.
-- The shipped frontend disables common mutating flows for unverified users, but current backend verified-email enforcement is guaranteed for ingest, not all dashboard write routes.
-
-### Ingest API
-
-- `POST /api/ingest/{endpoint_id}`.
-- Header: `X-Herald-Ingest-Key`.
-- Accepts dashed UUID and dashless hex endpoint IDs.
-- Requires the endpoint owner to be active and email-verified.
-
-## Auth Endpoints
+Endpoints:
 
 - `POST /api/auth/signup`
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
-- `POST /api/auth/resend-verification`
-- `POST /api/auth/verify-email`
-- `POST /api/auth/forgot-password`
-- `POST /api/auth/reset-password`
 - `POST /api/auth/change-email`
 - `POST /api/auth/change-password`
 - `POST /api/auth/delete-account`
 
-Behavior notes:
+Password recovery is an operator CLI action: `herald-backend reset-password <email>`.
 
-- Signup can be disabled by backend settings.
-- Refresh token rotation is mandatory; clients must store the newest refresh token returned.
-- Password reset and password change revoke all refresh tokens.
-- `resend-verification` and `forgot-password` create hashed tokens server-side, but the current repo does not send email or expose raw tokens.
-- `change-email` clears `email_verified_at`; the user becomes unverified until a valid verification token is submitted.
+## Ingest
 
-## Ingest Contract
+```http
+POST /api/ingest/{endpoint_id}
+Content-Type: application/json
+X-Herald-Ingest-Key: <raw key>
+```
 
-### Endpoint
+Allowed fields: `body` (required), `title`, `group`, `priority`, `tags`, `url`, `extras`.
 
-- `POST /api/ingest/{endpoint_id}`
+Relay headers:
 
-### Required request shape
+- `X-Herald-Message-Id`
+- `X-Herald-Received-At`
+- `X-Herald-Relay-Via`
 
-- `Content-Type: application/json`
-- JSON object
-- `body` must be a non-empty string
+Responses:
 
-### Optional fields
+- `201 {"message_id":"..."}` for a new message.
+- `200 {"message_id":"...","duplicate":true}` for a replayed relay id.
+- `400`, `401`, `403`, `413`, `415`, or `422` for invalid requests.
 
-- `title`
-- `group`
-- `priority` (1-5, default 3)
-- `tags` (array of strings)
-- `url` (valid URL string)
-- `extras` (object of string values)
+## Dashboard Resources
 
-### Validation and errors
-
-- `400` for invalid UTF-8 or invalid JSON
-- `401` for unknown endpoint, missing key, wrong key, revoked endpoint, or deleted endpoint
-- `403` when the endpoint's user is inactive or unverified
-- `413` for payloads above 1 MB
-- `415` for non-JSON content types
-- `422` for schema/validation failures such as missing `body` or unknown top-level keys
-
-### Success response
-
-- `201` with `{ "message_id": "..." }`
-
-## Resource APIs
-
-### Ingest endpoints
+Ingest endpoints:
 
 - `GET /api/ingest-endpoints`
 - `POST /api/ingest-endpoints`
@@ -87,9 +52,7 @@ Behavior notes:
 - `POST /api/ingest-endpoints/{endpoint_id}/revoke`
 - `DELETE /api/ingest-endpoints/{endpoint_id}`
 
-`POST` returns the ingest key once together with the created endpoint and canonical ingest URL.
-
-### Messages
+Messages:
 
 - `GET /api/messages`
 - `GET /api/messages/{message_id}`
@@ -97,75 +60,14 @@ Behavior notes:
 - `POST /api/messages/batch-delete`
 - `GET /api/messages/{message_id}/deliveries`
 
-Supported list filters today:
-
-- `ingest_endpoint_id`
-- `priority_min`
-- `priority_max`
-- `from`
-- `to`
-
-### Channels
+Channels:
 
 - `GET /api/channels`
 - `POST /api/channels`
 - `DELETE /api/channels/{channel_id}`
 - `POST /api/channels/{channel_id}/test`
 
-Current response behavior:
-
-- `POST` returns channel metadata plus decrypted `config`.
-
-Channel test sends immediately and returns provider metadata. It does not create a stored message or delivery row.
-
-### Channel Configs
-
-Channel creation requires a `config` object specific to the provider type.
-
-#### Bark
-
-```json
-{
-  "server_base_url": "https://api.day.app",
-  "device_key": "your_key",
-  "default_payload_json": { "sound": "glass" }
-}
-```
-
-#### ntfy
-
-```json
-{
-  "server_base_url": "https://ntfy.sh",
-  "topic": "your_topic",
-  "default_headers_json": { "Priority": "high" }
-}
-```
-
-#### MQTT
-
-```json
-{
-  "broker_host": "broker.emqx.io",
-  "broker_port": 1883,
-  "topic": "herald/messages"
-}
-```
-
-#### Gotify
-
-```json
-{
-  "server_base_url": "https://gotify.example.com",
-  "app_token": "Apx...",
-  "default_priority": 5,
-  "default_extras_json": {
-    "client::display": { "contentType": "text/markdown" }
-  }
-}
-```
-
-### Rules
+Rules:
 
 - `GET /api/rules`
 - `POST /api/rules`
@@ -175,31 +77,6 @@ Channel creation requires a `config` object specific to the provider type.
 - `POST /api/rules/test`
 - `POST /api/rules/{rule_id}/test`
 
-Rule test endpoints only evaluate filters and render payload previews. They do not dispatch notifications.
+## Edge Config
 
-## Template Variables
-
-Templates can reference:
-
-- `{{message.id}}`, `{{message.received_at}}`, `{{message.title}}`, `{{message.body}}`
-- `{{message.group}}`, `{{message.priority}}`, `{{message.tags}}`, `{{message.url}}`
-- `{{message.extras.<key>}}`
-- `{{request.content_type}}`, `{{request.remote_ip}}`, `{{request.user_agent}}`
-- `{{request.headers.<name>}}`, `{{request.query.<name>}}`
-- `{{ingest_endpoint.id}}`, `{{ingest_endpoint.name}}`
-
-Rendering rules:
-
-- Missing values render as empty strings.
-- Priority renders as a string in template output.
-- Tags render as a comma-joined string.
-
-## Health And Edge Snapshot
-
-- Backend health: `GET /health`
-- Edge-lite health: `GET /healthz`
-- Edge snapshot export: `GET /api/edge-config`
-
-`GET /health` returns `200` with `status: ok` when the database is reachable, or `503` with `status: degraded` when it is not.
-
-`GET /api/edge-config` returns active ingest endpoints plus Bark/ntfy channels and rules for edge-lite consumption. MQTT and Gotify are excluded.
+`GET /api/edge-config` requires `Authorization: Bearer $EDGE_SYNC_TOKEN`. It returns active endpoint ids and `key_sha256` values only.

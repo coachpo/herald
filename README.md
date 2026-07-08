@@ -1,98 +1,65 @@
 # Herald
 
-Herald ingests structured JSON messages over HTTP, stores them, and forwards them to Bark, ntfy, MQTT, or Gotify via user-defined rules.
+Herald ingests structured JSON over HTTP, stores messages in PostgreSQL, and forwards matching messages to Bark, ntfy, MQTT, or Gotify.
 
-This repository is a monorepo containing three first-class packages:
+## Packages
 
-- `backend/` - Production FastAPI backend with async PostgreSQL, structured logging, and Docker support
-- `frontend/` - React 19 + Vite + React Router dashboard
-- `edge/` - Cloudflare Worker lite mode (KV config, local rule eval, HTTP dispatch)
+- `backend/`: FastAPI API, migrations, PostgreSQL access, auth, ingest, and delivery worker
+- `frontend/`: React 19 + Vite dashboard
+- `edge/`: Cloudflare and EdgeOne store-and-forward relays
 
-## Current Feature Set
+## Features
 
-- Email/password signup, login, refresh, verification, password reset, change email/password, delete account
-- Multiple ingest endpoints per user with token-based auth
-- Structured JSON ingest with `body` required and optional `title`, `group`, `priority`, `tags`, `url`, `extras`
-- Message history with filters, detail view, soft delete, and batch delete
-- Channel types: Bark, ntfy, MQTT, Gotify
-- Forwarding rules with endpoint/body/priority/tag/group filters and Mustache-style payload templates
-- Background delivery worker with exponential backoff retries
-- Edge-lite mode for Bark/ntfy HTTP fanout from Cloudflare Workers
-
-## Repository Layout
-
-```text
-herald/
-├── backend/
-├── frontend/
-├── edge/
-├── docs/
-├── .github/workflows/
-├── docker-compose.yml
-└── start.sh
-```
-
-## Docs
-
-- `docs/01_prd.md` - product scope and user-facing behavior
-- `docs/02_architecture.md` - runtime architecture and package communication
-- `docs/03_data_model.md` - backend entities and stored fields
-- `docs/04_api_spec.md` - human-readable API guide
-- `docs/openapi.yaml` - API schema source of truth
-- `docs/05_ui_spec.md` - implemented dashboard routes and pages
-- `docs/06_security_privacy.md` - tokens, SSRF, redaction, safety constraints
-- `docs/07_operations.md` - env vars, deploy/runtime notes, health endpoints
-- `docs/08_bark_v2.md` - Bark-specific provider behavior
-- `docs/09_repo_structure.md` - repo layout and package boundaries
-- `docs/10_edge.md` - current Cloudflare lite runtime
-- `docs/11_edge_lite_feasibility.md` - edge-lite tradeoffs and scope boundaries
-
-## Versioning
-
-`VERSION` at the repo root is the monorepo version source of truth.
-
-When you bump the release version, keep these files aligned with it:
-
-- `backend/pyproject.toml`
-- `frontend/package.json`
-- `edge/package.json`
-
-Update `VERSION` first, then run `python3 scripts/sync_version.py` to sync the managed manifests. CI runs `python3 scripts/sync_version.py --check` to prevent drift.
-
-The backend health/version response prefers explicit `APP_VERSION`, then installed package metadata, then falls back to the repo `VERSION` file so local checkouts and CI stay aligned with the monorepo release value.
+- Email/password signup, login, refresh-token rotation, account changes, and CLI password reset
+- Multiple ingest endpoints with one-time raw keys
+- JSON ingest with message history, filters, detail view, soft delete, and batch delete
+- Bark, ntfy, MQTT, and Gotify channels
+- Rules with endpoint/body/priority/tag/group filters and payload templates
+- Durable Cloudflare relay and EdgeOne KV relay for cross-border ingress
 
 ## Quick Start
 
-Clone the repo once; `backend/`, `frontend/`, and `edge/` are part of the same checkout.
+```bash
+./start.sh headless
+./start.sh full
+```
 
-### FastAPI Backend (recommended)
+Manual backend startup from repo root:
 
 ```bash
-# With Docker Compose (from repo root)
-docker compose up
-
-# Manual (from repo root, Python 3.13+)
 uv sync --project backend --locked
-uv run --project backend --locked python backend/bootstrap_dev_db.py
+uv run --project backend --locked python -m backend.migrate
 uv run --project backend --locked herald-backend
 uv run --project backend --locked python -m backend.worker
 ```
 
-`backend/uv.lock` is committed. Refresh it with `uv lock --project backend` when you intentionally change backend dependency metadata.
-
-### Local Helper Script
+Production compose:
 
 ```bash
-./start.sh headless   # backend only
-./start.sh full       # backend + frontend
+export POSTGRES_PASSWORD='<database password>'
+export SECRET_KEY='<random backend secret>'
+export CHANNEL_CONFIG_ENCRYPTION_KEY='<fernet key>'
+export EDGE_SYNC_TOKEN='<random sync token>'
+docker compose up -d
 ```
 
-Manual package commands live in `docs/07_operations.md` and the package `AGENTS.md` files.
+## Docs
 
-## CI/CD
+- `docs/01_prd.md`: product scope
+- `docs/02_architecture.md`: runtime architecture
+- `docs/03_data_model.md`: database tables
+- `docs/04_api_spec.md`: API guide
+- `docs/openapi.yaml`: generated OpenAPI schema
+- `docs/06_security_privacy.md`: keys, trust boundaries, SSRF
+- `docs/07_operations.md`: deployment and operations
+- `docs/10_edge.md`: Cloudflare and EdgeOne relay protocol
 
-- `.github/workflows/ci.yml` validates version alignment, provisions PostgreSQL for backend tests, bootstraps the backend schema, then runs backend tests, frontend lint/build, and edge test/lint on pushes and pull requests.
-- `.github/workflows/docker-images.yml` builds and publishes backend/frontend arm64 container images.
-- `.github/workflows/cleanup.yml` prunes old workflow runs and untagged container images.
+## Verification
 
-The local commands in this README mirror the package checks used by CI.
+```bash
+uv run --project backend --locked pytest backend/tests -v
+npm --prefix edge test && npm --prefix edge run lint
+corepack pnpm@10.30.1 --dir frontend lint
+corepack pnpm@10.30.1 --dir frontend build
+python3 scripts/sync_version.py --check
+```

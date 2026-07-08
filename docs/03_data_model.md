@@ -1,178 +1,54 @@
 # Data Model
 
-## Core Principles
+All primary keys are UUIDs. The initial schema is `backend/migrations/0001_initial.sql`.
 
-- All primary keys are UUID v4.
-- Message and endpoint deletion is soft-delete in the user-facing API.
-- Channel configs are encrypted at rest.
-- Many structured fields are stored in JSON columns with `_json` suffixes.
-
-## Users And Auth Tokens
+## Tables
 
 ### `users`
 
-- `id`
-- `email` (case-insensitive unique)
-- `password`
-- `email_verified_at`
-- `is_active`
-- `is_staff`
-- `created_at`
-
-### `email_verification_tokens`
-
-- `id`
-- `user_id`
-- `token_hash`
-- `expires_at`
-- `used_at`
-- `created_at`
-
-### `password_reset_tokens`
-
-- `id`
-- `user_id`
-- `token_hash`
-- `expires_at`
-- `used_at`
-- `created_at`
+- `id`, `email`, `password`, `is_active`, `created_at`
 
 ### `refresh_tokens`
 
-- `id`
-- `user_id`
-- `token_hash`
-- `family_id`
-- `replaced_by`
-- `created_at`
-- `updated_at`
-- `last_used_at`
-- `expires_at`
-- `revoked_at`
-- `revoked_reason`
-- `ip`
-- `user_agent`
+- `id`, `user_id`, `token_hash`, `family_id`, `replaced_by_id`
+- `created_at`, `updated_at`, `last_used_at`, `expires_at`
+- `revoked_at`, `revoked_reason`, `ip`, `user_agent`
 
-Notes:
-
-- Refresh tokens are opaque secrets stored only as hashes.
-- `family_id` is used to revoke a whole token family on replay/reuse.
-
-## Ingest Endpoints
+Refresh tokens are stored only as hashes. Token-family replay revokes the whole family.
 
 ### `ingest_endpoints`
 
-- `id`
-- `user_id`
-- `name`
-- `token_hash`
-- `created_at`
-- `revoked_at`
-- `deleted_at`
-- `last_used_at`
+- `id`, `user_id`, `name`, `token_hash`, `key_sha256`
+- `created_at`, `revoked_at`, `deleted_at`, `last_used_at`
 
-Notes:
-
-- `token_hash` is unique.
-- Revoked or deleted endpoints cannot ingest.
-
-## Messages
+`token_hash` is the backend HMAC digest. `key_sha256` is exported to relays for offline endpoint-key checks.
 
 ### `messages`
 
-- `id`
-- `user_id`
-- `ingest_endpoint_id`
-- `received_at`
-- `title`
-- `body`
-- `group`
-- `priority`
-- `tags_json`
-- `url`
-- `extras_json`
-- `content_type`
-- `body_sha256`
-- `headers_json`
-- `query_json`
-- `remote_ip`
-- `user_agent`
-- `deleted_at`
+- `id`, `user_id`, `ingest_endpoint_id`, `received_at`
+- `title`, `body`, `group`, `priority`, `tags_json`, `url`, `extras_json`
+- `content_type`, `body_sha256`, `headers_json`, `query_json`
+- `remote_ip`, `user_agent`, `relay_via`, `deleted_at`
 
-Notes:
-
-- `body` is required; all other payload fields are optional.
-- `headers_json` stores redacted header values.
-- `extras_json` is a flat object of string values.
-
-## Channels
+Message ids may be minted by relays. Backend insert is idempotent on the primary key.
 
 ### `channels`
 
-- `id`
-- `user_id`
-- `type` (`bark`, `ntfy`, `mqtt`, `gotify`)
-- `name`
-- `config_json_encrypted`
-- `created_at`
-- `disabled_at`
+- `id`, `user_id`, `type`, `name`, `config_json_encrypted`, `created_at`, `disabled_at`
 
-Logical config fields:
+Channel configs are encrypted at rest.
 
-- Bark: `server_base_url`, `device_key` or `device_keys`, `default_payload_json`
-- ntfy: `server_base_url`, `topic`, optional bearer/basic auth, `default_headers_json`
-- MQTT: `broker_host`, `broker_port`, `topic`, optional auth/TLS/QoS/retain/client_id/keepalive_seconds
-- Gotify: `server_base_url`, `app_token`, optional `default_priority` (0-10), `default_extras_json`, `default_payload_json`
+### `rules`
 
-## Forwarding Rules
+- `id`, `user_id`, `name`, `enabled`, `filter_json`
+- `channel_id`, `payload_template_json`, `created_at`, `updated_at`
 
-### `forwarding_rules`
-
-- `id`
-- `user_id`
-- `name`
-- `enabled`
-- `filter_json`
-- `channel_id`
-- `payload_template_json`
-- `created_at`
-- `updated_at`
-
-Supported filter dimensions:
-
-- `ingest_endpoint_ids`
-- `body.contains`
-- `body.regex`
-- `priority.min` / `priority.max`
-- `tags`
-- `group`
-
-## Deliveries
+Supported filters are endpoint ids, body contains/regex, priority range, tags, and group.
 
 ### `deliveries`
 
-- `id`
-- `user_id`
-- `message_id`
-- `rule_id`
-- `channel_id`
-- `status` (`queued`, `sending`, `retry`, `sent`, `failed`)
-- `attempt_count`
-- `next_attempt_at`
-- `sent_at`
-- `last_error`
-- `provider_response_json`
-- `created_at`
-- `updated_at`
+- `id`, `user_id`, `message_id`, `rule_id`, `channel_id`
+- `status`, `attempt_count`, `next_attempt_at`, `sent_at`
+- `last_error`, `provider_response_json`, `created_at`, `updated_at`
 
-Notes:
-
-- These rows are both queue state and delivery history.
-- Backend worker owns retry/backoff behavior.
-
-## Deletion Semantics
-
-- Endpoint archive: sets `revoked_at` and `deleted_at`
-- Message delete: sets `deleted_at`
-- Channel and rule delete endpoints remove the row
-- Account delete removes the user and cascades owned data
+Delivery rows are both queue state and delivery history.

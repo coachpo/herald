@@ -1,40 +1,29 @@
 # Repo Structure
 
-## Layout
-
 ```text
 herald/
-├── backend/                 # FastAPI backend + async worker
+├── backend/                 # FastAPI backend, migrations, worker
 ├── frontend/                # React/Vite dashboard
-├── edge/                    # Cloudflare lite worker
-├── docs/                    # maintained markdown specs + OpenAPI
-├── .github/workflows/       # Docker builds and cleanup automation
-├── docker-compose.yml       # local API/DB/worker orchestration
-├── start.sh                 # local startup helper (backend or backend+frontend)
-└── AGENTS.md                # root repo guidance
+├── edge/
+│   ├── shared/              # relay protocol helpers
+│   ├── cloudflare/          # Worker + Durable Object
+│   ├── edgeone/             # Pages function + build helper
+│   └── tests/               # node:test suite
+├── docs/                    # markdown specs + OpenAPI
+├── scripts/                 # sync/backup/version helpers
+├── docker-compose.yml       # production compose
+├── docker-compose.dev.yml   # development compose
+└── start.sh                 # local helper
 ```
 
-## Monorepo Conventions
+## Boundaries
 
-- `backend`, `frontend`, and `edge` are first-class directories in this repository.
-- The packages are versioned together in one checkout.
-- Root repo owns shared documentation, orchestration, and CI/CD wiring.
-- `docs/` is part of the root repo.
-
-## Documentation Surfaces
-
-- Package-local guidance lives in `AGENTS.md` files.
-- Maintained specs live under `docs/`.
-- Repo-facing quick-start docs live in `README.md`, `backend/README.md`, `frontend/README.md`, and `edge/README.md`.
+- Backend owns durable storage, rule semantics, provider dispatch, and machine config export.
+- Frontend owns browser UX only.
+- Edge owns ingress relay behavior only.
 
 ## Startup
 
-- `docker compose up` runs backend + PostgreSQL + worker using the package/container defaults (`5432` / `8000`).
-- `./start.sh headless` runs PostgreSQL + backend using helper defaults (`35432` / `38000`).
-- `./start.sh full` runs backend + frontend using helper defaults (`35432` / `38000` / `35173`).
-
-## Current Package Boundaries
-
-- `backend/` owns persistent storage, auth, rule matching, delivery worker, and provider integrations (Bark, ntfy, MQTT, Gotify).
-- `frontend/` owns browser UI only; it does not proxy backend requests in production.
-- `edge/` owns optional best-effort Bark/ntfy fanout from a KV snapshot.
+- `docker compose up` runs production-posture backend services.
+- `docker compose -f docker-compose.dev.yml up` runs a local development stack.
+- `./start.sh full` runs local PostgreSQL, backend, and Vite with helper ports.

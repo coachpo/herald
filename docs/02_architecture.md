@@ -1,103 +1,44 @@
 # Architecture
 
-## High-Level Packages
+## Packages
 
-### Backend (`backend/`)
+- `backend/`: FastAPI, PostgreSQL, migrations, auth, ingest, rule evaluation, provider delivery, and edge-config export.
+- `frontend/`: React/Vite dashboard that talks directly to the backend through `VITE_API_URL`.
+- `edge/`: shared relay protocol modules plus Cloudflare Worker and EdgeOne Pages implementations.
 
-- FastAPI + SQLAlchemy 2.0 + asyncpg (async PostgreSQL).
-- Owns auth, ingest, message storage, channel/rule CRUD, and edge-config export.
-- Runs an async delivery worker for Bark, ntfy, MQTT, and Gotify.
-- Uses pure ASGI middleware for CORS, request IDs, and access logging.
-- Exposes `GET /health`, which returns `200` when the database is reachable and `503` with `status: degraded` when it is not.
-
-### Frontend (`frontend/`)
-
-- React 19 + Vite + React Router SPA.
-- Talks directly to backend APIs using `VITE_API_URL`.
-- Stores refresh token in `sessionStorage` and access token in memory.
-
-### Edge (`edge/`)
-
-- Cloudflare Worker lite mode.
-- Reads config snapshot from KV.
-- Evaluates rules locally and dispatches Bark/ntfy HTTP requests.
-- Does not persist messages or retry failures.
-
-## Runtime Communication
+## Runtime Flow
 
 ```text
-Browser -> Backend /api/* via VITE_API_URL
-Ingest -> Backend Message row + Delivery rows
-Worker -> Bark / ntfy / MQTT / Gotify
-Backend /api/edge-config -> KV snapshot -> Edge lite
-Edge lite -> Bark / ntfy HTTP only
+Frontend browser -> Backend /api/*
+Direct sender -> Backend /api/ingest/{endpoint_id}
+Sender -> Cloudflare relay -> Backend /api/ingest/{endpoint_id}
+Sender -> EdgeOne relay -> Cloudflare relay -> Backend /api/ingest/{endpoint_id}
+Backend ingest -> messages + deliveries -> worker -> Bark/ntfy/MQTT/Gotify
 ```
 
-## Backend Request Model
+The backend is the only rule engine and provider dispatch engine. Relays only authenticate endpoint keys, validate payload shape, durably buffer envelopes, and forward upstream.
 
-### Authenticated dashboard APIs
+## Backend
 
-- Access token sent as `Authorization: Bearer <token>`.
-- Refresh token sent in JSON body to `/api/auth/refresh`.
-- Backend does not rely on session cookies for API auth.
-- Read routes work for authenticated users.
-- The shipped frontend disables common mutating dashboard flows for unverified users, but the current backend does not universally enforce verified-email gating on every dashboard write route.
+- Numbered SQL migrations live in `backend/migrations/` and run through `python -m backend.migrate`.
+- Tables are reflected by `backend/database.py`.
+- Middleware is pure ASGI. Starlette `CORSMiddleware` is allowed.
+- `SECRET_KEY` signs backend token hashes; production rejects default secrets.
+- `GET /api/edge-config` exports only `{id, key_sha256}` endpoint digests for relays.
 
-### Ingest API
+## Ingest
 
-- Public path: `POST /api/ingest/{endpoint_id}`.
-- Supports both dashed UUID and dashless hex IDs.
-- Requires `X-Herald-Ingest-Key`.
-- Requires `Content-Type: application/json`.
-- Requires an active user with non-null `email_verified_at`; there is no config toggle for this in the current backend.
+1. Resolve dashed UUID or dashless endpoint id.
+2. Authenticate `X-Herald-Ingest-Key` against backend HMAC hash.
+3. Parse relay headers after authentication.
+4. Insert the message with `ON CONFLICT DO NOTHING`.
+5. Evaluate rules and enqueue deliveries only on first insert.
+6. Return `201` for new messages and `200` with `duplicate: true` for replayed relay ids.
 
-## Ingest And Delivery Flow
+## Worker
 
-1. Backend finds the ingest endpoint by path ID.
-2. Backend hashes the ingest key and validates it with a constant-time comparison.
-3. Backend validates payload shape, content type, and size.
-4. Backend stores a `Message` row with structured fields and redacted request metadata.
-5. Backend evaluates enabled `ForwardingRule` rows for the user.
-6. Backend creates `Delivery` rows for matches.
-7. Worker polls due deliveries and dispatches them.
-8. Worker writes success/failure metadata back to the delivery rows.
+The worker sweeps stale `sending` deliveries back to `retry`, claims due rows with `FOR UPDATE SKIP LOCKED`, and processes each delivery in its own database session.
 
-## Storage Model
+## Edge
 
-- PostgreSQL is the production database, accessed via SQLAlchemy 2.0 async engine with asyncpg.
-- The FastAPI backend requires PostgreSQL; SQLite is not supported. `DATABASE_URL` configures the connection.
-- Delivery queue state lives in the database, not in an external queue system.
-- Channel configs are encrypted at rest and decrypted only at dispatch or edge-export boundaries.
-
-## Worker Model
-
-- Typically launched as `uv run --project backend --locked python -m backend.worker`.
-- Async event loop polls `queued` and `retry` rows.
-- Uses `SELECT ... FOR UPDATE SKIP LOCKED` to avoid duplicate processing.
-- Retries with exponential backoff until `DELIVERY_MAX_ATTEMPTS`.
-- Dispatches to Bark, ntfy, MQTT, and Gotify providers.
-- Bark, ntfy, and Gotify use default private-network SSRF blocking; MQTT additionally exposes `MQTT_BLOCK_PRIVATE_NETWORKS`.
-
-## Frontend Architecture Notes
-
-- Production architecture is direct browser-to-backend communication; same-origin hosting is optional, not required.
-- Plain `pnpm dev` runs Vite on port `3000` with a proxy aimed at `http://localhost:8000`.
-- `start.sh full` instead runs the frontend on `35173` by default and points it directly at the helper backend port (`38000`).
-- Auth-gated routes live under `DashboardLayout`; public flows live under `AuthLayout`.
-
-## Auth Token Request Notes
-
-- Verification and password-reset request endpoints create hashed tokens in PostgreSQL and log the event.
-- The current repo does not include outbound email delivery for those flows.
-
-## Edge Lite Notes
-
-- Cloudflare-only runtime in the current repo; do not document EdgeOne or proxy mode as active features.
-- `GET /api/edge-config` exports only active ingest endpoints plus Bark/ntfy channels and rules.
-- Current lite auth compares the raw `X-Herald-Ingest-Key` header directly against exported `token_hash` values from KV.
-
-## Health Endpoints
-
-- Backend API/process health: `GET /health`
-- Frontend container health: `GET /health`
-- Edge-lite health: `GET /healthz`
+Cloudflare uses a Durable Object with SQLite storage and alarms. EdgeOne uses Pages KV with opportunistic drain plus the scheduled GitHub fallback. Both use the same admin endpoints and relay envelope format.

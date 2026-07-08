@@ -1,82 +1,40 @@
 # Security And Privacy
 
-## Auth Model
+## Auth
 
-- Dashboard APIs use bearer access tokens in the `Authorization` header.
-- Refresh tokens are stored server-side as hashes and rotated on every use.
-- Frontend stores refresh tokens in `sessionStorage` and access tokens in memory.
-- API requests use `credentials: "omit"`; backend auth does not rely on session cookies.
+- Dashboard APIs use bearer access tokens.
+- Refresh tokens are stored as hashes and rotated on use.
+- Browser requests use `credentials: "omit"`.
+- The frontend keeps refresh tokens in `sessionStorage` and access tokens in memory.
 
-## Verification Gating
+## Keys
 
-- Unverified users can authenticate and read data.
-- The shipped frontend blocks common mutating dashboard flows for unverified users.
-- The current backend does not universally enforce verified-email checks across every dashboard write route.
-- Ingest is also blocked when `email_verified_at` is null. There is no `REQUIRE_VERIFIED_EMAIL_FOR_INGEST` toggle in the current codebase.
-
-## Token Handling
-
-- Ingest keys are generated as random secrets and stored only as hashes.
-- Verification and password-reset tokens are stored only as hashes.
-- Refresh token replay invalidates the whole refresh-token family.
-- Password reset and password change revoke all refresh tokens.
-
-## Browser-Side Risks
-
-- Treat XSS as full account takeover risk.
-- Do not store auth tokens in `localStorage`.
-- Do not render ingested user content as HTML.
+| Secret | Stored In | Purpose |
+| --- | --- | --- |
+| Raw ingest key | Sender and relay buffer until forwarded | Endpoint authentication |
+| `token_hash` | Backend DB | Backend HMAC check |
+| `key_sha256` | Backend DB and relay config | Relay offline key check |
+| `SECRET_KEY` | Backend env | HMAC/JWT fallback secret |
+| `CHANNEL_CONFIG_ENCRYPTION_KEY` | Backend env | Channel config encryption |
+| `EDGE_SYNC_TOKEN` | Backend env and sync script | Pull relay config |
+| `RELAY_ADMIN_TOKEN` | Relay env, sync script, GitHub secret | Relay admin endpoints |
 
 ## Ingest Safety
 
-- Only `application/json` is accepted.
-- Payloads above the configured size limit are rejected.
+- Only JSON is accepted.
+- Payloads above 1 MiB are rejected.
 - Unknown top-level keys are rejected.
-- `extras` must be an object of string values.
-- Request metadata is stored, but secrets in headers are redacted before persistence.
+- Sensitive request headers are redacted before persistence.
+- Relay config never contains channel credentials.
 
-## Header Redaction
+## Outbound Safety
 
-Exact header names redacted by backend include:
+Backend providers use SSRF checks before HTTP dispatch. MQTT host validation can be tuned with `MQTT_BLOCK_PRIVATE_NETWORKS`, but loopback and link-local destinations remain unsafe and should not be allowed.
 
-- `Authorization`
-- `Proxy-Authorization`
-- `Cookie`
-- `Set-Cookie`
-- `X-API-Key`
-- `X-Auth-Token`
-- `X-CSRFToken`
-- `X-CSRF-Token`
-
-Backend also redacts header names matching patterns such as `token`, `secret`, `password`, `auth`, and `key`.
-
-## Outbound Connection Safety
-
-### Backend worker
-
-- Bark, ntfy, and Gotify providers run SSRF checks before dispatch and use default private-network blocking in code.
-- MQTT validates the broker host with the SSRF helper and exposes `MQTT_BLOCK_PRIVATE_NETWORKS` plus `MQTT_SOCKET_TIMEOUT_SECONDS`.
-- Loopback and link-local addresses are always blocked.
-- Provider timeouts default to about 5 seconds in the current code.
-
-### Edge lite
-
-- Edge-lite does not currently implement backend-style SSRF checks.
-- Keep that distinction explicit in docs and threat models.
-
-## Verification And Reset Request Flows
-
-- `POST /api/auth/resend-verification` and `POST /api/auth/forgot-password` create hashed tokens in PostgreSQL and log the event.
-- The current repo does not send email or expose raw verification/reset tokens.
-- Verification and reset pages in the frontend therefore depend on tokens arriving from an external or out-of-band mechanism.
-
-## Edge-Lite Auth Caveat
-
-Current edge-lite code compares `X-Herald-Ingest-Key` directly to exported `token_hash` values from the KV snapshot. It does not hash the incoming value first. Document this as implemented behavior, not as intended parity with backend ingest.
+Relays only fetch fixed upstream URLs. They do not fetch user-controlled provider URLs.
 
 ## Operational Hygiene
 
-- Do not log secrets.
-- Do not commit `.env` files or copied ingest keys.
-- Keep `DJANGO_SECRET_KEY` and `JWT_SIGNING_KEY` out of source control.
-- Preserve SSRF checks and channel-config encryption when editing backend code.
+- Do not commit `.env` files or copied keys.
+- Do not log raw auth headers, ingest keys, passwords, refresh tokens, or decrypted channel configs.
+- Do not move frontend auth tokens into `localStorage`.

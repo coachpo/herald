@@ -1,22 +1,16 @@
-# Herald FastAPI Backend
+# Herald Backend
 
-Async FastAPI backend for Herald with PostgreSQL, structured logging, and production-ready infrastructure.
+Async FastAPI backend for Herald with PostgreSQL, numbered SQL migrations, structured logging, and an async delivery worker.
 
 ## Quick Start
 
 ```bash
-# With Docker Compose (recommended, from repo root)
-docker compose up
-
-# Manual (from repo root, Python 3.13+)
 uv sync --project backend --locked
-uv run --project backend --locked python backend/bootstrap_dev_db.py
+uv run --project backend --locked python -m backend.migrate
 uv run --project backend --locked herald-backend
 ```
 
-`backend/uv.lock` is committed. Refresh it with `uv lock --project backend` when you intentionally change backend dependency metadata.
-
-## Worker
+Run the worker separately:
 
 ```bash
 uv run --project backend --locked python -m backend.worker
@@ -25,7 +19,7 @@ uv run --project backend --locked python -m backend.worker
 ## Tests
 
 ```bash
-uv run --project backend --locked pytest backend/tests/ -v
+uv run --project backend --locked pytest backend/tests -v
 ```
 
 ## Health
@@ -34,4 +28,4 @@ uv run --project backend --locked pytest backend/tests/ -v
 
 ## Configuration
 
-See `docs/07_operations.md` for the full environment variable reference.
+See `docs/07_operations.md`.

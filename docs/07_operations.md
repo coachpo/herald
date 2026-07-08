@@ -1,143 +1,119 @@
 # Operations
 
-## Runtime Processes
+## Processes
 
-- `backend`: FastAPI backend serving `/api/*` and `GET /health`.
-- `worker`: typically run as `uv run --project backend --locked python -m backend.worker` (async delivery loop).
-- `frontend`: Vite dev server in development, static files + `GET /health` in the container image.
-- `edge`: optional Cloudflare Worker lite deployment.
+- `api`: FastAPI backend, `GET /health`, `/api/*`
+- `worker`: async delivery loop, `python -m backend.worker`
+- `db`: PostgreSQL 16
+- `frontend`: Vite in development or static SPA server on port `3100`
+- `edge`: Cloudflare Worker relay and EdgeOne Pages relay
 
-## Local Commands
-
-### Whole repo
+## Local Development
 
 ```bash
-docker compose up          # FastAPI + PostgreSQL + worker
-./start.sh --help
-./start.sh headless        # helper script: db + backend
-./start.sh full            # helper script: db + backend + frontend
+./start.sh headless
+./start.sh full
+docker compose -f docker-compose.dev.yml up
 ```
 
-### Helper script defaults (`start.sh`)
+`start.sh` uses helper ports `35432` for PostgreSQL, `38000` for the backend, and `35173` for Vite unless overridden.
 
-| Port | Default |
-|------|---------|
-| Database | `35432` |
-| Backend | `38000` |
-| Frontend | `35173` |
-
-`start.sh full` creates or refreshes `backend/.venv` with `uv sync --locked`, runs `bootstrap_dev_db.py`, and points the frontend directly at the helper backend with `VITE_API_URL=http://localhost:$BACKEND_PORT`.
-
-### Backend (from repo root)
+Backend commands from repo root:
 
 ```bash
 uv sync --project backend --locked
-uv run --project backend --locked python backend/bootstrap_dev_db.py
-uv run --project backend --locked pytest backend/tests/ -v
+uv run --project backend --locked python -m backend.migrate
 uv run --project backend --locked herald-backend
 uv run --project backend --locked python -m backend.worker
+uv run --project backend --locked pytest backend/tests -v
 ```
 
-The manual/container examples use the package defaults (`5432` / `8000`). They are distinct from the helper script ports above.
-
-The backend requires Python 3.13+. `backend/uv.lock` is committed; refresh it with `uv lock --project backend` when dependency metadata changes intentionally.
-
-### Frontend
+Frontend commands:
 
 ```bash
-pnpm install
-pnpm lint
-pnpm build
-pnpm dev
-pnpm preview
+corepack pnpm@10.30.1 --dir frontend install
+corepack pnpm@10.30.1 --dir frontend lint
+corepack pnpm@10.30.1 --dir frontend build
 ```
 
-Plain `pnpm dev` uses Vite port `3000`. The production static server in `frontend/deploy/server.mjs` listens on `3100`.
-
-### Edge
+Edge commands:
 
 ```bash
-npm install
-npm test
-npm run lint
-npm run dev
-npm run deploy
+npm --prefix edge install
+npm --prefix edge test
+npm --prefix edge run lint
 ```
 
-## Backend Environment Variables
+## Production Compose
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | (required) | PostgreSQL connection string (for example `postgresql://user:pass@host/db`) |
-| `DJANGO_SECRET_KEY` | `dev-insecure` | Secret key used for token signing fallback |
-| `JWT_SIGNING_KEY` | same as `DJANGO_SECRET_KEY` | JWT signing key |
-| `JWT_ACCESS_TTL_SECONDS` | `900` | Access token TTL |
-| `JWT_REFRESH_TTL_SECONDS` | `2592000` | Refresh token TTL |
-| `CHANNEL_CONFIG_ENCRYPTION_KEY` | (empty) | Fernet key for encrypted channel configs |
-| `CORS_ALLOWED_ORIGINS` | (empty in code) | Comma-separated allowed origins |
-| `ALLOW_USER_SIGNUP` | `true` | Enable/disable signup |
-| `DELIVERY_MAX_ATTEMPTS` | `10` | Max delivery retries |
-| `DELIVERY_BACKOFF_BASE_SECONDS` | `5` | Retry backoff base |
-| `DELIVERY_BACKOFF_MAX_SECONDS` | `1800` | Retry backoff cap |
-| `WORKER_POLL_SECONDS` | `1.0` | Worker queue poll interval |
-| `WORKER_BATCH_SIZE` | `50` | Max deliveries per poll cycle |
-| `DB_POOL_SIZE` | `5` | PostgreSQL pool size |
-| `DB_MAX_OVERFLOW` | `10` | Max overflow above pool size |
-| `DB_POOL_RECYCLE` | `3600` | Connection recycle time in seconds |
-| `DB_POOL_CLASS` | (empty) | Set to `null` to disable pooling |
-| `LOG_LEVEL` | `INFO` | Logging level |
-| `LOG_FORMAT` | `json` in code | Log output format (`json` or `console`); docker compose overrides to `console` |
-| `SENTRY_DSN` | (empty) | Sentry DSN |
-| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Sentry traces sample rate |
-| `SENTRY_ENVIRONMENT` | `production` | Sentry environment tag |
-| `APP_VERSION` | installed `herald-backend` version, fallback root `VERSION` | Version string in health response |
-| `MQTT_BLOCK_PRIVATE_NETWORKS` | `true` | Block private network MQTT targets |
-| `MQTT_SOCKET_TIMEOUT_SECONDS` | `5.0` | MQTT socket timeout |
-
-There is no `REQUIRE_VERIFIED_EMAIL_FOR_INGEST` environment variable in the current backend.
-
-## Docker Commands
+Set required secrets before `docker compose up -d`:
 
 ```bash
-docker compose up              # start all (api + db + worker)
-docker compose up -d db        # PostgreSQL only
-docker compose up api          # API + DB
-docker compose logs -f api     # follow API logs
+export POSTGRES_PASSWORD='<database password>'
+export SECRET_KEY='<random backend secret>'
+export CHANNEL_CONFIG_ENCRYPTION_KEY='<fernet key>'
+export EDGE_SYNC_TOKEN='<random sync token>'
+docker compose up -d
 ```
 
-`docker-compose.yml` starts PostgreSQL, API, and worker only. It does not launch frontend or edge.
+`docker-compose.yml` runs `db`, one-shot `migrate`, `api`, and `worker`. It does not publish the database port and does not run frontend or edge deployments.
 
-## Health Endpoints
+Generate a Fernet key:
+
+```bash
+uv run --project backend --locked python - <<'PY'
+from cryptography.fernet import Fernet
+print(Fernet.generate_key().decode())
+PY
+```
+
+## Environment
+
+| Variable | Scope | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | backend | PostgreSQL URL |
+| `APP_ENV` | backend | `development` or `production` |
+| `SECRET_KEY` | backend | HMAC and JWT fallback key; production rejects the default |
+| `JWT_SIGNING_KEY` | backend | Optional JWT signing override |
+| `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Required in production |
+| `EDGE_SYNC_TOKEN` | backend/scripts | Machine token for `GET /api/edge-config` |
+| `CORS_ALLOWED_ORIGINS` | backend | Comma-separated browser origins |
+| `FORWARDED_ALLOW_IPS` | backend | Trusted proxy IPs for uvicorn forwarded headers |
+| `RATE_LIMIT_INGEST_PER_MINUTE` | backend | Ingest token bucket limit |
+| `RATE_LIMIT_AUTH_PER_MINUTE` | backend | Auth token bucket limit |
+| `ALLOW_USER_SIGNUP` | backend | Disable after initial user creation if desired |
+| `SENTRY_DSN` | backend/worker | Enables Sentry for API and worker |
+| `RELAY_ADMIN_TOKEN` | edge/scripts/GitHub | Protects relay admin endpoints |
+| `UPSTREAM_URL` | edge | Cloudflare upstream points to backend; EdgeOne upstream points to Cloudflare |
+
+## Admin Tasks
+
+Run migrations:
+
+```bash
+uv run --project backend --locked python -m backend.migrate
+```
+
+Reset a password without email:
+
+```bash
+uv run --project backend --locked herald-backend reset-password user@example.com
+```
+
+Back up PostgreSQL from cron:
+
+```cron
+0 3 * * * BACKUP_DIR=/var/backups/herald /path/to/herald/scripts/backup_db.sh
+```
+
+Sync edge relay config:
+
+```bash
+python3 scripts/sync_edge_config.py --help
+```
+
+## Health
 
 - Backend: `GET /health`
-- Frontend container: `GET /health`
-- Edge-lite: `GET /healthz`
-
-`GET /health` returns `200` with `status: ok` when the database is connected, or `503` with `status: degraded` when it is not.
-
-## Storage Notes
-
-- PostgreSQL is the only supported runtime database.
-- Database access uses SQLAlchemy 2.0 async engine with asyncpg.
-- Connection pooling defaults to `QueuePool` with `pool_pre_ping=True` unless `DB_POOL_CLASS=null`.
-
-## Deployment Notes
-
-- Frontend production build is a static SPA served by `frontend/deploy/server.mjs` on port `3100`.
-- Backend and frontend can share an origin, but direct browser-to-backend with CORS is supported.
-- Worker should run as a separate long-lived process.
-- Edge-lite requires a Cloudflare KV namespace bound as `EDGE_CONFIG`.
-
-## CI/CD
-
-- `.github/workflows/ci.yml` validates root/package version alignment, provisions PostgreSQL for backend tests, bootstraps the backend schema, and runs backend/frontend/edge verification.
-- `.github/workflows/docker-images.yml` builds arm64 backend/frontend images and publishes to GHCR on push/tag events.
-- `.github/workflows/cleanup.yml` prunes old workflow runs and untagged container images.
-- Root CI does not build or deploy `edge/`.
-
-## Operational Caveats
-
-- Backend refresh and several write paths can return `503 temporarily_unavailable` during transient database contention.
-- Batch delete is synchronous in the current backend.
-- Verification and password-reset request routes do not send mail in this repo; they only create hashed tokens and log the event.
-- Edge-lite is best-effort only and should not be documented as a durable queue or audit system.
+- Frontend static server: `GET /health`
+- Cloudflare and EdgeOne relays: `GET /healthz`
