@@ -35,11 +35,18 @@ async def test_request_id_echoed_when_provided(app):
 
 
 @pytest.mark.asyncio
-async def test_health_not_access_logged(app, capsys):
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        await client.get("/health")
+async def test_auth_rate_limit_returns_429(monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_AUTH_PER_MINUTE", "3")
+    from backend.config import get_settings
 
-    capsys.readouterr()
+    get_settings.cache_clear()
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        statuses = []
+        for _ in range(5):
+            r = await c.post(
+                "/api/auth/login", json={"email": "x@x.com", "password": "wrong"}
+            )
+            statuses.append(r.status_code)
+    assert 429 in statuses
+    assert statuses[0] != 429

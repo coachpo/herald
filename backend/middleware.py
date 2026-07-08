@@ -13,9 +13,9 @@ from __future__ import annotations
 import time
 import uuid
 from contextvars import ContextVar
-from typing import Any, MutableMapping
 
 import structlog
+from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -23,84 +23,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .config import get_settings
 
 request_id_ctx_var: ContextVar[str] = ContextVar("request_id", default="")
-
-
-# ---------------------------------------------------------------------------
-# CORS
-# ---------------------------------------------------------------------------
-
-
-class CorsMiddleware:
-    """Custom CORS middleware matching Django implementation."""
-
-    def __init__(self, app: ASGIApp) -> None:
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        request = Request(scope)
-        origin = request.headers.get("origin")
-        settings = get_settings()
-        allowed = set(settings.cors_allowed_origins)
-
-        if not (origin and origin in allowed):
-            await self.app(scope, receive, send)
-            return
-
-        # Preflight
-        if request.method == "OPTIONS" and request.headers.get(
-            "access-control-request-method"
-        ):
-            response = Response(status_code=204)
-            _set_cors_headers(response, request, origin)
-            await response(scope, receive, send)
-            return
-
-        # Normal request – intercept response headers
-        async def send_with_cors(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                headers = MutableHeaders(scope=message)
-                headers.append("Access-Control-Allow-Origin", origin)
-                headers.append(
-                    "Access-Control-Allow-Methods",
-                    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-                )
-                requested = request.headers.get("access-control-request-headers")
-                headers.append(
-                    "Access-Control-Allow-Headers",
-                    requested
-                    or "Authorization, Content-Type, Accept, X-Herald-Ingest-Key",
-                )
-                headers.append("Access-Control-Max-Age", "600")
-                # Vary
-                existing_vary = headers.get("vary")
-                if existing_vary:
-                    if "Origin" not in {v.strip() for v in existing_vary.split(",")}:
-                        headers.append("vary", "Origin")
-                else:
-                    headers.append("vary", "Origin")
-            await send(message)
-
-        await self.app(scope, receive, send_with_cors)
-
-
-def _set_cors_headers(response: Response, request: Request, origin: str) -> None:
-    response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Access-Control-Allow-Methods"] = (
-        "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    )
-    requested = request.headers.get("access-control-request-headers")
-    if requested:
-        response.headers["Access-Control-Allow-Headers"] = requested
-    else:
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, Accept, X-Herald-Ingest-Key"
-        )
-    response.headers["Access-Control-Max-Age"] = "600"
-    response.headers["vary"] = "Origin"
 
 
 # ---------------------------------------------------------------------------
@@ -177,23 +99,61 @@ class AccessLogMiddleware:
 
 
 # ---------------------------------------------------------------------------
-# Starlette MutableHeaders helper
+# Rate limit
 # ---------------------------------------------------------------------------
 
 
-class MutableHeaders:
-    """Thin wrapper to mutate ASGI ``http.response.start`` headers in-place."""
+class RateLimitMiddleware:
+    """In-process token buckets. Single-instance deployment only.
 
-    def __init__(self, scope: MutableMapping[str, Any]) -> None:
-        self._headers: list[tuple[bytes, bytes]] = list(scope.get("headers", []))
-        scope["headers"] = self._headers
+    ponytail: per-process buckets; move to a shared store if this ever runs >1 replica.
+    """
 
-    def get(self, key: str) -> str | None:
-        lower = key.lower().encode("latin-1")
-        for k, v in self._headers:
-            if k == lower:
-                return v.decode("latin-1")
+    _AUTH_PATHS = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh"}
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+        self._buckets: dict[str, tuple[float, float]] = {}
+
+    def _match(self, scope: Scope) -> tuple[str, int] | None:
+        if scope.get("method") != "POST":
+            return None
+        path = scope.get("path", "")
+        settings = get_settings()
+        if path.startswith("/api/ingest/"):
+            return (
+                f"ingest:{path.rsplit('/', 1)[-1]}",
+                settings.rate_limit_ingest_per_minute,
+            )
+        if path in self._AUTH_PATHS:
+            client = scope.get("client") or ("", 0)
+            return (f"auth:{client[0]}", settings.rate_limit_auth_per_minute)
         return None
 
-    def append(self, key: str, value: str) -> None:
-        self._headers.append((key.lower().encode("latin-1"), value.encode("latin-1")))
+    def _allow(self, key: str, per_minute: int) -> bool:
+        now = time.monotonic()
+        tokens, last = self._buckets.get(key, (float(per_minute), now))
+        tokens = min(float(per_minute), tokens + (now - last) * per_minute / 60.0)
+        if tokens < 1.0:
+            self._buckets[key] = (tokens, now)
+            return False
+        if len(self._buckets) > 10_000:
+            self._buckets.clear()  # ponytail: crude flush beats an LRU nobody needs
+        self._buckets[key] = (tokens - 1.0, now)
+        return True
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        matched = self._match(scope)
+        if matched and not self._allow(*matched):
+            response = Response(
+                content=b'{"detail":"rate_limited"}',
+                status_code=429,
+                media_type="application/json",
+                headers={"Retry-After": "60"},
+            )
+            await response(scope, receive, send)
+            return
+        await self.app(scope, receive, send)

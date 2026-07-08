@@ -5,6 +5,8 @@ import os
 
 import uvicorn
 
+from .config import get_settings
+
 
 def _env_int(name: str, default: int) -> int:
     raw = os.environ.get(name)
@@ -87,4 +89,6 @@ def main() -> None:
         host=args.host,
         port=args.port,
         workers=max(args.workers, 1),
+        proxy_headers=True,
+        forwarded_allow_ips=get_settings().forwarded_allow_ips or None,
     )

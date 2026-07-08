@@ -20,7 +20,7 @@ from .errors import (
     validation_exception_handler,
 )
 from .logging_config import setup_logging
-from .middleware import AccessLogMiddleware, CorsMiddleware, RequestIDMiddleware
+from .middleware import AccessLogMiddleware, RateLimitMiddleware, RequestIDMiddleware
 from .schemas import HealthResponse
 from .routes import router, auth_router, ingest_router
 
@@ -77,9 +77,18 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
-    app.add_middleware(CorsMiddleware)
+    from starlette.middleware.cors import CORSMiddleware
+
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Herald-Ingest-Key"],
+        max_age=600,
+    )
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse | JSONResponse:
