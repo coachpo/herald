@@ -191,22 +191,14 @@ async def authenticate_ingest_request(
     if endpoint.deleted_at is not None:
         raise _auth_error()
 
-    user_query = select(
-        tables.users.c.is_active,
-        tables.users.c.email_verified_at,
-    ).where(tables.users.c.id == endpoint.user_id)
+    user_query = select(tables.users.c.is_active).where(
+        tables.users.c.id == endpoint.user_id
+    )
     user_result = await session.execute(user_query)
     user = user_result.fetchone()
 
     if not user or not user.is_active:
         raise IngestError(code="forbidden", message="forbidden", status=403)
-
-    if user.email_verified_at is None:
-        raise IngestError(
-            code="email_not_verified",
-            message="email not verified",
-            status=403,
-        )
 
     return AuthenticatedEndpoint(
         endpoint_id=endpoint_id,

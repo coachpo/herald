@@ -9,7 +9,6 @@ from pydantic import BaseModel, field_validator
 class User(BaseModel):
     id: UUID
     email: str
-    email_verified_at: datetime | None
     created_at: datetime
 
     class Config:
@@ -51,26 +50,6 @@ class LogoutRequest(BaseModel):
     refresh_token: str | None = None
 
 
-class VerifyEmailRequest(BaseModel):
-    token: str
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: str
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("password_too_short")
-        return v
-
-
 class ChangeEmailRequest(BaseModel):
     new_email: str
 
@@ -96,13 +75,10 @@ __all__ = [
     "ChangeEmailRequest",
     "ChangePasswordRequest",
     "DeleteAccountRequest",
-    "ForgotPasswordRequest",
     "LoginRequest",
     "LogoutRequest",
     "RefreshRequest",
-    "ResetPasswordRequest",
     "SignupRequest",
     "User",
     "UserResponse",
-    "VerifyEmailRequest",
 ]

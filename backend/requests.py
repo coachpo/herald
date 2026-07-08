@@ -5,17 +5,14 @@ from .schemas import (
     ChangeEmailRequest,
     ChangePasswordRequest,
     DeleteAccountRequest,
-    ForgotPasswordRequest,
     LoginRequest,
     LogoutRequest,
     MatchPreview,
     RefreshRequest,
-    ResetPasswordRequest,
     RuleTestResponse,
     SignupRequest,
     TestAllRulesRequest,
     TestRuleRequest,
-    VerifyEmailRequest,
 )
 
 __all__ = [
@@ -23,15 +20,12 @@ __all__ = [
     "ChangeEmailRequest",
     "ChangePasswordRequest",
     "DeleteAccountRequest",
-    "ForgotPasswordRequest",
     "LoginRequest",
     "LogoutRequest",
     "MatchPreview",
     "RefreshRequest",
-    "ResetPasswordRequest",
     "RuleTestResponse",
     "SignupRequest",
     "TestAllRulesRequest",
     "TestRuleRequest",
-    "VerifyEmailRequest",
 ]

@@ -5,15 +5,12 @@ from .auth import (
     ChangeEmailRequest,
     ChangePasswordRequest,
     DeleteAccountRequest,
-    ForgotPasswordRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
-    ResetPasswordRequest,
     SignupRequest,
     User,
     UserResponse,
-    VerifyEmailRequest,
 )
 from .channels import (
     Channel,
@@ -79,7 +76,6 @@ __all__ = [
     "EdgeConfigResponse",
     "EdgeIngestEndpoint",
     "EdgeRule",
-    "ForgotPasswordRequest",
     "HealthResponse",
     "IngestEndpoint",
     "IngestEndpointCreateRequest",
@@ -96,7 +92,6 @@ __all__ = [
     "MessageSummary",
     "MessagesResponse",
     "RefreshRequest",
-    "ResetPasswordRequest",
     "Rule",
     "RuleCreateRequest",
     "RuleResponse",
@@ -108,5 +103,4 @@ __all__ = [
     "TestRuleRequest",
     "User",
     "UserResponse",
-    "VerifyEmailRequest",
 ]

@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-from .auth_accounts import (
+from .auth import (
     change_user_email,
     change_user_password,
     delete_user_account,
+    get_user_profile,
+    login_user,
+    logout_user,
+    refresh_session,
     signup_user,
 )
-from .auth_sessions import login_user, logout_user, refresh_session
-from .auth_tokens import (
-    request_password_reset,
-    resend_verification_email,
-    reset_password,
-    verify_email_token,
-)
-from .auth_users import get_user_profile
 from .channel_operations import (
     create_channel,
     delete_channel,
@@ -99,11 +95,7 @@ __all__ = [
     "login_user",
     "logout_user",
     "refresh_session",
-    "request_password_reset",
-    "resend_verification_email",
-    "reset_password",
     "signup_user",
-    "verify_email_token",
     "get_user_profile",
     "list_messages",
     "get_message_detail",
