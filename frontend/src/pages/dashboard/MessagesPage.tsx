@@ -23,7 +23,6 @@ export default function MessagesPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  const canMutate = Boolean(auth.user?.email_verified_at);
   const [olderThanDays, setOlderThanDays] = useState(30);
   const [batchEndpointId, setBatchEndpointId] = useState("");
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
@@ -101,7 +100,6 @@ export default function MessagesPage() {
 
       <MessagesBatchDeleteCard
         endpoints={endpoints}
-        canMutate={canMutate}
         olderThanDays={olderThanDays}
         setOlderThanDays={setOlderThanDays}
         batchEndpointId={batchEndpointId}

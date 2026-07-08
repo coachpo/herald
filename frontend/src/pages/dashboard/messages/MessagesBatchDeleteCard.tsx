@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 
 export interface MessagesBatchDeleteCardProps {
   endpoints: IngestEndpoint[];
-  canMutate: boolean;
   olderThanDays: number;
   setOlderThanDays: (value: number) => void;
   batchEndpointId: string;
@@ -16,7 +15,6 @@ export interface MessagesBatchDeleteCardProps {
 
 export function MessagesBatchDeleteCard({
   endpoints,
-  canMutate,
   olderThanDays,
   setOlderThanDays,
   batchEndpointId,
@@ -53,7 +51,7 @@ export function MessagesBatchDeleteCard({
             ))}
           </select>
         </div>
-        <Button variant="destructive" disabled={!canMutate} onClick={onDelete}>
+        <Button variant="destructive" onClick={onDelete}>
           Delete
         </Button>
       </div>

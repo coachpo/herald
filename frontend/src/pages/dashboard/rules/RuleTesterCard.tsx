@@ -3,7 +3,6 @@ import type { IngestEndpoint } from "@/lib/types";
 import type { RuleTestResult } from "./utils";
 
 export interface RuleTesterCardProps {
-  canCreate: boolean;
   endpoints: IngestEndpoint[];
   testEndpointId: string;
   setTestEndpointId: (value: string) => void;
@@ -18,7 +17,6 @@ export interface RuleTesterCardProps {
 }
 
 export function RuleTesterCard({
-  canCreate,
   endpoints,
   testEndpointId,
   setTestEndpointId,
@@ -47,7 +45,7 @@ export function RuleTesterCard({
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
             value={testEndpointId}
             onChange={(e) => setTestEndpointId(e.target.value)}
-            disabled={!canCreate || testLoading || endpoints.length === 0}
+            disabled={testLoading || endpoints.length === 0}
           >
             {endpoints.map((ep) => (
               <option key={ep.id} value={ep.id}>
@@ -69,7 +67,7 @@ export function RuleTesterCard({
           }
           value={testPayloadJson}
           onChange={(e) => setTestPayloadJson(e.target.value)}
-          disabled={!canCreate || testLoading}
+          disabled={testLoading}
         />
         {!testPayloadValidation.ok && (
           <div className="mt-1 text-xs text-destructive">{testPayloadValidation.error}</div>
@@ -79,7 +77,7 @@ export function RuleTesterCard({
       <div className="mt-3 flex items-center gap-2">
         <button
           className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          disabled={!canCreate || !testEndpointId || testLoading || !testPayloadValidation.ok}
+          disabled={!testEndpointId || testLoading || !testPayloadValidation.ok}
           onClick={onRun}
         >
           {testLoading ? "Testing..." : "Find triggered rules"}
@@ -126,10 +124,6 @@ export function RuleTesterCard({
             </div>
           )}
         </div>
-      )}
-
-      {!canCreate && (
-        <div className="mt-2 text-xs text-warning">Verify your email to run tests.</div>
       )}
     </div>
   );

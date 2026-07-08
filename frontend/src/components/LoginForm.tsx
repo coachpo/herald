@@ -84,10 +84,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
               {busy ? "Logging in..." : "Log in"}
             </Button>
 
-            <div className="flex items-center justify-between">
-              <Button variant="link" asChild className="px-0">
-                <Link to="/forgot-password">Forgot password</Link>
-              </Button>
+            <div className="flex items-center justify-end">
               <Button variant="link" asChild className="px-0">
                 <Link to="/signup">Sign up</Link>
               </Button>

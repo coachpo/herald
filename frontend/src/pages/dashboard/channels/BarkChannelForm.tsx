@@ -1,4 +1,5 @@
 import { parseOptionalJsonObject } from "@/lib/json";
+import type { BarkFormValues } from "./formState";
 
 function looksLikeBarkDeviceKey(seg: string): boolean {
   const s = (seg || "").trim();
@@ -34,33 +35,15 @@ function trySplitBarkUrl(input: string): { serverBaseUrl: string; deviceKey: str
 }
 
 export interface BarkChannelFormProps {
-  canCreate: boolean;
   submitting: boolean;
-  serverBaseUrl: string;
-  setServerBaseUrl: (val: string) => void;
-  deviceKey: string;
-  setDeviceKey: (val: string) => void;
-  useDeviceKeys: boolean;
-  setUseDeviceKeys: (val: boolean) => void;
-  deviceKeysText: string;
-  setDeviceKeysText: (val: string) => void;
-  defaultPayloadJson: string;
-  setDefaultPayloadJson: (val: string) => void;
+  values: BarkFormValues;
+  onChange: (values: BarkFormValues) => void;
 }
 
 export function BarkChannelForm({
-  canCreate,
   submitting,
-  serverBaseUrl,
-  setServerBaseUrl,
-  deviceKey,
-  setDeviceKey,
-  useDeviceKeys,
-  setUseDeviceKeys,
-  deviceKeysText,
-  setDeviceKeysText,
-  defaultPayloadJson,
-  setDefaultPayloadJson,
+  values,
+  onChange,
 }: BarkChannelFormProps) {
   return (
     <>
@@ -72,21 +55,26 @@ export function BarkChannelForm({
           autoComplete="url"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
           placeholder="https://bark.example.com (or paste https://bark.example.com/<device_key>/)"
-          value={serverBaseUrl}
-          onChange={(e) => setServerBaseUrl(e.target.value)}
+          value={values.serverBaseUrl}
+          onChange={(e) => onChange({ ...values, serverBaseUrl: e.target.value })}
           onBlur={(e) => {
             const split = trySplitBarkUrl(e.target.value);
             if (!split) return;
-            setServerBaseUrl(split.serverBaseUrl);
-            if (useDeviceKeys) {
-              if (!deviceKeysText.trim()) {
-                setDeviceKeysText(split.deviceKey);
-              }
+            if (values.useDeviceKeys) {
+              onChange({
+                ...values,
+                serverBaseUrl: split.serverBaseUrl,
+                deviceKeysText: values.deviceKeysText.trim() ? values.deviceKeysText : split.deviceKey,
+              });
             } else {
-              if (!deviceKey.trim()) setDeviceKey(split.deviceKey);
+              onChange({
+                ...values,
+                serverBaseUrl: split.serverBaseUrl,
+                deviceKey: values.deviceKey.trim() ? values.deviceKey : split.deviceKey,
+              });
             }
           }}
-          disabled={!canCreate || submitting}
+          disabled={submitting}
         />
       </label>
       <label className="flex items-end gap-2">
@@ -94,19 +82,16 @@ export function BarkChannelForm({
           id="bark-multiple-devices"
           name="multiple_devices"
           type="checkbox"
-          checked={useDeviceKeys}
+          checked={values.useDeviceKeys}
           onChange={(e) => {
             const on = e.target.checked;
-            setUseDeviceKeys(on);
-            if (!on) {
-              setDeviceKeysText("");
-            }
+            onChange({ ...values, useDeviceKeys: on, deviceKeysText: on ? values.deviceKeysText : "" });
           }}
-          disabled={!canCreate || submitting}
+          disabled={submitting}
         />
         <span className="text-sm text-muted-foreground">Multiple devices</span>
       </label>
-      {useDeviceKeys ? (
+      {values.useDeviceKeys ? (
         <label className="block md:col-span-2">
           <div className="text-xs font-medium text-muted-foreground">Device keys</div>
           <div className="mt-1 text-[10px] text-muted-foreground">One per line</div>
@@ -114,9 +99,9 @@ export function BarkChannelForm({
             id="bark-device-keys"
             name="device_keys"
             className="mt-1 h-20 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
-            value={deviceKeysText}
-            onChange={(e) => setDeviceKeysText(e.target.value)}
-            disabled={!canCreate || submitting}
+            value={values.deviceKeysText}
+            onChange={(e) => onChange({ ...values, deviceKeysText: e.target.value })}
+            disabled={submitting}
           />
         </label>
       ) : (
@@ -127,9 +112,9 @@ export function BarkChannelForm({
             name="device_key"
             autoComplete="off"
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
-            value={deviceKey}
-            onChange={(e) => setDeviceKey(e.target.value)}
-            disabled={!canCreate || submitting}
+            value={values.deviceKey}
+            onChange={(e) => onChange({ ...values, deviceKey: e.target.value })}
+            disabled={submitting}
           />
         </label>
       )}
@@ -139,16 +124,16 @@ export function BarkChannelForm({
           id="bark-default-payload-json"
           name="default_payload_json"
           className="mt-1 h-24 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs"
-          value={defaultPayloadJson}
-          onChange={(e) => setDefaultPayloadJson(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.defaultPayloadJson}
+          onChange={(e) => onChange({ ...values, defaultPayloadJson: e.target.value })}
+          disabled={submitting}
         />
       </label>
     </>
   );
 }
 
-export function validateBarkConfig(state: Omit<BarkChannelFormProps, "canCreate" | "submitting" | "setServerBaseUrl" | "setDeviceKey" | "setUseDeviceKeys" | "setDeviceKeysText" | "setDefaultPayloadJson">): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
+export function validateBarkConfig(state: BarkFormValues): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
   let baseUrl = state.serverBaseUrl.trim();
   let deviceKey = state.deviceKey.trim();
   if (!baseUrl) {

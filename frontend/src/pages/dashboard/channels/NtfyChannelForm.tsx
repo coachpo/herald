@@ -1,41 +1,16 @@
 import { parseOptionalJsonObject } from "@/lib/json";
+import type { NtfyFormValues } from "./formState";
 
 export interface NtfyChannelFormProps {
-  canCreate: boolean;
   submitting: boolean;
-  serverBaseUrl: string;
-  setServerBaseUrl: (val: string) => void;
-  topic: string;
-  setTopic: (val: string) => void;
-  authMode: "none" | "bearer" | "basic";
-  setAuthMode: (val: "none" | "bearer" | "basic") => void;
-  accessToken: string;
-  setAccessToken: (val: string) => void;
-  username: string;
-  setUsername: (val: string) => void;
-  password: string;
-  setPassword: (val: string) => void;
-  defaultHeadersJson: string;
-  setDefaultHeadersJson: (val: string) => void;
+  values: NtfyFormValues;
+  onChange: (values: NtfyFormValues) => void;
 }
 
 export function NtfyChannelForm({
-  canCreate,
   submitting,
-  serverBaseUrl,
-  setServerBaseUrl,
-  topic,
-  setTopic,
-  authMode,
-  setAuthMode,
-  accessToken,
-  setAccessToken,
-  username,
-  setUsername,
-  password,
-  setPassword,
-  defaultHeadersJson,
-  setDefaultHeadersJson,
+  values,
+  onChange,
 }: NtfyChannelFormProps) {
   return (
     <>
@@ -47,9 +22,9 @@ export function NtfyChannelForm({
           autoComplete="url"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
           placeholder="https://ntfy.sh"
-          value={serverBaseUrl}
-          onChange={(e) => setServerBaseUrl(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.serverBaseUrl}
+          onChange={(e) => onChange({ ...values, serverBaseUrl: e.target.value })}
+          disabled={submitting}
         />
       </label>
       <label className="block">
@@ -60,9 +35,9 @@ export function NtfyChannelForm({
           autoComplete="off"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
           placeholder="mytopic"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.topic}
+          onChange={(e) => onChange({ ...values, topic: e.target.value })}
+          disabled={submitting}
         />
       </label>
 
@@ -72,9 +47,9 @@ export function NtfyChannelForm({
           id="ntfy-auth-mode"
           name="auth_mode"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-          value={authMode}
-          onChange={(e) => setAuthMode(e.target.value as "none" | "bearer" | "basic")}
-          disabled={!canCreate || submitting}
+          value={values.authMode}
+          onChange={(e) => onChange({ ...values, authMode: e.target.value as "none" | "bearer" | "basic" })}
+          disabled={submitting}
         >
           <option value="none">None</option>
           <option value="bearer">Bearer token</option>
@@ -82,7 +57,7 @@ export function NtfyChannelForm({
         </select>
       </label>
 
-      {authMode === "bearer" && (
+      {values.authMode === "bearer" && (
         <label className="block">
           <div className="text-xs font-medium text-muted-foreground">Access token</div>
           <input
@@ -90,14 +65,14 @@ export function NtfyChannelForm({
             name="access_token"
             autoComplete="off"
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
-            value={accessToken}
-            onChange={(e) => setAccessToken(e.target.value)}
-            disabled={!canCreate || submitting}
+            value={values.accessToken}
+            onChange={(e) => onChange({ ...values, accessToken: e.target.value })}
+            disabled={submitting}
           />
         </label>
       )}
 
-      {authMode === "basic" && (
+      {values.authMode === "basic" && (
         <>
           <label className="block">
             <div className="text-xs font-medium text-muted-foreground">Username</div>
@@ -106,9 +81,9 @@ export function NtfyChannelForm({
               name="username"
               autoComplete="off"
               className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={!canCreate || submitting}
+              value={values.username}
+              onChange={(e) => onChange({ ...values, username: e.target.value })}
+              disabled={submitting}
             />
           </label>
           <label className="block">
@@ -119,9 +94,9 @@ export function NtfyChannelForm({
               autoComplete="off"
               className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={!canCreate || submitting}
+              value={values.password}
+              onChange={(e) => onChange({ ...values, password: e.target.value })}
+              disabled={submitting}
             />
           </label>
         </>
@@ -133,16 +108,16 @@ export function NtfyChannelForm({
           id="ntfy-default-headers-json"
           name="default_headers_json"
           className="mt-1 h-24 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs"
-          value={defaultHeadersJson}
-          onChange={(e) => setDefaultHeadersJson(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.defaultHeadersJson}
+          onChange={(e) => onChange({ ...values, defaultHeadersJson: e.target.value })}
+          disabled={submitting}
         />
       </label>
     </>
   );
 }
 
-export function validateNtfyConfig(state: Omit<NtfyChannelFormProps, "canCreate" | "submitting" | "setServerBaseUrl" | "setTopic" | "setAuthMode" | "setAccessToken" | "setUsername" | "setPassword" | "setDefaultHeadersJson">): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
+export function validateNtfyConfig(state: NtfyFormValues): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
   if (!state.serverBaseUrl.trim()) {
     return { ok: false, error: "Server base URL is required." };
   }

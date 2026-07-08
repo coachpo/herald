@@ -8,13 +8,11 @@ import { ChannelTestPanel, type ChannelTestResp } from "./ChannelTestPanel";
 
 export interface ChannelListItemProps {
   channel: Channel;
-  canCreate: boolean;
   onDeleted: (id: string) => void;
 }
 
 export function ChannelListItem({
   channel,
-  canCreate,
   onDeleted,
 }: ChannelListItemProps) {
   const auth = useAuth();
@@ -40,7 +38,7 @@ export function ChannelListItem({
           <button
             type="button"
             className="whitespace-nowrap rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-            disabled={!canCreate || deleting}
+            disabled={deleting}
             data-testid={`channel-send-test-toggle-${channel.id}`}
             onClick={() => {
               setActionError(null);
@@ -54,7 +52,7 @@ export function ChannelListItem({
           <button
             type="button"
             className="whitespace-nowrap rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-            disabled={!canCreate || deleting || testLoading}
+            disabled={deleting || testLoading}
             onClick={async () => {
               if (!confirm("Delete this channel?")) return;
               setActionError(null);

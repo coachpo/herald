@@ -18,8 +18,6 @@ import { priorityBadgeClass } from "./messages/utils";
 
 export default function DashboardPage() {
   const auth = useAuth();
-  const { user } = auth;
-  const verified = Boolean(user?.email_verified_at);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,17 +69,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {!verified && (
-        <div className="rounded-2xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Your email is not verified. Create actions are disabled until you verify.
-          <div className="mt-2">
-            <Link className="font-medium underline" to="/account">
-              Go to account settings
-            </Link>
-          </div>
-        </div>
-      )}
-
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

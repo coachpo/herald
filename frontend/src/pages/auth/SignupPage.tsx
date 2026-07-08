@@ -28,7 +28,7 @@ export default function SignupPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sign up</CardTitle>
-            <CardDescription>Create an account. You will need to verify your email.</CardDescription>
+            <CardDescription>Create an account.</CardDescription>
           </CardHeader>
           <CardContent>
             {message && (
@@ -60,7 +60,7 @@ export default function SignupPage() {
                     setError(err.message);
                     return;
                   }
-                  setMessage("Check your email for a verification link.");
+                  setMessage("Account created. You can log in now.");
                 } catch (error) {
                   setError(readRequestError(error).message);
                 } finally {

@@ -1,29 +1,16 @@
 import { parseOptionalJsonObject } from "@/lib/json";
+import type { GotifyFormValues } from "./formState";
 
 export interface GotifyChannelFormProps {
-  canCreate: boolean;
   submitting: boolean;
-  serverBaseUrl: string;
-  setServerBaseUrl: (val: string) => void;
-  appToken: string;
-  setAppToken: (val: string) => void;
-  defaultPriority: string;
-  setDefaultPriority: (val: string) => void;
-  defaultExtrasJson: string;
-  setDefaultExtrasJson: (val: string) => void;
+  values: GotifyFormValues;
+  onChange: (values: GotifyFormValues) => void;
 }
 
 export function GotifyChannelForm({
-  canCreate,
   submitting,
-  serverBaseUrl,
-  setServerBaseUrl,
-  appToken,
-  setAppToken,
-  defaultPriority,
-  setDefaultPriority,
-  defaultExtrasJson,
-  setDefaultExtrasJson,
+  values,
+  onChange,
 }: GotifyChannelFormProps) {
   return (
     <>
@@ -35,9 +22,9 @@ export function GotifyChannelForm({
           autoComplete="url"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
           placeholder="https://gotify.example.com"
-          value={serverBaseUrl}
-          onChange={(e) => setServerBaseUrl(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.serverBaseUrl}
+          onChange={(e) => onChange({ ...values, serverBaseUrl: e.target.value })}
+          disabled={submitting}
         />
         <div className="mt-1 text-xs text-muted-foreground">
           Your Gotify server URL (e.g., https://gotify.example.com)
@@ -52,9 +39,9 @@ export function GotifyChannelForm({
           type="password"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
           placeholder="Apx..."
-          value={appToken}
-          onChange={(e) => setAppToken(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.appToken}
+          onChange={(e) => onChange({ ...values, appToken: e.target.value })}
+          disabled={submitting}
         />
         <div className="mt-1 text-xs text-muted-foreground">
           Application token from Gotify (not client token)
@@ -70,9 +57,9 @@ export function GotifyChannelForm({
           placeholder="5"
           min={0}
           max={10}
-          value={defaultPriority}
-          onChange={(e) => setDefaultPriority(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.defaultPriority}
+          onChange={(e) => onChange({ ...values, defaultPriority: e.target.value })}
+          disabled={submitting}
         />
         <div className="mt-1 text-xs text-muted-foreground">
           0 (min) to 10 (urgent). Leave empty to use message priority.
@@ -85,9 +72,9 @@ export function GotifyChannelForm({
           name="default_extras_json"
           className="mt-1 h-24 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs"
           placeholder='{"client::display": {"contentType": "text/markdown"}}'
-          value={defaultExtrasJson}
-          onChange={(e) => setDefaultExtrasJson(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.defaultExtrasJson}
+          onChange={(e) => onChange({ ...values, defaultExtrasJson: e.target.value })}
+          disabled={submitting}
         />
         <div className="mt-1 text-xs text-muted-foreground">
           JSON object for markdown, click URLs, etc.
@@ -97,7 +84,7 @@ export function GotifyChannelForm({
   );
 }
 
-export function validateGotifyConfig(state: Omit<GotifyChannelFormProps, "canCreate" | "submitting" | "setServerBaseUrl" | "setAppToken" | "setDefaultPriority" | "setDefaultExtrasJson">): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
+export function validateGotifyConfig(state: GotifyFormValues): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
   const baseUrl = state.serverBaseUrl.trim();
   const token = state.appToken.trim();
   if (!baseUrl) {

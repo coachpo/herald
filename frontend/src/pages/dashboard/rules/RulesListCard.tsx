@@ -3,7 +3,6 @@ import type { Rule } from "@/lib/types";
 export interface RulesListCardProps {
   loading: boolean;
   rules: Rule[];
-  canCreate: boolean;
   channelNameById: Map<string, string>;
   onDelete: (id: string) => void;
 }
@@ -11,7 +10,6 @@ export interface RulesListCardProps {
 export function RulesListCard({
   loading,
   rules,
-  canCreate,
   channelNameById,
   onDelete,
 }: RulesListCardProps) {
@@ -34,7 +32,6 @@ export function RulesListCard({
                   </div>
                   <button
                     className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-                    disabled={!canCreate}
                     onClick={() => onDelete(rule.id)}
                   >
                     Delete

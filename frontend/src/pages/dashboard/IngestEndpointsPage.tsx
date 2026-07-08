@@ -21,8 +21,6 @@ export default function IngestEndpointsPage() {
   const [createdCopiedField, setCreatedCopiedField] = useState<"key" | "url" | "curl" | null>(null);
   const [copiedEndpointId, setCopiedEndpointId] = useState<string | null>(null);
 
-  const canCreate = Boolean(auth.user?.email_verified_at);
-
   const sorted = useMemo(
     () => [...items].sort((a, b) => b.created_at.localeCompare(a.created_at)),
     [items],
@@ -89,7 +87,6 @@ export default function IngestEndpointsPage() {
       )}
 
       <CreateEndpointCard
-        canCreate={canCreate}
         name={name}
         setName={setName}
         onCreate={async () => {
@@ -118,7 +115,6 @@ export default function IngestEndpointsPage() {
       <EndpointListCard
         loading={loading}
         endpoints={sorted}
-        canCreate={canCreate}
         copiedEndpointId={copiedEndpointId}
         onCopyUrl={async (endpointId, url) => {
           const ok = await copyToClipboard(url);

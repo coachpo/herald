@@ -12,7 +12,6 @@ import { parseJsonObject, type RuleTestResult } from "./rules/utils";
 
 export default function RulesPage() {
   const auth = useAuth();
-  const canCreate = Boolean(auth.user?.email_verified_at);
 
   const [rules, setRules] = useState<Rule[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -312,7 +311,6 @@ export default function RulesPage() {
       )}
 
       <RuleCreateCard
-        canCreate={canCreate}
         channels={channels}
         endpoints={endpoints}
         name={name}
@@ -344,7 +342,6 @@ export default function RulesPage() {
       />
 
       <RuleTesterCard
-        canCreate={canCreate}
         endpoints={endpoints}
         testEndpointId={testEndpointId}
         setTestEndpointId={setTestEndpointId}
@@ -364,7 +361,6 @@ export default function RulesPage() {
       <RulesListCard
         loading={loading}
         rules={sortedRules}
-        canCreate={canCreate}
         channelNameById={channelNameById}
         onDelete={(id) => void deleteRule(id)}
       />

@@ -23,7 +23,6 @@ export default function MessageDetailPage() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const canDelete = Boolean(auth.user?.email_verified_at);
   const [wrapBody, setWrapBody] = useState(true);
 
   useEffect(() => {
@@ -80,7 +79,7 @@ export default function MessageDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-lg font-semibold tracking-tight">Message detail</div>
-        {canDelete && !msg.deleted_at && (
+        {!msg.deleted_at && (
           <button
             className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
             onClick={async () => {

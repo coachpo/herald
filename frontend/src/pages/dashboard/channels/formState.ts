@@ -9,136 +9,113 @@ import { validateNtfyConfig } from "./NtfyChannelForm";
 
 export type ChannelType = Channel["type"];
 
+export type CommonFormValues = {
+  channelType: ChannelType;
+  name: string;
+};
+
+export type BarkFormValues = {
+  serverBaseUrl: string;
+  deviceKey: string;
+  useDeviceKeys: boolean;
+  deviceKeysText: string;
+  defaultPayloadJson: string;
+};
+
+export type NtfyFormValues = {
+  serverBaseUrl: string;
+  topic: string;
+  authMode: "none" | "bearer" | "basic";
+  accessToken: string;
+  username: string;
+  password: string;
+  defaultHeadersJson: string;
+};
+
+export type MqttFormValues = {
+  brokerHost: string;
+  brokerPort: string;
+  topic: string;
+  username: string;
+  password: string;
+  tls: boolean;
+  tlsInsecure: boolean;
+  qos: string;
+  retain: boolean;
+  clientId: string;
+  keepaliveSeconds: string;
+};
+
+export type GotifyFormValues = {
+  serverBaseUrl: string;
+  appToken: string;
+  defaultPriority: string;
+  defaultExtrasJson: string;
+};
+
+export const EMPTY_COMMON: CommonFormValues = { channelType: "bark", name: "" };
+export const EMPTY_BARK: BarkFormValues = {
+  serverBaseUrl: "",
+  deviceKey: "",
+  useDeviceKeys: false,
+  deviceKeysText: "",
+  defaultPayloadJson: "{}",
+};
+export const EMPTY_NTFY: NtfyFormValues = {
+  serverBaseUrl: "",
+  topic: "",
+  authMode: "none",
+  accessToken: "",
+  username: "",
+  password: "",
+  defaultHeadersJson: "{}",
+};
+export const EMPTY_MQTT: MqttFormValues = {
+  brokerHost: "",
+  brokerPort: "1883",
+  topic: "",
+  username: "",
+  password: "",
+  tls: false,
+  tlsInsecure: false,
+  qos: "0",
+  retain: false,
+  clientId: "",
+  keepaliveSeconds: "60",
+};
+export const EMPTY_GOTIFY: GotifyFormValues = {
+  serverBaseUrl: "",
+  appToken: "",
+  defaultPriority: "",
+  defaultExtrasJson: "{}",
+};
+
 export function useChannelFormState() {
-  const [channelType, setChannelType] = useState<ChannelType>("bark");
-  const [name, setName] = useState("");
-
-  const [barkServerBaseUrl, setBarkServerBaseUrl] = useState("");
-  const [barkDeviceKey, setBarkDeviceKey] = useState("");
-  const [barkUseDeviceKeys, setBarkUseDeviceKeys] = useState(false);
-  const [barkDeviceKeysText, setBarkDeviceKeysText] = useState("");
-  const [barkDefaultPayloadJson, setBarkDefaultPayloadJson] = useState("{}");
-
-  const [ntfyServerBaseUrl, setNtfyServerBaseUrl] = useState("");
-  const [ntfyTopic, setNtfyTopic] = useState("");
-  const [ntfyAuthMode, setNtfyAuthMode] = useState<"none" | "bearer" | "basic">("none");
-  const [ntfyAccessToken, setNtfyAccessToken] = useState("");
-  const [ntfyUsername, setNtfyUsername] = useState("");
-  const [ntfyPassword, setNtfyPassword] = useState("");
-  const [ntfyDefaultHeadersJson, setNtfyDefaultHeadersJson] = useState("{}");
-
-  const [mqttBrokerHost, setMqttBrokerHost] = useState("");
-  const [mqttBrokerPort, setMqttBrokerPort] = useState("1883");
-  const [mqttTopic, setMqttTopic] = useState("");
-  const [mqttUsername, setMqttUsername] = useState("");
-  const [mqttPassword, setMqttPassword] = useState("");
-  const [mqttTls, setMqttTls] = useState(false);
-  const [mqttTlsInsecure, setMqttTlsInsecure] = useState(false);
-  const [mqttQos, setMqttQos] = useState("0");
-  const [mqttRetain, setMqttRetain] = useState(false);
-  const [mqttClientId, setMqttClientId] = useState("");
-  const [mqttKeepaliveSeconds, setMqttKeepaliveSeconds] = useState("60");
-
-  const [gotifyServerBaseUrl, setGotifyServerBaseUrl] = useState("");
-  const [gotifyAppToken, setGotifyAppToken] = useState("");
-  const [gotifyDefaultPriority, setGotifyDefaultPriority] = useState("");
-  const [gotifyDefaultExtrasJson, setGotifyDefaultExtrasJson] = useState("{}");
+  const [common, setCommon] = useState<CommonFormValues>(EMPTY_COMMON);
+  const [bark, setBark] = useState<BarkFormValues>(EMPTY_BARK);
+  const [ntfy, setNtfy] = useState<NtfyFormValues>(EMPTY_NTFY);
+  const [mqtt, setMqtt] = useState<MqttFormValues>(EMPTY_MQTT);
+  const [gotify, setGotify] = useState<GotifyFormValues>(EMPTY_GOTIFY);
 
   const resetForm = useCallback(() => {
-    setChannelType("bark");
-    setName("");
-
-    setBarkServerBaseUrl("");
-    setBarkDeviceKey("");
-    setBarkUseDeviceKeys(false);
-    setBarkDeviceKeysText("");
-    setBarkDefaultPayloadJson("{}");
-
-    setNtfyServerBaseUrl("");
-    setNtfyTopic("");
-    setNtfyAuthMode("none");
-    setNtfyAccessToken("");
-    setNtfyUsername("");
-    setNtfyPassword("");
-    setNtfyDefaultHeadersJson("{}");
-
-    setMqttBrokerHost("");
-    setMqttBrokerPort("1883");
-    setMqttTopic("");
-    setMqttUsername("");
-    setMqttPassword("");
-    setMqttTls(false);
-    setMqttTlsInsecure(false);
-    setMqttQos("0");
-    setMqttRetain(false);
-    setMqttClientId("");
-    setMqttKeepaliveSeconds("60");
-
-    setGotifyServerBaseUrl("");
-    setGotifyAppToken("");
-    setGotifyDefaultPriority("");
-    setGotifyDefaultExtrasJson("{}");
+    setCommon(EMPTY_COMMON);
+    setBark(EMPTY_BARK);
+    setNtfy(EMPTY_NTFY);
+    setMqtt(EMPTY_MQTT);
+    setGotify(EMPTY_GOTIFY);
   }, []);
 
   return {
-    channelType,
-    setChannelType,
-    name,
-    setName,
-    barkServerBaseUrl,
-    setBarkServerBaseUrl,
-    barkDeviceKey,
-    setBarkDeviceKey,
-    barkUseDeviceKeys,
-    setBarkUseDeviceKeys,
-    barkDeviceKeysText,
-    setBarkDeviceKeysText,
-    barkDefaultPayloadJson,
-    setBarkDefaultPayloadJson,
-    ntfyServerBaseUrl,
-    setNtfyServerBaseUrl,
-    ntfyTopic,
-    setNtfyTopic,
-    ntfyAuthMode,
-    setNtfyAuthMode,
-    ntfyAccessToken,
-    setNtfyAccessToken,
-    ntfyUsername,
-    setNtfyUsername,
-    ntfyPassword,
-    setNtfyPassword,
-    ntfyDefaultHeadersJson,
-    setNtfyDefaultHeadersJson,
-    mqttBrokerHost,
-    setMqttBrokerHost,
-    mqttBrokerPort,
-    setMqttBrokerPort,
-    mqttTopic,
-    setMqttTopic,
-    mqttUsername,
-    setMqttUsername,
-    mqttPassword,
-    setMqttPassword,
-    mqttTls,
-    setMqttTls,
-    mqttTlsInsecure,
-    setMqttTlsInsecure,
-    mqttQos,
-    setMqttQos,
-    mqttRetain,
-    setMqttRetain,
-    mqttClientId,
-    setMqttClientId,
-    mqttKeepaliveSeconds,
-    setMqttKeepaliveSeconds,
-    gotifyServerBaseUrl,
-    setGotifyServerBaseUrl,
-    gotifyAppToken,
-    setGotifyAppToken,
-    gotifyDefaultPriority,
-    setGotifyDefaultPriority,
-    gotifyDefaultExtrasJson,
-    setGotifyDefaultExtrasJson,
+    common,
+    setCommon,
+    bark,
+    setBark,
+    ntfy,
+    setNtfy,
+    mqtt,
+    setMqtt,
+    gotify,
+    setGotify,
     resetForm,
   };
 }
@@ -148,48 +125,8 @@ export type ChannelFormState = ReturnType<typeof useChannelFormState>;
 export function buildChannelConfig(
   form: ChannelFormState,
 ): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
-  if (form.channelType === "bark") {
-    return validateBarkConfig({
-      serverBaseUrl: form.barkServerBaseUrl,
-      deviceKey: form.barkDeviceKey,
-      useDeviceKeys: form.barkUseDeviceKeys,
-      deviceKeysText: form.barkDeviceKeysText,
-      defaultPayloadJson: form.barkDefaultPayloadJson,
-    });
-  }
-
-  if (form.channelType === "ntfy") {
-    return validateNtfyConfig({
-      serverBaseUrl: form.ntfyServerBaseUrl,
-      topic: form.ntfyTopic,
-      authMode: form.ntfyAuthMode,
-      accessToken: form.ntfyAccessToken,
-      username: form.ntfyUsername,
-      password: form.ntfyPassword,
-      defaultHeadersJson: form.ntfyDefaultHeadersJson,
-    });
-  }
-
-  if (form.channelType === "mqtt") {
-    return validateMqttConfig({
-      brokerHost: form.mqttBrokerHost,
-      brokerPort: form.mqttBrokerPort,
-      topic: form.mqttTopic,
-      username: form.mqttUsername,
-      password: form.mqttPassword,
-      tls: form.mqttTls,
-      tlsInsecure: form.mqttTlsInsecure,
-      qos: form.mqttQos,
-      retain: form.mqttRetain,
-      clientId: form.mqttClientId,
-      keepaliveSeconds: form.mqttKeepaliveSeconds,
-    });
-  }
-
-  return validateGotifyConfig({
-    serverBaseUrl: form.gotifyServerBaseUrl,
-    appToken: form.gotifyAppToken,
-    defaultPriority: form.gotifyDefaultPriority,
-    defaultExtrasJson: form.gotifyDefaultExtrasJson,
-  });
+  if (form.common.channelType === "bark") return validateBarkConfig(form.bark);
+  if (form.common.channelType === "ntfy") return validateNtfyConfig(form.ntfy);
+  if (form.common.channelType === "mqtt") return validateMqttConfig(form.mqtt);
+  return validateGotifyConfig(form.gotify);
 }

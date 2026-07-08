@@ -15,11 +15,10 @@ import {
 } from "./formState";
 
 export interface CreateChannelCardProps {
-  canCreate: boolean;
   onCreated: () => void;
 }
 
-export function CreateChannelCard({ canCreate, onCreated }: CreateChannelCardProps) {
+export function CreateChannelCard({ onCreated }: CreateChannelCardProps) {
   const auth = useAuth();
   const form = useChannelFormState();
   const [submitting, setSubmitting] = useState(false);
@@ -29,7 +28,7 @@ export function CreateChannelCard({ canCreate, onCreated }: CreateChannelCardPro
     setError(null);
     setSubmitting(true);
     try {
-      if (!form.name.trim()) {
+      if (!form.common.name.trim()) {
         setError("Name is required.");
         return;
       }
@@ -43,7 +42,11 @@ export function CreateChannelCard({ canCreate, onCreated }: CreateChannelCardPro
       const res = await authedFetch(auth, "/api/channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: form.channelType, name: form.name, config: config.config }),
+        body: JSON.stringify({
+          type: form.common.channelType,
+          name: form.common.name,
+          config: config.config,
+        }),
       });
       if (!res.ok) {
         setError((await readApiError(res)).message);
@@ -74,9 +77,9 @@ export function CreateChannelCard({ canCreate, onCreated }: CreateChannelCardPro
             id="channel-type"
             name="type"
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-            value={form.channelType}
-            onChange={(e) => form.setChannelType(e.target.value as ChannelType)}
-            disabled={!canCreate || submitting}
+            value={form.common.channelType}
+            onChange={(e) => form.setCommon({ ...form.common, channelType: e.target.value as ChannelType })}
+            disabled={submitting}
           >
             <option value="bark">bark</option>
             <option value="ntfy">ntfy</option>
@@ -92,109 +95,37 @@ export function CreateChannelCard({ canCreate, onCreated }: CreateChannelCardPro
             name="name"
             autoComplete="off"
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-            value={form.name}
-            onChange={(e) => form.setName(e.target.value)}
-            disabled={!canCreate || submitting}
+            value={form.common.name}
+            onChange={(e) => form.setCommon({ ...form.common, name: e.target.value })}
+            disabled={submitting}
           />
         </label>
 
-        {form.channelType === "bark" && (
-          <BarkChannelForm
-            canCreate={canCreate}
-            submitting={submitting}
-            serverBaseUrl={form.barkServerBaseUrl}
-            setServerBaseUrl={form.setBarkServerBaseUrl}
-            deviceKey={form.barkDeviceKey}
-            setDeviceKey={form.setBarkDeviceKey}
-            useDeviceKeys={form.barkUseDeviceKeys}
-            setUseDeviceKeys={form.setBarkUseDeviceKeys}
-            deviceKeysText={form.barkDeviceKeysText}
-            setDeviceKeysText={form.setBarkDeviceKeysText}
-            defaultPayloadJson={form.barkDefaultPayloadJson}
-            setDefaultPayloadJson={form.setBarkDefaultPayloadJson}
-          />
+        {form.common.channelType === "bark" && (
+          <BarkChannelForm submitting={submitting} values={form.bark} onChange={form.setBark} />
         )}
 
-        {form.channelType === "ntfy" && (
-          <NtfyChannelForm
-            canCreate={canCreate}
-            submitting={submitting}
-            serverBaseUrl={form.ntfyServerBaseUrl}
-            setServerBaseUrl={form.setNtfyServerBaseUrl}
-            topic={form.ntfyTopic}
-            setTopic={form.setNtfyTopic}
-            authMode={form.ntfyAuthMode}
-            setAuthMode={form.setNtfyAuthMode}
-            accessToken={form.ntfyAccessToken}
-            setAccessToken={form.setNtfyAccessToken}
-            username={form.ntfyUsername}
-            setUsername={form.setNtfyUsername}
-            password={form.ntfyPassword}
-            setPassword={form.setNtfyPassword}
-            defaultHeadersJson={form.ntfyDefaultHeadersJson}
-            setDefaultHeadersJson={form.setNtfyDefaultHeadersJson}
-          />
+        {form.common.channelType === "ntfy" && (
+          <NtfyChannelForm submitting={submitting} values={form.ntfy} onChange={form.setNtfy} />
         )}
 
-        {form.channelType === "mqtt" && (
-          <MqttChannelForm
-            canCreate={canCreate}
-            submitting={submitting}
-            brokerHost={form.mqttBrokerHost}
-            setBrokerHost={form.setMqttBrokerHost}
-            brokerPort={form.mqttBrokerPort}
-            setBrokerPort={form.setMqttBrokerPort}
-            topic={form.mqttTopic}
-            setTopic={form.setMqttTopic}
-            username={form.mqttUsername}
-            setUsername={form.setMqttUsername}
-            password={form.mqttPassword}
-            setPassword={form.setMqttPassword}
-            tls={form.mqttTls}
-            setTls={form.setMqttTls}
-            tlsInsecure={form.mqttTlsInsecure}
-            setTlsInsecure={form.setMqttTlsInsecure}
-            qos={form.mqttQos}
-            setQos={form.setMqttQos}
-            retain={form.mqttRetain}
-            setRetain={form.setMqttRetain}
-            clientId={form.mqttClientId}
-            setClientId={form.setMqttClientId}
-            keepaliveSeconds={form.mqttKeepaliveSeconds}
-            setKeepaliveSeconds={form.setMqttKeepaliveSeconds}
-          />
+        {form.common.channelType === "mqtt" && (
+          <MqttChannelForm submitting={submitting} values={form.mqtt} onChange={form.setMqtt} />
         )}
 
-        {form.channelType === "gotify" && (
-          <GotifyChannelForm
-            canCreate={canCreate}
-            submitting={submitting}
-            serverBaseUrl={form.gotifyServerBaseUrl}
-            setServerBaseUrl={form.setGotifyServerBaseUrl}
-            appToken={form.gotifyAppToken}
-            setAppToken={form.setGotifyAppToken}
-            defaultPriority={form.gotifyDefaultPriority}
-            setDefaultPriority={form.setGotifyDefaultPriority}
-            defaultExtrasJson={form.gotifyDefaultExtrasJson}
-            setDefaultExtrasJson={form.setGotifyDefaultExtrasJson}
-          />
+        {form.common.channelType === "gotify" && (
+          <GotifyChannelForm submitting={submitting} values={form.gotify} onChange={form.setGotify} />
         )}
       </div>
 
-      <div className="mt-3">
-        <button
-          type="button"
-          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          disabled={!canCreate || submitting}
-          onClick={() => void submit()}
-        >
-          Create
-        </button>
-
-        {!canCreate && (
-          <div className="mt-2 text-xs text-warning">Verify your email to create channels.</div>
-        )}
-      </div>
+      <button
+        type="button"
+        className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        disabled={submitting}
+        onClick={() => void submit()}
+      >
+        Create
+      </button>
     </div>
   );
 }

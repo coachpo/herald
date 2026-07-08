@@ -1,55 +1,15 @@
+import type { MqttFormValues } from "./formState";
+
 export interface MqttChannelFormProps {
-  canCreate: boolean;
   submitting: boolean;
-  brokerHost: string;
-  setBrokerHost: (val: string) => void;
-  brokerPort: string;
-  setBrokerPort: (val: string) => void;
-  topic: string;
-  setTopic: (val: string) => void;
-  username: string;
-  setUsername: (val: string) => void;
-  password: string;
-  setPassword: (val: string) => void;
-  tls: boolean;
-  setTls: (val: boolean) => void;
-  tlsInsecure: boolean;
-  setTlsInsecure: (val: boolean) => void;
-  qos: string;
-  setQos: (val: string) => void;
-  retain: boolean;
-  setRetain: (val: boolean) => void;
-  clientId: string;
-  setClientId: (val: string) => void;
-  keepaliveSeconds: string;
-  setKeepaliveSeconds: (val: string) => void;
+  values: MqttFormValues;
+  onChange: (values: MqttFormValues) => void;
 }
 
 export function MqttChannelForm({
-  canCreate,
   submitting,
-  brokerHost,
-  setBrokerHost,
-  brokerPort,
-  setBrokerPort,
-  topic,
-  setTopic,
-  username,
-  setUsername,
-  password,
-  setPassword,
-  tls,
-  setTls,
-  tlsInsecure,
-  setTlsInsecure,
-  qos,
-  setQos,
-  retain,
-  setRetain,
-  clientId,
-  setClientId,
-  keepaliveSeconds,
-  setKeepaliveSeconds,
+  values,
+  onChange,
 }: MqttChannelFormProps) {
   return (
     <>
@@ -61,9 +21,9 @@ export function MqttChannelForm({
           autoComplete="off"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
           placeholder="mqtt.example.com"
-          value={brokerHost}
-          onChange={(e) => setBrokerHost(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.brokerHost}
+          onChange={(e) => onChange({ ...values, brokerHost: e.target.value })}
+          disabled={submitting}
         />
       </label>
       <label className="block">
@@ -75,9 +35,9 @@ export function MqttChannelForm({
           type="number"
           min={1}
           max={65535}
-          value={brokerPort}
-          onChange={(e) => setBrokerPort(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.brokerPort}
+          onChange={(e) => onChange({ ...values, brokerPort: e.target.value })}
+          disabled={submitting}
         />
       </label>
       <label className="block md:col-span-2">
@@ -88,9 +48,9 @@ export function MqttChannelForm({
           autoComplete="off"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
           placeholder="herald/messages"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.topic}
+          onChange={(e) => onChange({ ...values, topic: e.target.value })}
+          disabled={submitting}
         />
       </label>
 
@@ -101,9 +61,9 @@ export function MqttChannelForm({
           name="username"
           autoComplete="off"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.username}
+          onChange={(e) => onChange({ ...values, username: e.target.value })}
+          disabled={submitting}
         />
       </label>
       <label className="block">
@@ -114,9 +74,9 @@ export function MqttChannelForm({
           autoComplete="off"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
           type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.password}
+          onChange={(e) => onChange({ ...values, password: e.target.value })}
+          disabled={submitting}
         />
       </label>
 
@@ -125,9 +85,9 @@ export function MqttChannelForm({
           id="mqtt-tls"
           name="tls"
           type="checkbox"
-          checked={tls}
-          onChange={(e) => setTls(e.target.checked)}
-          disabled={!canCreate || submitting}
+          checked={values.tls}
+          onChange={(e) => onChange({ ...values, tls: e.target.checked })}
+          disabled={submitting}
         />
         <span className="text-sm text-muted-foreground">TLS</span>
       </label>
@@ -136,9 +96,9 @@ export function MqttChannelForm({
           id="mqtt-tls-insecure"
           name="tls_insecure"
           type="checkbox"
-          checked={tlsInsecure}
-          onChange={(e) => setTlsInsecure(e.target.checked)}
-          disabled={!canCreate || submitting || !tls}
+          checked={values.tlsInsecure}
+          onChange={(e) => onChange({ ...values, tlsInsecure: e.target.checked })}
+          disabled={submitting || !values.tls}
         />
         <span className="text-sm text-muted-foreground">TLS insecure</span>
       </label>
@@ -149,9 +109,9 @@ export function MqttChannelForm({
           id="mqtt-qos"
           name="qos"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-          value={qos}
-          onChange={(e) => setQos(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.qos}
+          onChange={(e) => onChange({ ...values, qos: e.target.value })}
+          disabled={submitting}
         >
           <option value="0">0</option>
           <option value="1">1</option>
@@ -163,9 +123,9 @@ export function MqttChannelForm({
           id="mqtt-retain"
           name="retain"
           type="checkbox"
-          checked={retain}
-          onChange={(e) => setRetain(e.target.checked)}
-          disabled={!canCreate || submitting}
+          checked={values.retain}
+          onChange={(e) => onChange({ ...values, retain: e.target.checked })}
+          disabled={submitting}
         />
         <span className="text-sm text-muted-foreground">Retain</span>
       </label>
@@ -177,9 +137,9 @@ export function MqttChannelForm({
           name="client_id"
           autoComplete="off"
           className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm font-mono"
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.clientId}
+          onChange={(e) => onChange({ ...values, clientId: e.target.value })}
+          disabled={submitting}
         />
       </label>
       <label className="block">
@@ -191,16 +151,16 @@ export function MqttChannelForm({
           type="number"
           min={1}
           max={3600}
-          value={keepaliveSeconds}
-          onChange={(e) => setKeepaliveSeconds(e.target.value)}
-          disabled={!canCreate || submitting}
+          value={values.keepaliveSeconds}
+          onChange={(e) => onChange({ ...values, keepaliveSeconds: e.target.value })}
+          disabled={submitting}
         />
       </label>
     </>
   );
 }
 
-export function validateMqttConfig(state: Omit<MqttChannelFormProps, "canCreate" | "submitting" | "setBrokerHost" | "setBrokerPort" | "setTopic" | "setUsername" | "setPassword" | "setTls" | "setTlsInsecure" | "setQos" | "setRetain" | "setClientId" | "setKeepaliveSeconds">): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
+export function validateMqttConfig(state: MqttFormValues): { ok: true; config: Record<string, unknown> } | { ok: false; error: string } {
   if (!state.brokerHost.trim()) {
     return { ok: false, error: "Broker host is required." };
   }

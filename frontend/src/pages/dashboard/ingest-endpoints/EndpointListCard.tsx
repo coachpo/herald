@@ -5,7 +5,6 @@ import type { IngestEndpoint } from "@/lib/types";
 export interface EndpointListCardProps {
   loading: boolean;
   endpoints: IngestEndpoint[];
-  canCreate: boolean;
   copiedEndpointId: string | null;
   onCopyUrl: (endpointId: string, url: string) => void;
   onRevoke: (endpointId: string) => void;
@@ -16,7 +15,6 @@ export interface EndpointListCardProps {
 export function EndpointListCard({
   loading,
   endpoints,
-  canCreate,
   copiedEndpointId,
   onCopyUrl,
   onRevoke,
@@ -72,7 +70,7 @@ export function EndpointListCard({
                   <Button
                     variant="outline"
                     size="xs"
-                    disabled={revoked || !canCreate}
+                    disabled={revoked}
                     onClick={() => onRevoke(endpoint.id)}
                   >
                     Revoke
@@ -80,7 +78,6 @@ export function EndpointListCard({
                   <Button
                     variant="outline"
                     size="xs"
-                    disabled={!canCreate}
                     onClick={() => onArchive(endpoint.id)}
                   >
                     Archive

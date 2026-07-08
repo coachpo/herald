@@ -10,7 +10,6 @@ import { ChannelListItem } from "./channels/ChannelListItem";
 
 export default function ChannelsPage() {
   const auth = useAuth();
-  const canCreate = Boolean(auth.user?.email_verified_at);
 
   const [items, setItems] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +51,7 @@ export default function ChannelsPage() {
         </div>
       )}
 
-      <CreateChannelCard canCreate={canCreate} onCreated={() => void load()} />
+      <CreateChannelCard onCreated={() => void load()} />
 
       <div className="rounded-2xl border border-border bg-card">
         <div className="border-b border-border px-4 py-3 text-sm font-semibold">Channels</div>
@@ -66,7 +65,6 @@ export default function ChannelsPage() {
               <ChannelListItem
                 key={c.id}
                 channel={c}
-                canCreate={canCreate}
                 onDeleted={(id) => {
                   void id;
                   void load();

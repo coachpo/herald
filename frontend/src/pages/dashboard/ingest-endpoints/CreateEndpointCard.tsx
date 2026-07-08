@@ -3,14 +3,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export interface CreateEndpointCardProps {
-  canCreate: boolean;
   name: string;
   setName: (value: string) => void;
   onCreate: () => void;
 }
 
 export function CreateEndpointCard({
-  canCreate,
   name,
   setName,
   onCreate,
@@ -28,16 +26,12 @@ export function CreateEndpointCard({
             placeholder="Primary endpoint"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            disabled={!canCreate}
           />
         </div>
-        <Button className="sm:shrink-0" disabled={!canCreate || !name.trim()} onClick={onCreate}>
+        <Button className="sm:shrink-0" disabled={!name.trim()} onClick={onCreate}>
           Create
         </Button>
       </div>
-      {!canCreate && (
-        <div className="mt-2 text-xs text-warning">Verify your email to create endpoints.</div>
-      )}
     </div>
   );
 }

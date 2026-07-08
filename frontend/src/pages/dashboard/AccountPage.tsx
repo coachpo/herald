@@ -8,7 +8,6 @@ import { authedFetch } from "@/lib/authed";
 export default function AccountPage() {
   const auth = useAuth();
   const user = auth.user;
-  const verified = Boolean(user?.email_verified_at);
 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -19,18 +18,6 @@ export default function AccountPage() {
 
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
-
-  async function callNoBody(path: string) {
-    setError(null);
-    setMessage(null);
-    const res = await authedFetch(auth, path, { method: "POST" });
-    if (!res.ok) {
-      const err = await readApiError(res);
-      setError(err.message);
-      return false;
-    }
-    return true;
-  }
 
   return (
     <div className="space-y-6">
@@ -53,25 +40,6 @@ export default function AccountPage() {
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-sm font-semibold">Profile</div>
         <div className="mt-2 text-sm text-muted-foreground">Email: {user?.email}</div>
-        <div className="mt-1 text-sm text-muted-foreground">
-          Status:{" "}
-          {verified ? (
-            <span className="font-semibold text-success">verified</span>
-          ) : (
-            <span className="font-semibold text-warning">unverified</span>
-          )}
-        </div>
-        {!verified && (
-          <button
-            className="mt-3 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted"
-            onClick={async () => {
-              const ok = await callNoBody("/api/auth/resend-verification");
-              if (ok) setMessage("Verification email sent (if allowed). Check your inbox.");
-            }}
-          >
-            Resend verification email
-          </button>
-        )}
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4">
@@ -100,7 +68,7 @@ export default function AccountPage() {
                 return;
               }
               const data = await readJson<{ user: { email: string } }>(res);
-              setMessage(`Email updated to ${data.user.email}. Verification required again.`);
+              setMessage(`Email updated to ${data.user.email}.`);
               setNewEmail("");
               await auth.refresh();
             }}

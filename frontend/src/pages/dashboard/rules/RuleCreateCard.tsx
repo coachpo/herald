@@ -1,7 +1,6 @@
 import type { Channel, IngestEndpoint } from "@/lib/types";
 
 export interface RuleCreateCardProps {
-  canCreate: boolean;
   channels: Channel[];
   endpoints: IngestEndpoint[];
   name: string;
@@ -33,7 +32,6 @@ export interface RuleCreateCardProps {
 }
 
 export function RuleCreateCard({
-  canCreate,
   channels,
   endpoints,
   name,
@@ -76,7 +74,6 @@ export function RuleCreateCard({
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            disabled={!canCreate}
           />
         </label>
         <label className="flex items-end gap-2">
@@ -86,7 +83,6 @@ export function RuleCreateCard({
             type="checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            disabled={!canCreate}
           />
           <span className="text-sm text-muted-foreground">Enabled</span>
         </label>
@@ -99,7 +95,6 @@ export function RuleCreateCard({
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
             value={channelId}
             onChange={(e) => setChannelId(e.target.value)}
-            disabled={!canCreate}
           >
             {channels.map((c) => (
               <option key={c.id} value={c.id}>
@@ -118,7 +113,6 @@ export function RuleCreateCard({
                 <button
                   key={ep.id}
                   type="button"
-                  disabled={!canCreate}
                   className={
                     "rounded-full border px-3 py-1 text-xs font-medium " +
                     (on
@@ -148,7 +142,6 @@ export function RuleCreateCard({
             className="mt-1 h-24 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 text-sm"
             value={containsLines}
             onChange={(e) => setContainsLines(e.target.value)}
-            disabled={!canCreate}
           />
         </label>
         <label className="block">
@@ -163,7 +156,6 @@ export function RuleCreateCard({
             }
             value={regex}
             onChange={(e) => setRegex(e.target.value)}
-            disabled={!canCreate}
           />
           {!regexValidation.ok && (
             <div className="mt-1 text-xs text-destructive">Invalid regex: {regexValidation.error}</div>
@@ -178,7 +170,6 @@ export function RuleCreateCard({
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
             value={priorityMin}
             onChange={(e) => setPriorityMin(e.target.value)}
-            disabled={!canCreate}
           >
             <option value="">Any</option>
             <option value="1">1</option>
@@ -197,7 +188,6 @@ export function RuleCreateCard({
             className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
             value={priorityMax}
             onChange={(e) => setPriorityMax(e.target.value)}
-            disabled={!canCreate}
           >
             <option value="">Any</option>
             <option value="1">1</option>
@@ -218,7 +208,6 @@ export function RuleCreateCard({
             value={tagsCsv}
             onChange={(e) => setTagsCsv(e.target.value)}
             placeholder="deploy,production"
-            disabled={!canCreate}
           />
         </label>
 
@@ -232,7 +221,6 @@ export function RuleCreateCard({
             value={groupExact}
             onChange={(e) => setGroupExact(e.target.value)}
             placeholder="deploys"
-            disabled={!canCreate}
           />
         </label>
       </div>
@@ -249,7 +237,6 @@ export function RuleCreateCard({
           className="mt-1 h-48 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs"
           value={payloadJson}
           onChange={(e) => setPayloadJson(e.target.value)}
-          disabled={!canCreate}
         />
         <div className="mt-2 text-xs text-muted-foreground">
           Available vars: {"{{message.title}}"}, {"{{message.body}}"}, {"{{message.group}}"},
@@ -264,14 +251,11 @@ export function RuleCreateCard({
       <div className="mt-3">
         <button
           className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          disabled={!canCreate || !name.trim() || !channelId || !regexValidation.ok || !priorityValidation.ok}
+          disabled={!name.trim() || !channelId || !regexValidation.ok || !priorityValidation.ok}
           onClick={onCreate}
         >
           Create
         </button>
-        {!canCreate && (
-          <div className="mt-2 text-xs text-warning">Verify your email to create rules.</div>
-        )}
       </div>
     </div>
   );
