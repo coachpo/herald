@@ -52,3 +52,16 @@ def test_development_accepts_defaults(monkeypatch):
     _clear()
     assert get_settings().secret_key == "dev-insecure"
     _clear()
+
+
+def test_production_rejects_change_me_template_secret(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "change-me-32-bytes-min")
+    monkeypatch.setenv(
+        "CHANNEL_CONFIG_ENCRYPTION_KEY",
+        "dKkPUi_l6pJiD24yQWhv14jArlTc95xJMu38xpv8uKc=",
+    )
+    _clear()
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        get_settings()
+    _clear()

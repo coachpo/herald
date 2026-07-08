@@ -110,9 +110,9 @@ def get_settings() -> Settings:
 
     if app_env == "production":
         problems = []
-        if secret_key in ("", "dev-insecure"):
+        if secret_key in ("", "dev-insecure") or secret_key.startswith("change-me"):
             problems.append("SECRET_KEY must be set to a strong value")
-        if jwt_signing_key == "dev-insecure":
+        if jwt_signing_key == "dev-insecure" or jwt_signing_key.startswith("change-me"):
             problems.append("JWT_SIGNING_KEY must not be a default value")
         if not channel_config_encryption_key:
             problems.append("CHANNEL_CONFIG_ENCRYPTION_KEY must be set")
