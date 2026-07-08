@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.tokens import hash_token
@@ -217,33 +218,42 @@ async def create_ingest_message(
     remote_ip: str,
     user_agent: str | None,
     content_type: str | None,
-) -> UUID:
+    message_id: UUID | None = None,
+    received_at: datetime | None = None,
+    relay_via: str | None = None,
+) -> tuple[str, bool]:
     tables = await get_tables()
     now = datetime.now(tz.utc)
-    message_id = uuid4()
-
-    await session.execute(
-        tables.messages.insert().values(
-            id=message_id,
-            user_id=user_id,
-            ingest_endpoint_id=endpoint_id,
-            received_at=now,
-            title=payload.title,
-            body=payload.body,
-            group=payload.group,
-            priority=payload.priority,
-            tags_json=payload.tags,
-            url=_normalized_url(payload.url),
-            extras_json=payload.extras,
-            content_type=content_type or None,
-            body_sha256=hashlib.sha256(payload.body.encode("utf-8")).hexdigest(),
-            headers_json=redact_headers(dict(headers)),
-            query_json=dict(query_params),
-            remote_ip=remote_ip,
-            user_agent=user_agent,
-            deleted_at=None,
-        )
+    message_id_value = message_id or uuid4()
+    values = dict(
+        id=message_id_value,
+        user_id=user_id,
+        ingest_endpoint_id=endpoint_id,
+        received_at=received_at or now,
+        title=payload.title,
+        body=payload.body,
+        group=payload.group,
+        priority=payload.priority,
+        tags_json=payload.tags,
+        url=_normalized_url(payload.url),
+        extras_json=payload.extras,
+        content_type=content_type or None,
+        body_sha256=hashlib.sha256(payload.body.encode("utf-8")).hexdigest(),
+        headers_json=redact_headers(dict(headers)),
+        query_json=dict(query_params),
+        remote_ip=remote_ip,
+        user_agent=user_agent,
+        relay_via=relay_via,
+        deleted_at=None,
     )
+    stmt = pg_insert(tables.messages).values(**values).on_conflict_do_nothing(
+        index_elements=[tables.messages.c.id]
+    )
+    result = await session.execute(stmt)
+    duplicate = result.rowcount == 0
+    if duplicate:
+        await session.rollback()
+        return serialize_uuid(values["id"]), True
 
     await session.execute(
         update(tables.ingest_endpoints)
@@ -281,7 +291,7 @@ async def create_ingest_message(
             tables.deliveries.insert().values(
                 id=uuid4(),
                 user_id=user_id,
-                message_id=message_id,
+                message_id=message_id_value,
                 rule_id=UUID(serialize_uuid(rule.id)),
                 channel_id=UUID(serialize_uuid(rule.channel_id)),
                 status="queued",
@@ -293,7 +303,7 @@ async def create_ingest_message(
         )
 
     await session.commit()
-    return message_id
+    return serialize_uuid(message_id_value), False
 
 
 __all__ = [

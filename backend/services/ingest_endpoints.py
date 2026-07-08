@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.tokens import generate_secret_token, hash_token
+from ..auth.tokens import generate_secret_token, hash_token, sha256_hex
 from ..database import get_tables
 from ..schemas import IngestEndpoint
 from .exceptions import NotFoundError
@@ -82,6 +82,7 @@ async def create_ingest_endpoint(
             user_id=user_id,
             name=name,
             token_hash=hash_token(raw_token),
+            key_sha256=sha256_hex(raw_token),
             created_at=now,
             revoked_at=None,
             last_used_at=None,

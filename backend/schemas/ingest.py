@@ -26,7 +26,8 @@ class IngestEndpoint(BaseModel):
 
 
 class IngestMessageResponse(BaseModel):
-    message_id: UUID
+    message_id: str
+    duplicate: bool = False
 
 
 class IngestEndpointsResponse(BaseModel):

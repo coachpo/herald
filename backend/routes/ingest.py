@@ -1,5 +1,8 @@
 import json
+import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -16,6 +19,7 @@ from ..services.exceptions import IngestError
 router = APIRouter()
 
 _MAX_INGEST_BYTES = 1048576
+_RELAY_VIA_RE = re.compile("[^a-z,]")
 
 
 def _json_error(
@@ -32,7 +36,6 @@ def _json_error(
     response_model=IngestMessageResponse,
     status_code=201,
 )
-@router.post("/ingest/{endpoint_id}", include_in_schema=False)
 async def ingest_message(endpoint_id: str, request: Request) -> JSONResponse:
     content_type = request.headers.get("content-type", "")
     ingest_key = request.headers.get("x-herald-ingest-key") or ""
@@ -48,6 +51,7 @@ async def ingest_message(endpoint_id: str, request: Request) -> JSONResponse:
                 endpoint_id_raw=endpoint_id,
                 ingest_key=ingest_key,
             )
+            relay_message_id, relay_received_at, relay_via = _parse_relay_headers(request)
             ct_base = content_type.split(";", 1)[0].strip().lower()
             if ct_base != "application/json":
                 return _json_error(
@@ -83,7 +87,7 @@ async def ingest_message(endpoint_id: str, request: Request) -> JSONResponse:
                 )
 
             payload = validate_ingest_payload(data)
-            message_id = await create_ingest_message(
+            message_id, duplicate = await create_ingest_message(
                 session,
                 endpoint_id=authenticated.endpoint_id,
                 user_id=authenticated.user_id,
@@ -93,13 +97,50 @@ async def ingest_message(endpoint_id: str, request: Request) -> JSONResponse:
                 remote_ip=remote_ip,
                 user_agent=user_agent,
                 content_type=ct_base or None,
+                message_id=relay_message_id,
+                received_at=relay_received_at,
+                relay_via=relay_via,
             )
         except IngestError as exc:
             return _json_error(code=exc.code, message=exc.message, status=exc.status)
 
+        body = {"message_id": message_id}
+        if duplicate:
+            body["duplicate"] = True
         return JSONResponse(
-            IngestMessageResponse(message_id=message_id).model_dump(mode="json"),
-            status_code=201,
+            IngestMessageResponse(**body).model_dump(mode="json", exclude_defaults=True),
+            status_code=200 if duplicate else 201,
         )
 
     return _json_error(code="internal_error", message="internal error", status=500)
+
+
+def _parse_relay_headers(request: Request) -> tuple[UUID | None, datetime | None, str | None]:
+    raw_id = (request.headers.get("x-herald-message-id") or "").strip()
+    message_id = None
+    if raw_id:
+        try:
+            message_id = UUID(raw_id)
+        except ValueError as exc:
+            raise IngestError(
+                code="invalid_relay_message_id",
+                message="invalid relay message id",
+                status=422,
+            ) from exc
+
+    received_at = None
+    raw_received = (request.headers.get("x-herald-received-at") or "").strip()
+    if raw_received:
+        try:
+            parsed = datetime.fromisoformat(raw_received.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            if abs(now - parsed.astimezone(timezone.utc)) <= timedelta(hours=48):
+                received_at = parsed.astimezone(timezone.utc)
+        except ValueError:
+            received_at = None
+
+    raw_via = (request.headers.get("x-herald-relay-via") or "").lower()
+    relay_via = _RELAY_VIA_RE.sub("", raw_via)[:64] or None
+    return message_id, received_at, relay_via
