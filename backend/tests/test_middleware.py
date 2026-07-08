@@ -95,3 +95,14 @@ async def test_ingest_rate_limit_differs_per_endpoint(monkeypatch):
             headers={"X-Herald-Ingest-Key": "bogus"},
         )
     assert (r1.status_code, r2.status_code) == (401, 401)
+
+
+def test_rate_limit_bounded_under_fresh_key_flood():
+    """Garbage-key floods must not grow the bucket table without bound."""
+    from backend.middleware import RateLimitMiddleware
+
+    mw = RateLimitMiddleware(app=None)
+    for i in range(20_000):
+        assert mw._allow(f"ingest:1.2.3.4:garbage-{i}", 120) is True
+
+    assert len(mw._buckets) <= 10_000

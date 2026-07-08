@@ -126,10 +126,7 @@ class RateLimitMiddleware:
             try:
                 canonical = uuid.UUID(segment).hex
             except ValueError:
-                try:
-                    canonical = uuid.UUID(hex=segment).hex
-                except ValueError:
-                    canonical = segment
+                canonical = segment[:64]
             return (
                 f"ingest:{client[0]}:{canonical}",
                 settings.rate_limit_ingest_per_minute,
@@ -147,10 +144,11 @@ class RateLimitMiddleware:
             return False
         if len(self._buckets) > 10_000:
             cutoff = now - 120.0
-            for stale_key in [
-                k for k, (_, ts) in self._buckets.items() if ts < cutoff
-            ]:
+            stale = [k for k, (_, ts) in self._buckets.items() if ts < cutoff]
+            for stale_key in stale:
                 del self._buckets[stale_key]
+            if len(self._buckets) > 10_000:
+                self._buckets.clear()
         self._buckets[key] = (tokens - 1.0, now)
         return True
 
