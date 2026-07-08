@@ -62,7 +62,8 @@ def _validation_error(message: str) -> IngestError:
 def _validate_url(value: str) -> bool:
     try:
         result = urlparse(value)
-        return result.scheme in {"http", "https"} and bool(result.netloc)
+        result.port
+        return result.scheme in {"http", "https"} and bool(result.hostname)
     except Exception:
         return False
 

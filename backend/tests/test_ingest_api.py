@@ -52,6 +52,10 @@ async def test_validation_errors(app, setup):
     assert (await _post(app, ep, {"title": "no body"})).status_code == 422
     assert (await _post(app, ep, {"body": "x", "url": "javascript://example.com/%0aalert(1)"})).status_code == 422
     assert (await _post(app, ep, {"body": "x", "url": "ftp://example.com/x"})).status_code == 422
+    assert (await _post(app, ep, {"body": "x", "url": "http:///x"})).status_code == 422
+    assert (await _post(app, ep, {"body": "x", "url": "http://:80/x"})).status_code == 422
+    assert (await _post(app, ep, {"body": "x", "url": "http://user@:80/x"})).status_code == 422
+    assert (await _post(app, ep, {"body": "x", "url": "http://example.com:bad/x"})).status_code == 422
     assert (await _post(app, ep, raw=b"not json")).status_code == 400
     assert (await _post(app, ep, raw=b"x" * (1024 * 1024 + 1))).status_code == 413
     r = await _post(app, ep, raw=b"plain", headers={"Content-Type": "text/plain"})

@@ -55,6 +55,13 @@ test("validatePayload matches backend field types", () => {
     error: "invalid_url",
   });
   assert.deepEqual(validatePayload({ body: "ok", url: "ftp://example.com/x" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "http:///x" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "http://:80/x" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "http://user@:80/x" }), { ok: false, error: "invalid_url" });
+  assert.deepEqual(validatePayload({ body: "ok", url: "http://example.com:bad/x" }), {
+    ok: false,
+    error: "invalid_url",
+  });
   assert.deepEqual(validatePayload({ body: "ok", extras: null }), { ok: false, error: "invalid_extras" });
   assert.deepEqual(validatePayload({ body: "ok", extras: { count: 1 } }), { ok: false, error: "invalid_extras" });
 });

@@ -43,10 +43,12 @@ export function validatePayload(json) {
   }
   if (json.url != null) {
     if (typeof json.url !== "string") return { ok: false, error: "invalid_url" };
-    if (json.url.trim()) {
+    const trimmedUrl = json.url.trim();
+    if (trimmedUrl) {
       try {
-        const parsed = new URL(json.url.trim());
-        if (!["http:", "https:"].includes(parsed.protocol) || !parsed.host) {
+        if (!/^https?:\/\/[^/?#]+/i.test(trimmedUrl)) return { ok: false, error: "invalid_url" };
+        const parsed = new URL(trimmedUrl);
+        if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname) {
           return { ok: false, error: "invalid_url" };
         }
       } catch {
