@@ -37,7 +37,7 @@ The backend is the only rule engine and provider dispatch engine. Relays only au
 
 ## Worker
 
-The worker sweeps stale `sending` deliveries back to `retry`, claims due rows with `FOR UPDATE SKIP LOCKED`, and processes each delivery in its own database session.
+The worker sweeps `sending` deliveries older than 10 minutes back to `retry`, claims due `queued`/`retry` rows with `FOR UPDATE SKIP LOCKED`, and processes each delivery in its own database session. Failed provider sends retry with exponential backoff from `DELIVERY_BACKOFF_BASE_SECONDS` up to `DELIVERY_BACKOFF_MAX_SECONDS`, then become `failed` after `DELIVERY_MAX_ATTEMPTS`. Disabled or missing rules, channels, or messages fail the delivery without retry.
 
 ## Edge
 

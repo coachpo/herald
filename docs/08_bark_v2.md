@@ -66,4 +66,4 @@ Herald passes through arbitrary JSON keys, so Bark V2 fields can be set in rule 
 - Backend applies SSRF checks to Bark destination URLs.
 - Backend uses a 5 second HTTP timeout by default.
 - Response metadata is stored as capped snippets plus parsed JSON when available.
-- Edge uses the same `/push` payload model, but does not implement backend SSRF checks or the legacy GET fallback.
+- Edge relays do not dispatch Bark notifications; they only buffer and forward ingest requests to the backend.

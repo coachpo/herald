@@ -43,7 +43,7 @@ Channel configs are encrypted at rest.
 - `id`, `user_id`, `name`, `enabled`, `filter_json`
 - `channel_id`, `payload_template_json`, `created_at`, `updated_at`
 
-Supported filters are endpoint ids, body contains/regex, priority range, tags, and group.
+Delivery matching applies body contains/regex, priority range, and exact group filters. The rule UI and preview APIs also accept endpoint-id and tag filters, but the live ingest enqueue path does not currently pass endpoint id or tags into the matcher.
 
 ### `deliveries`
 

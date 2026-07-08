@@ -29,7 +29,7 @@
 
 ## Outbound Safety
 
-Backend providers use SSRF checks before HTTP dispatch. MQTT host validation can be tuned with `MQTT_BLOCK_PRIVATE_NETWORKS`, but loopback and link-local destinations remain unsafe and should not be allowed.
+Backend providers use SSRF checks before HTTP dispatch. Bark, ntfy, and Gotify validate destination URLs. MQTT channel creation always blocks private, loopback, and link-local broker hosts; `MQTT_BLOCK_PRIVATE_NETWORKS` only affects the dispatch-time MQTT check.
 
 Relays only fetch fixed upstream URLs. They do not fetch user-controlled provider URLs.
 

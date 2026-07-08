@@ -2,7 +2,7 @@
 
 ## Overview
 
-Documentation is expected to describe the implemented system. `docs/openapi.yaml` is generated from the FastAPI app and should stay aligned with routes.
+Documentation is expected to describe the implemented system. `docs/openapi.yaml` is generated from the FastAPI app and should stay aligned with generated routes. Manually parsed request bodies and provider config constraints belong in the human docs.
 
 ## Index
 
@@ -16,7 +16,6 @@ Documentation is expected to describe the implemented system. `docs/openapi.yaml
 - `08_bark_v2.md`: Bark provider details
 - `09_repo_structure.md`: package boundaries
 - `10_edge.md`: Cloudflare and EdgeOne relay protocol
-- `14_production_upgrade_verification.md`: verification evidence for the production upgrade
 - `openapi.yaml`: generated OpenAPI schema
 
 ## Rules

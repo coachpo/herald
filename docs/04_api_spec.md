@@ -1,10 +1,10 @@
 # API Guide
 
-`docs/openapi.yaml` is generated from the FastAPI app and is the schema reference.
+`docs/openapi.yaml` is generated from the FastAPI app. This guide adds the details that are handled manually in route code, such as ingest body validation and provider config constraints.
 
 ## Auth
 
-Dashboard APIs use `Authorization: Bearer <access token>`. Refresh tokens are sent in JSON to `/api/auth/refresh`; the frontend stores them in `sessionStorage`.
+Protected dashboard APIs use `Authorization: Bearer <access token>`. Signup, login, refresh, and logout do not require an access token; refresh/logout send the refresh token in JSON. The frontend stores refresh tokens in `sessionStorage` and access tokens in React state.
 
 Endpoints:
 
@@ -28,6 +28,15 @@ X-Herald-Ingest-Key: <raw key>
 ```
 
 Allowed fields: `body` (required), `title`, `group`, `priority`, `tags`, `url`, `extras`.
+
+Validation:
+
+- `body` must be a non-empty string.
+- `priority` defaults to `3` and must be an integer from `1` to `5`.
+- `tags` must be an array of strings.
+- `url`, when non-empty, must be `http` or `https`.
+- `extras` must be an object with string values.
+- Unknown top-level fields are rejected.
 
 Relay headers:
 
@@ -60,12 +69,21 @@ Messages:
 - `POST /api/messages/batch-delete`
 - `GET /api/messages/{message_id}/deliveries`
 
+`GET /api/messages` accepts `ingest_endpoint_id`, `priority_min`, `priority_max`, `from`, and `to`. `POST /api/messages/batch-delete` requires `older_than_days` and accepts `ingest_endpoint_id`.
+
 Channels:
 
 - `GET /api/channels`
 - `POST /api/channels`
 - `DELETE /api/channels/{channel_id}`
 - `POST /api/channels/{channel_id}/test`
+
+Channel config fields:
+
+- Bark: `server_base_url`, either `device_key` or `device_keys`, optional `default_payload_json`. A pasted Bark key URL is normalized.
+- ntfy: `server_base_url`, `topic`, optional `access_token` or `username` plus `password`, optional `default_headers_json`.
+- MQTT: `broker_host`, `topic`, optional `broker_port`, `username` plus `password`, `tls`, `tls_insecure`, `qos` 0-2, `retain`, `client_id`, and `keepalive_seconds`.
+- Gotify: `server_base_url`, `app_token`, optional `default_priority` 0-10, `default_extras_json`, and `default_payload_json`.
 
 Rules:
 
@@ -76,6 +94,8 @@ Rules:
 - `DELETE /api/rules/{rule_id}`
 - `POST /api/rules/test`
 - `POST /api/rules/{rule_id}/test`
+
+Rules store arbitrary JSON in `filter` and `payload_template`. Live delivery matching applies `filter.body.contains`, `filter.body.regex`, `filter.priority.min`, `filter.priority.max`, and exact `filter.group`. Preview/test routes also build sample endpoint and tag context for the UI.
 
 ## Edge Config
 

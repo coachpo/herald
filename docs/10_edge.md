@@ -47,7 +47,7 @@ The backend exports endpoint digests from `GET /api/edge-config` with `Authoriza
 }
 ```
 
-Sync both relays with:
+Relays cache config for 60 seconds. Push config to both relays with:
 
 ```bash
 EDGE_SYNC_TOKEN="$EDGE_SYNC_TOKEN" RELAY_ADMIN_TOKEN="$RELAY_ADMIN_TOKEN" \
@@ -65,15 +65,25 @@ Both relays expose:
 - `GET /admin/status`
 - `POST /relay/drain`
 
-Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`.
+Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`. `/admin/status` returns pending count, dead count, oldest pending timestamp, and config version. `/relay/drain` returns drained, failed, and dead counts.
+
+Permanent upstream statuses are `400`, `401`, `403`, `404`, `413`, `415`, and `422`. Other failures retry with exponential backoff. Pending envelopes older than 7 days move to dead records; dead records are retained for about 30 days.
 
 ## Cloudflare
 
 - Entry: `edge/cloudflare/src/worker.mjs`
 - Config: `edge/cloudflare/wrangler.toml`
-- Buffer: Durable Object SQLite
-- Retry: Durable Object alarm with exponential backoff
+- Buffer: Durable Object SQLite binding `RELAY_BUFFER`
 - KV: `EDGE_CONFIG` stores only the config object
+- Retry: Durable Object alarm with exponential backoff
+- Drain batch: up to 25 pending rows
+
+`wrangler.toml` must be updated before deploy:
+
+- Set `[vars].UPSTREAM_URL` to the backend base URL.
+- Replace `REPLACE_WITH_NAMESPACE_ID` with the Cloudflare KV namespace id for `EDGE_CONFIG`.
+- Keep the `RelayBuffer` Durable Object binding and `new_sqlite_classes = ["RelayBuffer"]` migration.
+- Set `RELAY_ADMIN_TOKEN` as a Worker secret.
 
 Commands from `edge/`:
 
@@ -92,8 +102,17 @@ npm run deploy
 - Buffer: Pages KV keys prefixed with `p_`
 - Dead records: Pages KV keys prefixed with `d_`
 - Retry: opportunistic drain plus GitHub Actions fallback
+- Drain batch: 20 pending keys
 
-EdgeOne Pages injects the KV binding as global `EDGE_CONFIG`, not `context.env.EDGE_CONFIG`. `context.env` carries ordinary variables such as `UPSTREAM_URL` and `RELAY_ADMIN_TOKEN`.
+EdgeOne Pages injects the KV binding as global `EDGE_CONFIG`, not `context.env.EDGE_CONFIG`. `context.env` must provide `UPSTREAM_URL` and `RELAY_ADMIN_TOKEN`.
+
+Provisioning requirements:
+
+- Create or link the EdgeOne Pages project.
+- Create a Pages KV namespace and bind it to the function as `EDGE_CONFIG`.
+- Set `UPSTREAM_URL` to the Cloudflare Worker base URL.
+- Set `RELAY_ADMIN_TOKEN` as an EdgeOne environment variable.
+- Deploy the function, then run `scripts/sync_edge_config.py` so `/admin/config` writes the active endpoint digest config.
 
 Deploy from `edge/edgeone/`:
 
@@ -109,5 +128,5 @@ China mainland service requires an ICP-filed domain. Without that, use a non-mai
 
 `.github/workflows/edge-drain.yml` calls the EdgeOne `/relay/drain` endpoint every five minutes. Configure repository secrets:
 
-- `EDGEONE_DRAIN_URL`
+- `EDGEONE_DRAIN_URL`: full EdgeOne drain URL including `/relay/drain`
 - `RELAY_ADMIN_TOKEN`
