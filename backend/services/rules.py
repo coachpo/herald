@@ -12,8 +12,14 @@ from ..database import get_tables, serialize_uuid
 from ..schemas import Rule
 from .channel_operations import get_channel_record, rule_to_dict
 from .channel_records import ChannelRecord
-from .channel_validation import require_string_field
 from .exceptions import NotFoundError
+
+
+def _require_name(name: str) -> str:
+    value = str(name or "").strip()
+    if not value:
+        raise ValueError("name_required")
+    return value
 
 
 def _rule_from_row(row: Any) -> Rule:
@@ -114,7 +120,7 @@ async def create_rule(
     payload_template: dict[str, Any],
 ) -> dict[str, Any]:
     tables = await get_tables()
-    normalized_name = require_string_field({"name": name}, "name")
+    normalized_name = _require_name(name)
 
     rule_id = uuid4()
     now = datetime.now(tz.utc)
@@ -157,7 +163,7 @@ async def update_rule(
     payload_template: dict[str, Any],
 ) -> dict[str, Any]:
     tables = await get_tables()
-    normalized_name = require_string_field({"name": name}, "name")
+    normalized_name = _require_name(name)
 
     async def _update() -> dict[str, Any]:
         await _get_rule_record(session, user_id=user_id, id=id)

@@ -10,13 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..channel_dispatch import dispatch_channel_message
 from ..database import get_tables, serialize_uuid
 from ..schemas import Channel
+from ..schemas.channel_configs import normalize_channel_config, normalize_channel_type
 from .channel_records import ChannelRecord, channel_from_row, channel_to_dict
-from .channel_validation import (
-    _normalize_channel_config,
-    normalize_channel_type,
-    require_string_field,
-)
-from .exceptions import NotFoundError, _json_object
+from .exceptions import ChannelConfigValidationError, NotFoundError, _json_object
 
 
 def rule_to_dict(row: Any) -> dict[str, Any]:
@@ -85,8 +81,10 @@ async def create_channel(
 ) -> dict[str, Any]:
     tables = await get_tables()
     normalized_type = normalize_channel_type(type)
-    normalized_name = require_string_field({"name": name}, "name")
-    normalized_config = _normalize_channel_config(normalized_type, config)
+    normalized_name = str(name or "").strip()
+    if not normalized_name:
+        raise ChannelConfigValidationError(details={"name": ["This field is required."]})
+    normalized_config = normalize_channel_config(normalized_type, config)
     channel_id = uuid4()
     created_at = datetime.now(tz.utc)
 
