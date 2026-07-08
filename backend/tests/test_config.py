@@ -65,3 +65,17 @@ def test_production_rejects_change_me_template_secret(monkeypatch):
     with pytest.raises(RuntimeError, match="SECRET_KEY"):
         get_settings()
     _clear()
+
+
+def test_production_rejects_change_me_template_jwt_key(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "s3cret-value-0123456789abcdef")
+    monkeypatch.setenv("JWT_SIGNING_KEY", "change-me-32-bytes-min")
+    monkeypatch.setenv(
+        "CHANNEL_CONFIG_ENCRYPTION_KEY",
+        "dKkPUi_l6pJiD24yQWhv14jArlTc95xJMu38xpv8uKc=",
+    )
+    _clear()
+    with pytest.raises(RuntimeError, match="JWT_SIGNING_KEY"):
+        get_settings()
+    _clear()

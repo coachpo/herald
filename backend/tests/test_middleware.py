@@ -102,7 +102,7 @@ def test_rate_limit_bounded_under_fresh_key_flood():
     from backend.middleware import RateLimitMiddleware
 
     mw = RateLimitMiddleware(app=None)
-    for i in range(20_000):
+    for i in range(10_001):
         assert mw._allow(f"ingest:1.2.3.4:garbage-{i}", 120) is True
 
     assert len(mw._buckets) <= 10_000

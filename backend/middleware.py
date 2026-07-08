@@ -142,12 +142,12 @@ class RateLimitMiddleware:
         if tokens < 1.0:
             self._buckets[key] = (tokens, now)
             return False
-        if len(self._buckets) > 10_000:
+        if len(self._buckets) >= 10_000:
             cutoff = now - 120.0
             stale = [k for k, (_, ts) in self._buckets.items() if ts < cutoff]
             for stale_key in stale:
                 del self._buckets[stale_key]
-            if len(self._buckets) > 10_000:
+            if len(self._buckets) >= 10_000:
                 self._buckets.clear()
         self._buckets[key] = (tokens - 1.0, now)
         return True
