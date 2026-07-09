@@ -32,7 +32,7 @@ Allowed fields: `body` (required), `title`, `group`, `priority`, `tags`, `url`, 
 Validation:
 
 - `body` must be a non-empty string.
-- `priority` defaults to `3` and must be an integer from `1` to `5`.
+- `priority` defaults to `3` and must be an integer-valued JSON number from `1` to `5`; `3.0` is accepted and normalized to `3`.
 - `tags` must be an array of strings.
 - `url`, when non-empty, must be `http` or `https`.
 - `extras` must be an object with string values.
@@ -48,7 +48,7 @@ Responses:
 
 - `201 {"message_id":"..."}` for a new message.
 - `200 {"message_id":"...","duplicate":true}` for a replayed relay id.
-- `400`, `401`, `403`, `413`, `415`, or `422` for invalid requests.
+- `400`, `401`, `403`, `413`, `415`, `422`, or `429` for invalid or rate-limited requests.
 
 ## Dashboard Resources
 
@@ -95,8 +95,8 @@ Rules:
 - `POST /api/rules/test`
 - `POST /api/rules/{rule_id}/test`
 
-Rules store arbitrary JSON in `filter` and `payload_template`. Live delivery matching applies `filter.body.contains`, `filter.body.regex`, `filter.priority.min`, `filter.priority.max`, and exact `filter.group`. Preview/test routes also build sample endpoint and tag context for the UI.
+Rules store arbitrary JSON in `filter` and `payload_template`. Live delivery matching applies `filter.body.contains`, `filter.body.regex`, `filter.priority.min`, `filter.priority.max`, and exact `filter.group`. The UI can also write `filter.ingest_endpoint_ids` and `filter.tags`; preview/test routes build endpoint and tag context for those filters, but the current live ingest enqueue path does not pass endpoint id or tags into the matcher.
 
 ## Edge Config
 
-`GET /api/edge-config` requires `Authorization: Bearer $EDGE_SYNC_TOKEN`. It returns active endpoint ids and `key_sha256` values only.
+`GET /api/edge-config` requires `Authorization: Bearer $EDGE_SYNC_TOKEN`. It returns `version`, `updated_at`, and `ingest_endpoints`, where each active endpoint item contains only `id` and `key_sha256`.

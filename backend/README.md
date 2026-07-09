@@ -19,8 +19,11 @@ uv run --project backend --locked python -m backend.worker
 ## Tests
 
 ```bash
+docker start herald-test-pg 2>/dev/null || docker run -d --name herald-test-pg -e POSTGRES_DB=herald -e POSTGRES_USER=herald -e POSTGRES_PASSWORD=herald -p 5432:5432 postgres:16-alpine
 uv run --project backend --locked pytest backend/tests -v
 ```
+
+Tests read `TEST_DATABASE_URL` and default to `postgresql://herald:herald@127.0.0.1:5432/herald`.
 
 ## Health
 

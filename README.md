@@ -14,7 +14,7 @@ Herald ingests structured JSON over HTTP, stores messages in PostgreSQL, and for
 - Multiple ingest endpoints with one-time raw keys
 - JSON ingest with message history, filters, detail view, soft delete, and batch delete
 - Bark, ntfy, MQTT, and Gotify channels
-- Rules with endpoint/body/priority/tag/group filters and payload templates
+- Rules with body/priority/group live filters and payload templates; the UI and preview APIs can also store/test endpoint and tag filters
 - Durable Cloudflare relay and EdgeOne KV relay for cross-border ingress
 
 ## Quick Start
@@ -36,10 +36,9 @@ uv run --project backend --locked python -m backend.worker
 Production compose:
 
 ```bash
-export POSTGRES_PASSWORD='<database password>'
-export SECRET_KEY='<random backend secret>'
-export CHANNEL_CONFIG_ENCRYPTION_KEY='<fernet key>'
-export EDGE_SYNC_TOKEN='<random sync token>'
+cp .env.example .env
+chmod 600 .env
+# edit POSTGRES_PASSWORD, SECRET_KEY, and CHANNEL_CONFIG_ENCRYPTION_KEY
 docker compose up -d
 ```
 
@@ -57,9 +56,12 @@ docker compose up -d
 ## Verification
 
 ```bash
+docker start herald-test-pg 2>/dev/null || docker run -d --name herald-test-pg -e POSTGRES_DB=herald -e POSTGRES_USER=herald -e POSTGRES_PASSWORD=herald -p 5432:5432 postgres:16-alpine
 uv run --project backend --locked pytest backend/tests -v
 npm --prefix edge test && npm --prefix edge run lint
 corepack pnpm@10.30.1 --dir frontend lint
 corepack pnpm@10.30.1 --dir frontend build
 python3 scripts/sync_version.py --check
 ```
+
+Backend tests read `TEST_DATABASE_URL` and default to `postgresql://herald:herald@127.0.0.1:5432/herald`.

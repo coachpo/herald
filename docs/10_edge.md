@@ -25,11 +25,11 @@ Relays return `202 {"message_id":"...","status":"relayed"}` after the envelope i
 
 ## Relay Headers
 
-Relays preserve the raw body and append:
+Relays preserve the raw body and append or forward relay metadata:
 
-- `X-Herald-Message-Id`: UUID minted by the first relay
-- `X-Herald-Received-At`: ISO timestamp minted by the first relay
-- `X-Herald-Relay-Via`: `edgeone`, `cloudflare`, or `edgeone,cloudflare`
+- `X-Herald-Message-Id`: valid incoming UUID, or a UUID minted when absent or invalid
+- `X-Herald-Received-At`: valid incoming ISO timestamp, or a timestamp minted when absent or invalid
+- `X-Herald-Relay-Via`: sanitized incoming relay path with `edgeone` or `cloudflare` appended
 
 The backend only trusts these headers after normal ingest-key authentication.
 
@@ -40,7 +40,7 @@ The backend exports endpoint digests from `GET /api/edge-config` with `Authoriza
 ```json
 {
   "version": "sha-prefix",
-  "updated_at": "2026-07-08T00:00:00Z",
+  "updated_at": "2026-07-08T00:00:00+00:00",
   "ingest_endpoints": [
     { "id": "uuid", "key_sha256": "hex" }
   ]
@@ -65,7 +65,7 @@ Both relays expose:
 - `GET /admin/status`
 - `POST /relay/drain`
 
-Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`. `/admin/status` returns pending count, dead count, oldest pending timestamp, config version, and a `truncated` flag that is `true` when the counts exceed the pagination cap. `/relay/drain` returns drained, failed, and dead counts.
+Admin endpoints require `Authorization: Bearer $RELAY_ADMIN_TOKEN`. `/admin/status` returns pending count, dead count, oldest pending timestamp, and config version. EdgeOne also returns a `truncated` flag that is `true` when its paginated KV count exceeds the scan cap. `/relay/drain` returns drained, failed, and dead counts.
 
 Permanent upstream statuses are `400`, `401`, `403`, `404`, `413`, `415`, and `422`. Other failures retry with exponential backoff. Pending envelopes older than 7 days move to dead records; dead records are retained for about 30 days.
 

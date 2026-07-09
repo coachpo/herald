@@ -25,5 +25,5 @@ herald/
 ## Startup
 
 - `docker compose up` runs production-posture backend services.
-- `docker compose -f docker-compose.dev.yml up` runs a local development stack.
+- `docker compose -f docker-compose.dev.yml up` runs `db`, `migrate`, `api`, and `worker`; it does not run Vite.
 - `./start.sh full` runs local PostgreSQL, backend, and Vite with helper ports.

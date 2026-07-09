@@ -24,7 +24,7 @@ The backend is the only rule engine and provider dispatch engine. Relays only au
 - Tables are reflected by `backend/database.py`.
 - Middleware is pure ASGI. Starlette `CORSMiddleware` is allowed.
 - `SECRET_KEY` signs backend token hashes; production rejects default secrets.
-- `GET /api/edge-config` exports only `{id, key_sha256}` endpoint digests for relays.
+- `GET /api/edge-config` exports a versioned relay config: a 16-hex-character `version`, an ISO `updated_at`, and active non-revoked/non-deleted endpoint `{id, key_sha256}` digests.
 
 ## Ingest
 

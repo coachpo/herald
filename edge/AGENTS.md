@@ -14,17 +14,11 @@ edge/
 └── tests/        # node:test suite
 ```
 
-## Commands
+## Command Notes
 
-```bash
-npm install
-npm test
-npm run lint
-npm run dev
-npm run deploy
-```
-
-For EdgeOne, run `bash edgeone/build.sh` before local dev or deployment so shared modules are copied into the Pages function tree.
+- Root `AGENTS.md` carries the normal edge test/lint commands.
+- Extra package commands are `npm --prefix edge install`, `npm --prefix edge run dev`, and `npm --prefix edge run deploy`.
+- For EdgeOne, run `bash edge/edgeone/build.sh` before local dev or deployment so shared modules are copied into the Pages function tree.
 
 ## HTTP Surface
 
@@ -38,8 +32,10 @@ Admin routes require `Authorization: Bearer $RELAY_ADMIN_TOKEN`.
 
 ## Runtime Notes
 
+- `edge/shared/` is canonical; `edge/edgeone/edge-functions/_shared/` is generated and must not be hand-edited.
 - Cloudflare uses Durable Object SQLite and alarms.
 - EdgeOne uses Pages KV with `p_` pending keys and `d_` dead keys.
 - EdgeOne KV binding is global `EDGE_CONFIG`, not `context.env.EDGE_CONFIG`.
 - `UPSTREAM_URL` is fixed deployment config, not user input.
+- Relays preserve valid incoming message id / received-at headers and append their platform to relay via.
 - Relays store raw ingest keys only inside pending envelopes and redact them in dead records.

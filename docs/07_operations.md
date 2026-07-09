@@ -16,7 +16,7 @@
 docker compose -f docker-compose.dev.yml up
 ```
 
-`start.sh` clears listeners and uses `DB_PORT=35432`, `BACKEND_PORT=38000`, and `FRONTEND_PORT=35173` by default. Override those variables when the ports are busy.
+`start.sh` clears listeners and uses `DB_PORT=35432`, `BACKEND_PORT=38000`, and `FRONTEND_PORT=35173` by default. `./start.sh full` starts PostgreSQL, the backend, and Vite. `docker compose -f docker-compose.dev.yml up` runs `db`, `migrate`, `api`, and `worker`; it publishes PostgreSQL on `${POSTGRES_PORT:-5432}` and the API on `8000`, but it does not run the frontend. Override those variables when the ports are busy.
 
 Backend commands from repo root:
 
@@ -25,8 +25,11 @@ uv sync --project backend --locked
 uv run --project backend --locked python -m backend.migrate
 uv run --project backend --locked herald-backend
 uv run --project backend --locked python -m backend.worker
+docker start herald-test-pg 2>/dev/null || docker run -d --name herald-test-pg -e POSTGRES_DB=herald -e POSTGRES_USER=herald -e POSTGRES_PASSWORD=herald -p 5432:5432 postgres:16-alpine
 uv run --project backend --locked pytest backend/tests -v
 ```
+
+Backend tests read `TEST_DATABASE_URL` and default to `postgresql://herald:herald@127.0.0.1:5432/herald`.
 
 Frontend commands:
 
@@ -34,6 +37,8 @@ Frontend commands:
 corepack pnpm@10.30.1 --dir frontend install
 corepack pnpm@10.30.1 --dir frontend lint
 corepack pnpm@10.30.1 --dir frontend build
+corepack pnpm@10.30.1 --dir frontend dev
+corepack pnpm@10.30.1 --dir frontend preview
 ```
 
 Edge commands:
@@ -88,6 +93,7 @@ The container exposes port `3100` and serves `/health` for probes. Put it behind
 | Variable | Scope | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | backend | PostgreSQL URL; converted to `postgresql+asyncpg://` internally |
+| `TEST_DATABASE_URL` | backend tests | PostgreSQL URL used by pytest; defaults to `postgresql://herald:herald@127.0.0.1:5432/herald` |
 | `APP_ENV` | backend | `development` or `production`; production rejects default secrets |
 | `APP_VERSION` | backend | Optional version override for `/health` |
 | `SECRET_KEY` | backend | HMAC and JWT fallback key |

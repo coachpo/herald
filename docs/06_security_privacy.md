@@ -14,7 +14,8 @@
 | Raw ingest key | Sender and relay buffer until forwarded | Endpoint authentication |
 | `token_hash` | Backend DB | Backend HMAC check |
 | `key_sha256` | Backend DB and relay config | Relay offline key check |
-| `SECRET_KEY` | Backend env | HMAC/JWT fallback secret |
+| `SECRET_KEY` | Backend env | HMAC secret and JWT fallback secret |
+| `JWT_SIGNING_KEY` | Backend env | Optional access-token signing override |
 | `CHANNEL_CONFIG_ENCRYPTION_KEY` | Backend env | Channel config encryption |
 | `EDGE_SYNC_TOKEN` | Backend env and sync script | Pull relay config |
 | `RELAY_ADMIN_TOKEN` | Relay env, sync script, GitHub secret | Relay admin endpoints |

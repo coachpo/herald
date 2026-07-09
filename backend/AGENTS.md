@@ -24,11 +24,25 @@ backend/
 └── worker.py
 ```
 
+## Where To Look
+
+| Task | Location |
+| --- | --- |
+| App factory and middleware | `app.py`, `middleware.py` |
+| Reflected tables and sessions | `database.py` |
+| Settings/env validation | `config.py` |
+| Dashboard routes | `routes/__init__.py`, `routes/*.py` |
+| Auth routes/services | `routes/auth.py`, `services/auth.py`, `auth/` |
+| Ingest trust boundary | `routes/ingest.py`, `services/ingest.py` |
+| Rule matching/templates | `core/rules.py`, `core/template.py`, `services/rules.py` |
+| Delivery dispatch | `worker.py`, `channel_dispatch.py`, `providers/` |
+| Edge config export | `routes/__init__.py`, `edge_config.py` |
+
 ## Runtime Flow
 
 - `POST /api/ingest/{endpoint_id}` authenticates the raw key, validates JSON, handles relay headers, idempotently inserts a message, and creates delivery rows for matching rules.
 - `worker.py` sweeps stale `sending` rows, claims due deliveries, and dispatches each delivery with its own database session.
-- `GET /api/edge-config` returns endpoint ids and `key_sha256` digests for relay config sync.
+- `GET /api/edge-config` is declared in `routes/__init__.py`; it returns `version`, `updated_at`, and active endpoint `id` / `key_sha256` pairs for relay config sync.
 
 ## Conventions
 
@@ -38,16 +52,14 @@ backend/
 - Channel configs stay encrypted except at validation/dispatch boundaries.
 - API responses emit dashed UUID strings; ingest accepts dashed UUID and dashless hex ids.
 - Password recovery is the `herald-backend reset-password <email>` CLI.
+- Service code owns commits/rollbacks; route code maps service exceptions to HTTP responses.
+- `database.py`, `config.py`, and `schemas/__init__.py` have high blast radius; check route, service, worker, and tests when changing them.
 
-## Commands
+## Command Notes
 
-```bash
-uv sync --project backend --locked
-uv run --project backend --locked python -m backend.migrate
-uv run --project backend --locked herald-backend
-uv run --project backend --locked python -m backend.worker
-uv run --project backend --locked pytest backend/tests -v
-```
+- Root `AGENTS.md` carries the normal backend install/run/test commands.
+- Password recovery is `uv run --project backend --locked herald-backend reset-password <email>`.
+- Tests need PostgreSQL through `TEST_DATABASE_URL`; the default is `postgresql://herald:herald@127.0.0.1:5432/herald`.
 
 ## Do Not
 
