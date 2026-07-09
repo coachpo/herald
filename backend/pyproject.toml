@@ -18,7 +18,7 @@ dependencies = [
     "sentry-sdk[fastapi]==2.20.0",
     "sqlalchemy==2.0.48",
     "structlog==25.4.0",
-    "uvicorn==0.41.0",
+    "uvicorn==0.51.0",
 ]
 
 [dependency-groups]
