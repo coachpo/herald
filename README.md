@@ -1,6 +1,6 @@
 # Herald
 
-Herald ingests structured JSON over HTTP, stores messages in PostgreSQL, and forwards matching messages to Bark, ntfy, MQTT, or Gotify.
+Herald is a self-hosted notification hub: one inbox for notifications from all your machines, scripts, and services, fanned out to the app you already use. It ingests structured JSON over HTTP, stores messages in PostgreSQL, and forwards matching messages to Bark, ntfy, MQTT, or Gotify.
 
 ## Packages
 
@@ -10,11 +10,12 @@ Herald ingests structured JSON over HTTP, stores messages in PostgreSQL, and for
 
 ## Features
 
-- Email/password signup, login, refresh-token rotation, account changes, and CLI password reset
+- Email/password auth with refresh-token rotation, account management, and CLI password reset
 - Multiple ingest endpoints with one-time raw keys
-- JSON ingest with message history, filters, detail view, soft delete, and batch delete
+- Browsable message history with filtering, detail view, and soft or batch delete
 - Bark, ntfy, MQTT, and Gotify channels
-- Rules with body/priority/group live filters and payload templates; the UI and preview APIs can also store/test endpoint and tag filters
+- Delivery rules that match on message body, priority, and group, with per-rule payload templates
+- Endpoint and tag filters that can be saved and tested through the UI and preview APIs
 - Durable Cloudflare relay and EdgeOne KV relay for cross-border ingress
 
 ## Quick Start
