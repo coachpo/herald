@@ -1,5 +1,7 @@
 # Herald
 
+English | [简体中文](README_CN.md)
+
 Herald is a self-hosted notification hub: one inbox for notifications from all your machines, scripts, and services, fanned out to the app you already use. It ingests structured JSON over HTTP, stores messages in PostgreSQL, and forwards matching messages to Bark, ntfy, MQTT, or Gotify.
 
 ## Packages
