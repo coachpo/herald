@@ -2,63 +2,63 @@
 
 English | [简体中文](README_CN.md)
 
-Herald is a self-hosted notification hub: one inbox for notifications from all your machines, scripts, and services, fanned out to the app you already use. It ingests structured JSON over HTTP, stores messages in PostgreSQL, and forwards matching messages to Bark, ntfy, MQTT, or Gotify.
+Herald is a single-user notification inbox and durable forwarding service. One process serves the dashboard and HTTP API, stores messages in SQLite, and delivers them to Bark, ntfy, MQTT, or Gotify.
 
-## Packages
+External ingestion uses HTTP JSON at `POST /api/ingest`; MQTT is an outbound delivery target. This version removes the PostgreSQL service, user accounts, rules/templates, Edge relays, and their legacy APIs. The dashboard sends through the same durable receipt operation.
 
-- [`backend/`](backend/README.md): FastAPI API, migrations, PostgreSQL access, auth, ingest, and delivery worker
-- [`frontend/`](frontend/README.md): React 19 + Vite dashboard
-- [`edge/`](edge/README.md): Cloudflare and EdgeOne store-and-forward relays
+A request is acknowledged only after its message and all selected delivery jobs are committed. Failed jobs retry automatically; the dashboard shows each target's state and allows retrying a terminal failure. Delivery is **at least once**: a crash after a provider accepts a message can cause a duplicate.
 
-## Features
+## Run
 
-- Email/password auth with refresh-token rotation, account management, and CLI password reset
-- Multiple ingest endpoints with reusable raw keys shown only at creation
-- Browsable message history with filtering, detail view, and soft or batch delete
-- Bark, ntfy, MQTT, and Gotify channels
-- Delivery rules that match on message body, priority, and group, with per-rule payload templates
-- Endpoint and tag filters can be saved and previewed, but currently prevent live rule matches; see [rule limitations](docs/04_api_spec.md#rules)
-- Durable Cloudflare relay and EdgeOne KV relay for unreliable network paths
-
-## Quick Start
-
-From the repository root, choose one local helper mode. Requires Docker Compose, Python 3.13+, uv, `lsof`, and `pgrep`; full mode also needs Node 24 and pnpm 10.30.1 on `PATH`.
+Requires Python 3.13+, uv, Node.js 24, and Corepack. From the repository root:
 
 ```bash
-./start.sh headless  # PostgreSQL + API
-# OR
-./start.sh full      # PostgreSQL + API + dashboard
+./start.sh
 ```
 
-The helper stops existing containers/listeners on ports `35432`, `38000`, and `35173` by default, including the frontend port in headless mode. It does **not** start the delivery worker. In another terminal, using the default helper database port:
+The helper installs locked dependencies, builds the dashboard, and runs the API and delivery loop together. Open the dashboard on port 8000. For separate Vite development, use `./start.sh dev`; Vite listens on port 35173 and proxies to the API on port 8000. Neither mode stops unrelated listeners.
+
+The first start creates `data/herald.sqlite3` and private `data/credentials.env`. Use `HERALD_DATA_DIR` to choose another persistent directory. Retrieve `HERALD_ADMIN_TOKEN` privately from that file for dashboard login; give senders the separate `HERALD_INGEST_TOKEN`. Never share the encryption key. No signup, email, external database, or separate worker is needed.
+
+Alternatively, run the single container with its persistent data volume:
 
 ```bash
-DATABASE_URL=postgresql://herald:herald@127.0.0.1:35432/herald_dev \
-  uv run --project backend --locked python -m backend.worker
+docker compose up -d --build
 ```
 
-Adjust the URL if `DB_PORT` was overridden. See [local development](docs/07_operations.md#local-development) for ports and alternative startup paths, or the [backend quick start](backend/README.md#quick-start) for manual startup. For production, follow [Production Compose](docs/07_operations.md#production-compose), then deploy the frontend and any relays separately; the root Compose file only runs backend services.
+See [Operations](docs/07_operations.md) for configuration, secure credential access, backup/restore, and upgrades. This version starts a fresh SQLite store and does not import older databases.
+
+## Send
+
+Create at least one enabled default target in the dashboard, then send JSON using an ingest token already set securely in the shell:
+
+```bash
+curl --fail-with-body -X POST http://127.0.0.1:8000/api/ingest \
+  -H "Authorization: Bearer $HERALD_INGEST_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Backup","body":"Backup completed","priority":3,"idempotency_key":"backup-2026-11-09"}'
+```
+
+Use `target_ids` to select targets explicitly. Without it, all enabled default targets are selected; an empty selection is rejected. Repeating the same idempotency key and payload returns the original result, while changing the payload returns `409`. Omit the key to create a new message every time. `201` means stored for delivery, not delivered.
+
+## Validate
+
+```bash
+uv sync --project backend --locked
+uv run --project backend --locked pytest backend/tests -q
+corepack pnpm@10.30.1 --dir frontend install --frozen-lockfile
+corepack pnpm@10.30.1 --dir frontend lint
+corepack pnpm@10.30.1 --dir frontend build
+python3 scripts/sync_version.py --check
+```
+
+Tests use disposable SQLite files and mocked provider transports.
 
 ## Docs
 
-These documents own the detailed contracts; package READMEs are focused entry points and `AGENTS.md` files contain agent instructions, not a second project manual.
-
-| Authority | Document |
-| --- | --- |
-| Product intent, implemented scope, non-goals | [Product scope](docs/01_prd.md) |
-| Current components and data/control flow | [Architecture](docs/02_architecture.md) |
-| Persistent schema | [Data model](docs/03_data_model.md) |
-| HTTP behavior, provider configs, known API limitations | [API guide](docs/04_api_spec.md) |
-| Browser routes and user flows | [UI specification](docs/05_ui_spec.md) |
-| Keys, trust boundaries, safety, privacy constraints | [Security and privacy](docs/06_security_privacy.md) |
-| Setup, validation commands, deployment, backup/recovery | [Operations](docs/07_operations.md) |
-| Bark payload details | [Bark v2](docs/08_bark_v2.md) |
-| Package boundaries and shared development principles | [Repository structure](docs/09_repo_structure.md) |
-| Relay protocol, platform configuration, edge procedures | [Edge runbook](docs/10_edge.md) |
-| Generated schema snapshot; not the complete manual ingest contract | [OpenAPI](docs/openapi.yaml) |
-
-Repository documentation describes implementation and intended workflows. Actual deployments, user counts, service commitments, and applicable retention obligations are not established by repository contents.
-
-## Verification
-
-Use the package checks in [Operations](docs/07_operations.md#local-development), matching [CI](.github/workflows/ci.yml). Backend tests automatically migrate and truncate business tables: point `TEST_DATABASE_URL` only at a dedicated disposable PostgreSQL database, never a database whose data you need to keep. Frontend checks are lint and production build; edge checks are tests and syntax lint. Version alignment is `python3 scripts/sync_version.py --check` from the repository root.
+- [Architecture](docs/02_architecture.md): process ownership and delivery flow
+- [Data model](docs/03_data_model.md): durable records and cleanup
+- [API](docs/04_api_spec.md): requests, authentication, and delivery states
+- [Security](docs/06_security_privacy.md): credentials, provider protection, and privacy
+- [Operations](docs/07_operations.md): startup, configuration, backup, and recovery
+- [Repository guide](docs/09_repo_structure.md): source ownership and development principles

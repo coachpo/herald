@@ -1,51 +1,23 @@
 # Architecture
 
-## Packages
-
-- `backend/`: FastAPI, PostgreSQL, migrations, auth, ingest, rule evaluation, provider delivery, and edge-config export.
-- `frontend/`: React/Vite dashboard. Browser requests use the backend origin configured by `VITE_API_URL`, or the page origin when unset; the Vite development server can proxy same-origin API requests.
-- `edge/`: shared relay protocol modules plus Cloudflare Worker and EdgeOne Pages implementations.
-
-## Runtime Flow
+Herald has one owner and one runtime process. One resident FastAPI application process serves the management API, ingest API, built dashboard, and a bounded asynchronous delivery loop. MQTT attempts use bounded, short-lived child processes for blocking DNS/connect work; timeout or cancellation terminates and joins them. SQLite is the only database; no external queue, database service, relay, or standalone worker is required.
 
 ```text
-Frontend browser -> Backend /api/*
-Direct sender -> Backend /api/ingest/{endpoint_id}
-Sender -> Cloudflare relay -> Backend /api/ingest/{endpoint_id}
-Sender -> EdgeOne relay -> Cloudflare relay -> Backend /api/ingest/{endpoint_id}
-Backend ingest -> messages + deliveries -> worker -> Bark/ntfy/MQTT/Gotify
+Sender -- ingest token --> POST /api/ingest --+--> SQLite message + deliveries
+Dashboard -- admin token --> POST /api/messages --+              |
+                                                              worker
+                                                                |
+                                                     Bark / ntfy / MQTT / Gotify
 ```
 
-The backend is the only rule engine and provider dispatch engine. Relays only authenticate endpoint keys, validate payload shape, buffer envelopes, and forward upstream. These are supported paths, not a statement about deployed infrastructure: each relay's fixed `UPSTREAM_URL` selects its next hop, so EdgeOne may also forward directly to the backend. Queue persistence and retry limitations are described in [Edge Relays](10_edge.md).
+The APIs share `Store.receive`. It resolves explicit targets or enabled defaults, rejects an empty selection, and atomically writes one message and one delivery per target before returning `201`. A repeated idempotency key with the same request returns `200`; a conflicting request returns `409`. No key means a new message.
 
-Both root Compose files run separate `db`, `migrate`, `api`, and `worker` services, not the frontend or edge runtimes. The local `start.sh` helper starts the database and API, optionally Vite, but **not the delivery worker**. Operators must start a worker for queued deliveries to leave the backend; see [Operations](07_operations.md) for the appropriate startup path.
+SQLite connections use WAL, synchronous FULL, foreign keys, and a bounded busy timeout. Transactions are short; provider network calls run after the claim transaction commits. A filesystem lock prevents a second process from using the same data directory.
 
-## Backend
+The delivery loop claims at most the available concurrency slots (default four). Attempts are counted before the provider call. Retryable failures back off exponentially from 5 to 300 seconds; each retry cycle permits five attempts. Terminal failures remain visible and may be manually retried. Manual retry does not resend a successful delivery. On startup, interrupted `sending` work becomes eligible again.
 
-- Numbered SQL migrations live in `backend/migrations/` and run through `python -m backend.migrate`.
-- Tables are reflected by `backend/database.py`.
-- Middleware is pure ASGI. Starlette `CORSMiddleware` is allowed.
-- `SECRET_KEY` HMAC-hashes ingest keys and refresh tokens; JWT signing uses `JWT_SIGNING_KEY`, falling back to `SECRET_KEY`. Production rejects default secrets. Key handling and other security obligations are owned by [Security and Privacy](06_security_privacy.md).
-- `GET /api/edge-config` exports a versioned relay config: a 16-hex-character `version`, an ISO `updated_at`, and active non-revoked/non-deleted endpoint `{id, key_sha256}` digests.
+The delivery guarantee is at least once. A provider may accept a message before Herald records success; a restart can then send it again. Request idempotency prevents duplicate receipt, but cannot provide end-to-end exactly-once provider effects.
 
-## Ingest
+Only fully successful messages whose last delivery completed more than 30 days ago are eligible for operator-triggered cleanup. Pending and failed work remain. See [Data model](03_data_model.md) and [Operations](07_operations.md).
 
-1. Resolve dashed UUID or dashless endpoint id.
-2. Authenticate `X-Herald-Ingest-Key` against backend HMAC hash.
-3. Parse relay headers after authentication.
-4. Validate JSON content type, byte size, encoding, and payload fields.
-5. Insert the message with `ON CONFLICT DO NOTHING` on the message id.
-6. Evaluate enabled rules and enqueue matching deliveries in the same transaction, only on first insert. Current endpoint/tag matching limitations are documented in the [API Guide](04_api_spec.md#rules).
-7. Return `201` for new messages and `200` with `duplicate: true` for replayed message ids. Requests without an id receive a new UUID; body content alone is not a deduplication key.
-
-## Worker
-
-The worker sweeps `sending` deliveries older than 10 minutes back to `retry`, claims due `queued`/`retry` rows with `FOR UPDATE SKIP LOCKED`, and processes a claimed batch serially, with one database session per delivery. Failed provider sends retry with exponential backoff from `DELIVERY_BACKOFF_BASE_SECONDS` up to `DELIVERY_BACKOFF_MAX_SECONDS`, then become `failed` after `DELIVERY_MAX_ATTEMPTS`. Disabled/missing rules or channels, and missing messages, fail the delivery without retry.
-
-Claiming and provider sends are separate transactions. A send can succeed before its result is persisted, so recovery or retries may send again; relay message-id deduplication does not provide provider-level exactly-once delivery. The worker reads the current rule template and channel configuration when it sends, rather than an enqueue-time snapshot.
-
-## Edge
-
-Cloudflare uses a Durable Object with SQLite storage and alarms. EdgeOne uses Pages KV with opportunistic drain; the repository's GitHub drain workflow currently supports manual dispatch only (its schedule is commented out), so it does not guarantee retries during idle periods. Both use the same admin endpoints and relay envelope format.
-
-Configuration flows separately from messages: an operator runs `scripts/sync_edge_config.py` to fetch the backend's authenticated `/api/edge-config` export and post it to each relay's `/admin/config`. Endpoint changes are not automatically pushed; see [Edge Relays](10_edge.md) for synchronization and drain procedures.
+Receipt idempotency lasts while the message record remains. After successful-history cleanup removes it, the same key can create a new message.

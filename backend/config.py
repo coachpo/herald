@@ -1,158 +1,102 @@
+"""Single-instance configuration; generated credentials never enter the database."""
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+import secrets
+import stat
+import math
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import urlparse
+
+from cryptography.fernet import Fernet
 
 
-PACKAGE_DIR = Path(__file__).resolve().parent
-ROOT_DIR = PACKAGE_DIR.parent
-BACKEND_DIR = ROOT_DIR / "backend"
-
-
-def _load_env_file(path: Path) -> None:
-    if not path.exists():
-        return
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        normalized_key = key.strip()
-        normalized_value = value.strip().strip('"').strip("'")
-        if normalized_key and normalized_key not in os.environ:
-            os.environ[normalized_key] = normalized_value
-
-
-def _env_int(key: str, default: int) -> int:
-    raw = os.environ.get(key)
-    if raw is None:
-        return default
-    try:
-        return int(raw.strip())
-    except ValueError:
-        return default
-
-
-def _env_float(key: str, default: float) -> float:
-    raw = os.environ.get(key)
-    if raw is None:
-        return default
-    try:
-        return float(raw.strip())
-    except ValueError:
-        return default
-
-
-def _env_str(key: str, default: str) -> str:
-    raw = os.environ.get(key)
-    if raw is None:
-        return default
-    value = raw.strip()
-    return value or default
-
-
-def _to_async_database_url(raw_url: str) -> str:
-    parsed = urlparse(raw_url)
-    scheme = (parsed.scheme or "").split("+", 1)[0].lower()
-
-    if scheme in {"postgres", "postgresql"}:
-        return raw_url.replace(f"{parsed.scheme}://", "postgresql+asyncpg://", 1)
-
-    raise ValueError(f"unsupported_database_scheme:{parsed.scheme}")
-
-
-_load_env_file(BACKEND_DIR / ".env")
-
-
-@dataclass
+@dataclass(frozen=True)
 class Settings:
-    root_dir: Path
-    backend_dir: Path
-    app_env: str
-    raw_database_url: str
-    async_database_url: str
-    secret_key: str
-    jwt_signing_key: str
-    jwt_access_ttl_seconds: int
-    jwt_refresh_ttl_seconds: int
-    channel_config_encryption_key: str
-    cors_allowed_origins: list[str]
-    worker_poll_seconds: float
-    worker_batch_size: int
-    delivery_max_attempts: int
-    delivery_backoff_base_seconds: int
-    delivery_backoff_max_seconds: int
-    db_pool_size: int
-    db_max_overflow: int
-    db_pool_recycle: int
-    log_level: str
-    log_format: str
-    sentry_dsn: str
-    sentry_traces_sample_rate: float
-    sentry_environment: str
-    allow_user_signup: bool
-    edge_sync_token: str
-    forwarded_allow_ips: str
-    rate_limit_ingest_per_minute: int
-    rate_limit_auth_per_minute: int
+    data_dir: Path
+    admin_token: str = field(repr=False)
+    ingest_token: str = field(repr=False)
+    encryption_key: str = field(repr=False)
+    delivery_timeout: float = 10
+    max_attempts: int = 5
+    backoff_base_seconds: float = 5
+    backoff_max_seconds: float = 300
+    concurrency: int = 4
+    retention_days: int = 30
+    poll_seconds: float = 1
+    host: str = '127.0.0.1'
+    port: int = 8000
+
+    @property
+    def database_path(self) -> Path:
+        return self.data_dir / 'herald.sqlite3'
+
+    def __post_init__(self) -> None:
+        if len(self.admin_token) < 32 or len(self.ingest_token) < 32:
+            raise ValueError('tokens must contain at least 32 characters')
+        if secrets.compare_digest(self.admin_token, self.ingest_token):
+            raise ValueError('management and ingest tokens must differ')
+        Fernet(self.encryption_key.encode())
+        if any(not math.isfinite(value) or value <= 0 for value in (self.delivery_timeout, self.max_attempts,
+               self.backoff_base_seconds, self.backoff_max_seconds, self.concurrency,
+               self.retention_days, self.poll_seconds)):
+            raise ValueError('worker and retention settings must be positive')
+
+
+def _credentials(data_dir: Path) -> dict[str, str]:
+    names = ('HERALD_ADMIN_TOKEN', 'HERALD_INGEST_TOKEN', 'HERALD_ENCRYPTION_KEY')
+    provided = {name: os.environ.get(name, '') for name in names}
+    if any(provided.values()):
+        if not all(provided.values()):
+            raise ValueError('provide all three HERALD credential variables or use credentials.env')
+        return provided
+    path = data_dir / 'credentials.env'
+    if not path.exists():
+        if (data_dir / 'herald.sqlite3').exists():
+            raise ValueError('existing database requires its original credentials.env or explicit credential variables')
+        values = (secrets.token_urlsafe(32), secrets.token_urlsafe(32), Fernet.generate_key().decode())
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            with os.fdopen(fd, 'w') as f:
+                for name, value in zip(names, values):
+                    f.write(f'{name}={value}\n')
+                f.flush()
+                os.fsync(f.fileno())
+            directory_fd = os.open(data_dir, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode) or path.stat().st_mode & 0o077:
+        raise ValueError('credentials.env must be a private regular file (chmod 600)')
+    result = dict(line.split('=', 1) for line in path.read_text().splitlines() if '=' in line)
+    if not all(result.get(name) for name in names):
+        raise ValueError('credentials.env is incomplete; preserve the encryption key for existing data')
+    return result
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    raw_database_url = os.environ.get("DATABASE_URL", "")
-    app_env = _env_str("APP_ENV", "development").lower()
-    secret_key = os.environ.get("SECRET_KEY", "dev-insecure")
-    channel_config_encryption_key = os.environ.get("CHANNEL_CONFIG_ENCRYPTION_KEY", "")
-    jwt_signing_key = os.environ.get("JWT_SIGNING_KEY") or secret_key
-
-    if app_env == "production":
-        problems = []
-        if secret_key in ("", "dev-insecure") or secret_key.startswith("change-me"):
-            problems.append("SECRET_KEY must be set to a strong value")
-        if jwt_signing_key == "dev-insecure" or jwt_signing_key.startswith("change-me"):
-            problems.append("JWT_SIGNING_KEY must not be a default value")
-        if not channel_config_encryption_key:
-            problems.append("CHANNEL_CONFIG_ENCRYPTION_KEY must be set")
-        if problems:
-            raise RuntimeError("refusing to start in production: " + "; ".join(problems))
-
-    # Parse CORS origins
-    cors_raw = os.environ.get("CORS_ALLOWED_ORIGINS", "")
-    cors_origins = [o.strip() for o in cors_raw.split(",") if o.strip()]
-
+    data_dir = Path(os.environ.get('HERALD_DATA_DIR', 'data')).resolve()
+    data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if data_dir.stat().st_mode & 0o077:
+        raise ValueError('HERALD_DATA_DIR must be private (chmod 700)')
+    values = _credentials(data_dir)
     return Settings(
-        root_dir=ROOT_DIR,
-        backend_dir=BACKEND_DIR,
-        app_env=app_env,
-        raw_database_url=raw_database_url,
-        async_database_url=_to_async_database_url(raw_database_url),
-        secret_key=secret_key,
-        jwt_signing_key=jwt_signing_key,
-        jwt_access_ttl_seconds=_env_int("JWT_ACCESS_TTL_SECONDS", 900),
-        jwt_refresh_ttl_seconds=_env_int("JWT_REFRESH_TTL_SECONDS", 2592000),
-        channel_config_encryption_key=channel_config_encryption_key,
-        cors_allowed_origins=cors_origins,
-        worker_poll_seconds=_env_float("WORKER_POLL_SECONDS", 1.0),
-        worker_batch_size=_env_int("WORKER_BATCH_SIZE", 50),
-        delivery_max_attempts=_env_int("DELIVERY_MAX_ATTEMPTS", 10),
-        delivery_backoff_base_seconds=_env_int("DELIVERY_BACKOFF_BASE_SECONDS", 5),
-        delivery_backoff_max_seconds=_env_int("DELIVERY_BACKOFF_MAX_SECONDS", 1800),
-        db_pool_size=_env_int("DB_POOL_SIZE", 5),
-        db_max_overflow=_env_int("DB_MAX_OVERFLOW", 10),
-        db_pool_recycle=_env_int("DB_POOL_RECYCLE", 3600),
-        log_level=_env_str("LOG_LEVEL", "INFO").upper(),
-        log_format=_env_str("LOG_FORMAT", "json").lower(),
-        sentry_dsn=os.environ.get("SENTRY_DSN", ""),
-        sentry_traces_sample_rate=_env_float("SENTRY_TRACES_SAMPLE_RATE", 0.1),
-        sentry_environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
-        allow_user_signup=(
-            os.environ.get("ALLOW_USER_SIGNUP", "true").lower() in {"true", "1", "yes"}
-        ),
-        edge_sync_token=os.environ.get("EDGE_SYNC_TOKEN", ""),
-        forwarded_allow_ips=_env_str("FORWARDED_ALLOW_IPS", ""),
-        rate_limit_ingest_per_minute=_env_int("RATE_LIMIT_INGEST_PER_MINUTE", 120),
-        rate_limit_auth_per_minute=_env_int("RATE_LIMIT_AUTH_PER_MINUTE", 10),
+        data_dir=data_dir,
+        admin_token=values['HERALD_ADMIN_TOKEN'],
+        ingest_token=values['HERALD_INGEST_TOKEN'],
+        encryption_key=values['HERALD_ENCRYPTION_KEY'],
+        delivery_timeout=float(os.environ.get('HERALD_DELIVERY_TIMEOUT', '10')),
+        max_attempts=int(os.environ.get('HERALD_MAX_ATTEMPTS', '5')),
+        backoff_base_seconds=float(os.environ.get('HERALD_BACKOFF_BASE', '5')),
+        backoff_max_seconds=float(os.environ.get('HERALD_BACKOFF_MAX', '300')),
+        concurrency=int(os.environ.get('HERALD_CONCURRENCY', '4')),
+        retention_days=int(os.environ.get('HERALD_RETENTION_DAYS', '30')),
+        host=os.environ.get('HERALD_HOST', '127.0.0.1'),
+        port=int(os.environ.get('HERALD_PORT', '8000')),
     )

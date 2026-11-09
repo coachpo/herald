@@ -1,113 +1,110 @@
+"""One local process owns the HTTP interface and durable delivery loop."""
 from __future__ import annotations
 
-import os
-from collections.abc import AsyncIterator
+import asyncio
+import fcntl
+import logging
+import sqlite3
 from contextlib import asynccontextmanager
-from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 
-import structlog
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 
-from .config import get_settings
-from .database import dispose_database_state, get_sessionmaker
-from .errors import (
-    http_exception_handler,
-    unhandled_exception_handler,
-    validation_exception_handler,
-)
-from .logging_config import setup_logging
-from .middleware import AccessLogMiddleware, RateLimitMiddleware, RequestIDMiddleware
-from .schemas import HealthResponse
-from .routes import router, auth_router, ingest_router
+from .api import router
+from .config import Settings, get_settings
+from .middleware import BodyLimitMiddleware, SafeErrorMiddleware
+from .store import Store, StoreError
+from .worker import Worker
+from .tasks import database_call
+
+logger = logging.getLogger(__name__)
 
 
-ROOT_VERSION_PATH = Path(__file__).resolve().parent.parent / "VERSION"
+def create_app(settings: Settings | None = None, store: Store | None = None,
+               start_worker: bool = True) -> FastAPI:
+    settings = settings or get_settings()
+    store = store or Store(settings.database_path, settings.encryption_key)
 
-
-def _get_repo_version() -> str:
-    try:
-        version = ROOT_VERSION_PATH.read_text(encoding="utf-8").strip()
-    except OSError:
-        return "unknown"
-    return version or "unknown"
-
-
-def _get_app_version() -> str:
-    env_version = os.environ.get("APP_VERSION")
-    if env_version:
-        return env_version
-    try:
-        return package_version("herald-backend")
-    except PackageNotFoundError:
-        return _get_repo_version()
-
-
-_APP_VERSION = _get_app_version()
-
-logger = structlog.get_logger(__name__)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    logger.info("app_startup", version=_APP_VERSION)
-    yield
-    logger.info("app_shutdown")
-    await dispose_database_state()
-
-
-def create_app() -> FastAPI:
-    setup_logging()
-
-    settings = get_settings()
-    try:
-        from .observability import init_sentry
-        from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.starlette import StarletteIntegration
-
-        init_sentry(extra_integrations=(StarletteIntegration(), FastApiIntegration()))
-    except ImportError:
-        pass
-
-    app = FastAPI(title="Herald FastAPI", lifespan=lifespan)
-    app.add_exception_handler(HTTPException, http_exception_handler)
-    app.add_exception_handler(RequestValidationError, validation_exception_handler)
-    app.add_exception_handler(Exception, unhandled_exception_handler)
-
-    from starlette.middleware.cors import CORSMiddleware
-
-    app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(AccessLogMiddleware)
-    app.add_middleware(RequestIDMiddleware)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_allowed_origins,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "X-Herald-Ingest-Key"],
-        max_age=600,
-    )
-
-    @app.get("/health", response_model=HealthResponse)
-    async def health() -> HealthResponse | JSONResponse:
-        db_status = "unavailable"
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        settings.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        lock = (settings.data_dir / '.lock').open('a')
         try:
-            async with get_sessionmaker()() as session:
-                await session.execute(text("SELECT 1"))
-                db_status = "connected"
-        except Exception:
-            pass
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise RuntimeError('Herald is already running for this data directory') from None
+            await database_call(store.initialize)
+            worker = Worker(store, settings)
+            app.state.worker = worker
+            task = asyncio.create_task(worker.run()) if start_worker else None
+            app.state.worker_task = task
+            try:
+                yield
+            finally:
+                if task:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        logger.error('delivery worker stopped (%s); restart to recover', type(exc).__name__)
+        finally:
+            lock.close()
 
-        status = "ok" if db_status == "connected" else "degraded"
-        resp = HealthResponse(status=status, database=db_status, version=_APP_VERSION)
-        if db_status != "connected":
-            return JSONResponse(status_code=503, content=resp.model_dump())
-        return resp
+    version_path = Path(__file__).resolve().parent.parent / 'VERSION'
+    app = FastAPI(title='Herald', version=version_path.read_text().strip(),
+                  lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.settings = settings
+    app.state.store = store
+    app.add_middleware(BodyLimitMiddleware)
+    app.add_middleware(SafeErrorMiddleware)
 
-    app.include_router(auth_router)
+    @app.exception_handler(StoreError)
+    async def domain_error(request: Request, exc):
+        return JSONResponse({'detail': exc.code}, exc.status)
+
+    @app.exception_handler(RequestValidationError)
+    @app.exception_handler(ValidationError)
+    async def validation_error(request: Request, exc):
+        # Pydantic's default error response includes input, including passwords.
+        return JSONResponse({'detail': 'validation_error', 'errors': [
+            {'field': '.'.join(str(p) for p in e['loc']), 'code': e['type']}
+            for e in exc.errors()
+        ]}, 422)
+
+    @app.exception_handler(ValueError)
+    async def invalid_input(request: Request, exc):
+        return JSONResponse({'detail': 'invalid_input'}, 422)
+
+    @app.exception_handler(sqlite3.Error)
+    @app.exception_handler(OSError)
+    async def storage_error(request: Request, exc):
+        logger.error('storage operation failed (%s)', type(exc).__name__)
+        return JSONResponse({'detail': 'storage_unavailable'}, 503)
+
+    @app.get('/health')
+    async def health():
+        try:
+            def check():
+                with sqlite3.connect(settings.database_path) as db:
+                    db.execute('SELECT COUNT(*) FROM messages').fetchone()
+            await database_call(check)
+            task = getattr(app.state, 'worker_task', None)
+            if task is not None and task.done():
+                return JSONResponse({'status': 'degraded', 'database': 'connected', 'worker': 'stopped'}, 503)
+        except (sqlite3.Error, OSError):
+            return JSONResponse({'status': 'degraded', 'database': 'unavailable'}, 503)
+        return {'status': 'ok', 'database': 'connected', 'version': app.version}
+
     app.include_router(router)
-    app.include_router(ingest_router)
-
+    # Production serves the built single-page UI from the same origin; Vite is dev-only.
+    frontend = Path(__file__).resolve().parent.parent / 'frontend' / 'dist'
+    if frontend.is_dir():
+        app.mount('/', StaticFiles(directory=frontend, html=True), name='ui')
     return app

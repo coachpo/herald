@@ -6,11 +6,17 @@ on:
     tags: ["v*"]
     paths:
       - "backend/**"
+      - "frontend/**"
+      - "VERSION"
+      - ".dockerignore"
       - ".github/workflows/docker-images.yml"
   pull_request:
     branches: [main]
     paths:
       - "backend/**"
+      - "frontend/**"
+      - "VERSION"
+      - ".dockerignore"
       - ".github/workflows/docker-images.yml"
   workflow_dispatch:
 
@@ -71,7 +77,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           builder: ${{ steps.buildx.outputs.name }}
-          context: ./backend
+          context: .
           file: ./backend/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

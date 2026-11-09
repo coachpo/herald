@@ -1,111 +1,110 @@
-import json
-import importlib
-import os
-import socket
+"""Bounded MQTT publishing; an attempt owns one short-lived child process.
+
+Paho's blocking DNS/connect calls cannot be cancelled safely in an asyncio
+thread. A process lets timeout/shutdown stop that attempt before a retry starts.
+There is no MQTT listener, external worker, reconnect loop or persistent client.
+"""
+from __future__ import annotations
+
+import asyncio
+import multiprocessing
 import ssl
+import time
 
-from ..core.ssrf import assert_host_ssrf_safe
-
-
-def _encode_payload(payload: object) -> bytes:
-    if payload is None:
-        return b""
-    if isinstance(payload, bytes):
-        return payload
-    if isinstance(payload, str):
-        return payload.encode("utf-8")
-    if isinstance(payload, (dict, list, int, float, bool)):
-        return json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode(
-            "utf-8"
-        )
-    return str(payload).encode("utf-8")
+from ..core.ssrf import SSRFError, assert_host_ssrf_safe
+from .errors import DeliveryError
 
 
-def _env_bool(key: str, default: bool) -> bool:
-    raw = os.environ.get(key)
-    if raw is None:
-        return default
-    return raw.strip().lower() not in {"0", "false", "no", "off"}
+def _publish(config: dict, message: dict, timeout: float) -> dict:
+    import paho.mqtt.client as mqtt
 
+    deadline = time.monotonic() + timeout
+    assert_host_ssrf_safe(config["broker_host"], block_private_networks=True)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, reconnect_on_failure=False)
+    client.connect_timeout = timeout
+    if config.get("username"):
+        client.username_pw_set(config["username"], config["password"])
+    if config.get("tls"):
+        client.tls_set_context(ssl.create_default_context())
+    connected = False
 
-def _env_float(key: str, default: float) -> float:
-    raw = os.environ.get(key)
-    if raw is None:
-        return default
+    def on_connect(_client, _userdata, _flags, reason_code, _properties):
+        nonlocal connected
+        if reason_code.is_failure:
+            raise DeliveryError("mqtt_connection_rejected")
+        connected = True
+
+    client.on_connect = on_connect
     try:
-        return float(raw.strip())
-    except ValueError:
-        return default
-
-
-def send_mqtt_publish(
-    *,
-    broker_host: str,
-    broker_port: int,
-    topic: str,
-    payload: object,
-    username: str | None,
-    password: str | None,
-    qos: int,
-    retain: bool,
-    tls: bool,
-    tls_insecure: bool,
-    client_id: str | None,
-    keepalive_seconds: int,
-) -> tuple[bool, dict]:
-    mqtt_publish = importlib.import_module("paho.mqtt.publish")
-
-    host = str(broker_host).strip()
-    if not host:
-        raise ValueError("missing_broker_host")
-
-    block_private = _env_bool("MQTT_BLOCK_PRIVATE_NETWORKS", True)
-    assert_host_ssrf_safe(host, block_private_networks=block_private)
-
-    port = int(broker_port)
-    if port < 1 or port > 65535:
-        raise ValueError("invalid_broker_port")
-
-    t = str(topic or "").strip()
-    if not t:
-        raise ValueError("missing_topic")
-
-    msg = _encode_payload(payload)
-    auth = None
-    if username:
-        auth = {"username": username, "password": password}
-
-    tls_cfg = None
-    if tls:
-        ctx = ssl.create_default_context()
-        if tls_insecure:
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-        tls_cfg = ctx
-
-    timeout = _env_float("MQTT_SOCKET_TIMEOUT_SECONDS", 5.0)
-    old = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(timeout)
-    try:
-        mqtt_publish.single(
-            t,
-            payload=msg,
-            qos=int(qos),
-            retain=bool(retain),
-            hostname=host,
-            port=port,
-            client_id=client_id or "",
-            keepalive=int(keepalive_seconds),
-            auth=auth,
-            tls=tls_cfg,
-        )
+        code = client.connect(config["broker_host"], config["broker_port"], keepalive=30)
+        if code != mqtt.MQTT_ERR_SUCCESS:
+            raise DeliveryError("mqtt_connection_failed")
+        while not connected:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            if client.loop(timeout=min(0.1, remaining)) != mqtt.MQTT_ERR_SUCCESS:
+                raise DeliveryError("mqtt_connection_failed")
+        info = client.publish(config["topic"], payload=message["body"].encode("utf-8"),
+                              qos=config["qos"], retain=config["retain"])
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise DeliveryError("mqtt_publish_failed")
+        while not info.is_published():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            if client.loop(timeout=min(0.1, remaining)) != mqtt.MQTT_ERR_SUCCESS:
+                raise DeliveryError("mqtt_publish_failed")
+        return {"mqtt_qos": config["qos"]}
     finally:
-        socket.setdefaulttimeout(old)
+        client.disconnect()
 
-    return True, {
-        "broker_host": host,
-        "broker_port": port,
-        "topic": t,
-        "qos": int(qos),
-        "retain": bool(retain),
-    }
+
+def _child(connection, config: dict, message: dict, timeout: float):
+    try:
+        connection.send((True, _publish(config, message, timeout)))
+    except SSRFError:
+        connection.send((False, "destination_blocked"))
+    except TimeoutError:
+        connection.send((False, "timeout"))
+    except DeliveryError as error:
+        connection.send((False, error.code))
+    except Exception:
+        connection.send((False, "mqtt_transport_error"))
+    finally:
+        connection.close()
+
+
+async def send(config: dict, message: dict, *, timeout: float) -> dict:
+    context = multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(target=_child, args=(sender, config, message, timeout), daemon=True)
+    try:
+        process.start()
+        sender.close()
+        deadline = time.monotonic() + timeout
+        while not receiver.poll():
+            if time.monotonic() >= deadline:
+                raise DeliveryError("timeout")
+            if not process.is_alive():
+                raise DeliveryError("mqtt_process_failed")
+            await asyncio.sleep(0.01)
+        try:
+            ok, result = receiver.recv()
+        except EOFError:
+            raise DeliveryError("mqtt_process_failed") from None
+        if not ok:
+            raise DeliveryError(result)
+        return result
+    finally:
+        sender.close()
+        receiver.close()
+        # No publishing process survives cancellation, timeout or worker shutdown.
+        if process.pid is not None:
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=1)
+            if process.is_alive():
+                process.kill()
+                process.join()
+            process.close()

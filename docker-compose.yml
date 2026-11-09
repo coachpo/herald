@@ -1,67 +1,35 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: herald
-      POSTGRES_USER: herald
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U herald -d herald"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    logging: &logging
-      driver: json-file
-      options: { max-size: "10m", max-file: "3" }
-
-  migrate:
-    build: ./backend
-    command: ["python", "-m", "backend.migrate"]
-    environment: &backend_env
-      APP_ENV: production
-      DATABASE_URL: postgresql://herald:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/herald
-      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
-      CHANNEL_CONFIG_ENCRYPTION_KEY: ${CHANNEL_CONFIG_ENCRYPTION_KEY:?set CHANNEL_CONFIG_ENCRYPTION_KEY}
-      EDGE_SYNC_TOKEN: ${EDGE_SYNC_TOKEN:-}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
-      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LOG_FORMAT: json
-      SENTRY_DSN: ${SENTRY_DSN:-}
-    depends_on:
-      db: { condition: service_healthy }
-    restart: "no"
-
-  api:
-    build: ./backend
+  herald:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     ports:
-      - "8000:8000"
-    environment: *backend_env
-    depends_on:
-      db: { condition: service_healthy }
-      migrate: { condition: service_completed_successfully }
+      - "127.0.0.1:${HERALD_PORT:-8000}:8000"
+    environment:
+      HERALD_DATA_DIR: /data
+      HERALD_HOST: 0.0.0.0
+      HERALD_PORT: 8000
+      HERALD_DELIVERY_TIMEOUT: ${HERALD_DELIVERY_TIMEOUT:-10}
+      HERALD_MAX_ATTEMPTS: ${HERALD_MAX_ATTEMPTS:-5}
+      HERALD_BACKOFF_BASE: ${HERALD_BACKOFF_BASE:-5}
+      HERALD_BACKOFF_MAX: ${HERALD_BACKOFF_MAX:-300}
+      HERALD_CONCURRENCY: ${HERALD_CONCURRENCY:-4}
+      HERALD_RETENTION_DAYS: ${HERALD_RETENTION_DAYS:-30}
+      HERALD_ADMIN_TOKEN: ${HERALD_ADMIN_TOKEN:-}
+      HERALD_INGEST_TOKEN: ${HERALD_INGEST_TOKEN:-}
+      HERALD_ENCRYPTION_KEY: ${HERALD_ENCRYPTION_KEY:-}
+    volumes:
+      - herald_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 6s
       start_period: 10s
-    logging: *logging
-
-  worker:
-    build: ./backend
-    command: ["python", "-m", "backend.worker"]
-    restart: unless-stopped
-    environment: *backend_env
-    depends_on:
-      db: { condition: service_healthy }
-      migrate: { condition: service_completed_successfully }
-    logging: *logging
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
 
 volumes:
-  pgdata:
+  herald_data:

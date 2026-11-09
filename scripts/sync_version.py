@@ -11,8 +11,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 VERSION_PATH = REPO_ROOT / "VERSION"
 BACKEND_PYPROJECT_PATH = REPO_ROOT / "backend/pyproject.toml"
 FRONTEND_PACKAGE_PATH = REPO_ROOT / "frontend/package.json"
-EDGE_PACKAGE_PATH = REPO_ROOT / "edge/package.json"
-EDGE_LOCKFILE_PATH = REPO_ROOT / "edge/package-lock.json"
 
 BACKEND_VERSION_RE = re.compile(r'(?m)^(version = )"([^"]+)"$')
 
@@ -75,52 +73,6 @@ def sync_package_json(path: Path, version: str, check: bool) -> bool:
     return True
 
 
-def sync_edge_lockfile(version: str, check: bool) -> bool:
-    data = json.loads(EDGE_LOCKFILE_PATH.read_text(encoding="utf-8"))
-    package_info = data.get("packages")
-    if not isinstance(package_info, dict):
-        raise SystemExit(
-            f"Missing packages object in {relative_path(EDGE_LOCKFILE_PATH)}"
-        )
-
-    root_package = package_info.get("")
-    if not isinstance(root_package, dict):
-        raise SystemExit(
-            f"Missing root package entry in {relative_path(EDGE_LOCKFILE_PATH)}"
-        )
-
-    current_top_level = data.get("version")
-    current_root_package = root_package.get("version")
-    if not isinstance(current_top_level, str) or not isinstance(
-        current_root_package, str
-    ):
-        raise SystemExit(
-            f"Missing version fields in {relative_path(EDGE_LOCKFILE_PATH)}"
-        )
-
-    if current_top_level == version and current_root_package == version:
-        return False
-
-    if check:
-        print(
-            "Mismatch: "
-            f"{relative_path(EDGE_LOCKFILE_PATH)} has top-level {current_top_level} "
-            f"and packages[''] {current_root_package}, expected {version}"
-        )
-        return True
-
-    data["version"] = version
-    root_package["version"] = version
-    EDGE_LOCKFILE_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(
-        "Updated "
-        f"{relative_path(EDGE_LOCKFILE_PATH)}: "
-        f"top-level {current_top_level} -> {version}, "
-        f"packages[''] {current_root_package} -> {version}"
-    )
-    return True
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Sync package metadata versions from the repo root VERSION file."
@@ -140,8 +92,6 @@ def main() -> int:
     changed = [
         sync_backend_pyproject(version, check=args.check),
         sync_package_json(FRONTEND_PACKAGE_PATH, version, check=args.check),
-        sync_package_json(EDGE_PACKAGE_PATH, version, check=args.check),
-        sync_edge_lockfile(version, check=args.check),
     ]
 
     if args.check:

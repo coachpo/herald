@@ -1,32 +1,10 @@
-from __future__ import annotations
-
-from functools import lru_cache
-import base64
-import hashlib
-
+"""Authenticated encryption for destination credentials."""
 from cryptography.fernet import Fernet
 
 
-@lru_cache(maxsize=1)
-def _fernet_from_settings() -> Fernet:
-    from ..config import get_settings
-
-    settings = get_settings()
-    key = str(settings.channel_config_encryption_key or "").strip()
-    if key:
-        try:
-            return Fernet(key.encode("utf-8"))
-        except (TypeError, ValueError):
-            derived = hashlib.sha256(key.encode("utf-8")).digest()
-            return Fernet(base64.urlsafe_b64encode(derived))
-
-    derived = hashlib.sha256(settings.secret_key.encode("utf-8")).digest()
-    return Fernet(base64.urlsafe_b64encode(derived))
+def encrypt_json_bytes(plaintext: bytes, key: str) -> str:
+    return Fernet(key.encode()).encrypt(plaintext).decode()
 
 
-def encrypt_json_bytes(plaintext: bytes) -> str:
-    return _fernet_from_settings().encrypt(plaintext).decode("utf-8")
-
-
-def decrypt_json_bytes(ciphertext: str) -> bytes:
-    return _fernet_from_settings().decrypt(ciphertext.encode("utf-8"))
+def decrypt_json_bytes(ciphertext: str, key: str) -> bytes:
+    return Fernet(key.encode()).decrypt(ciphertext.encode())

@@ -1,422 +1,239 @@
-"""Test provider modules."""
+import asyncio
+import json
+import socket
+import ssl
+import threading
+from types import SimpleNamespace
 
+import httpx
 import pytest
-from unittest.mock import AsyncMock, patch
+from pydantic import ValidationError
 
-from backend.providers.bark import build_bark_payload, build_push_url
-from backend.providers.gotify import build_gotify_payload, send_gotify_push
-from backend.providers.mqtt import _encode_payload, send_mqtt_publish
-from backend.providers.ntfy import (
-    build_ntfy_request,
-    build_topic_url,
-    _coerce_header_value,
-)
-from backend.core.ssrf import SSRFError
+from backend.channel_dispatch import DeliveryError, dispatch
+from backend.providers import bark, gotify, mqtt, ntfy
+from backend.providers import http as provider_http
+from backend.target_config import normalize_target_config
 
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_a, **_k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))])
 
-class TestBark:
-    """Test Bark provider."""
+@pytest.fixture
+def transport(monkeypatch):
+    requests = []
+    response = {"status": 200, "body": {"echo": "DO_NOT_PERSIST_PROVIDER_SECRET"}}
+    original = httpx.AsyncClient
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(response["status"], json=response["body"])
+    def client(**kwargs):
+        assert kwargs["follow_redirects"] is False
+        return original(**kwargs, transport=httpx.MockTransport(handle))
+    monkeypatch.setattr(provider_http.httpx, "AsyncClient", client)
+    return requests, response
 
-    def test_build_push_url(self):
-        """Build push URL from server base."""
-        assert build_push_url("https://api.day.app") == "https://api.day.app/push"
-        assert build_push_url("https://api.day.app/") == "https://api.day.app/push"
-        assert build_push_url("https://api.day.app/push") == "https://api.day.app/push"
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,config,path,expected", [
+    ("bark", {"server_base_url":"https://push.example/prefix","device_key":"device-secret"}, "/prefix/push", {"device_key":"device-secret","body":"hello 世界","title":"标题"}),
+    ("ntfy", {"server_base_url":"https://push.example","topic":"inbox","access_token":"token-secret"}, "/", {"topic":"inbox","message":"hello 世界","title":"标题","priority":4}),
+    ("gotify", {"server_base_url":"https://push.example","app_token":"app-secret"}, "/message", {"message":"hello 世界","title":"标题","priority":7}),
+])
+async def test_http_provider_mapping_and_safe_confirmation(transport, kind, config, path, expected):
+    requests, _ = transport
+    config = normalize_target_config(kind, config)
+    result = await dispatch(kind, config, {"title":"标题","body":"hello 世界","priority":4}, timeout=1)
+    assert result == {"http_status":200}
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.method == "POST"
+    assert request.url.path == path
+    assert json.loads(request.content) == expected
+    if kind == "ntfy":
+        assert request.headers["Authorization"] == "Bearer token-secret"
+    if kind == "gotify":
+        assert request.headers["X-Gotify-Key"] == "app-secret"
+    assert "secret" not in json.dumps(result)
 
-    def test_build_bark_payload(self):
-        """Build Bark payload from config and message."""
-        channel_config = {
-            "device_key": "test-device-key",
-            "default_payload_json": {"sound": "bell"},
-        }
-        payload_template = {"body": "{{message.body}}", "title": "{{message.title}}"}
-        message = {"body": "test body", "title": "test title", "priority": 3}
-        endpoint = {"name": "test-endpoint"}
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [301, 404, 405, 429, 500])
+async def test_http_failures_do_not_fallback_or_store_provider_body(transport, status):
+    requests, response = transport
+    response["status"] = status
+    with pytest.raises(DeliveryError, match=f"^http_{status}$"):
+        await dispatch("bark", {"server_base_url":"https://push.example","device_key":"secret"}, {"body":"hi"}, timeout=1)
+    assert len(requests) == 1
+    assert requests[0].method == "POST"
 
-        payload = build_bark_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
+@pytest.mark.asyncio
+async def test_dispatch_failure_never_echoes_transport_secrets(monkeypatch):
+    async def fail(*_a, **_k):
+        raise RuntimeError("https://user:password@example.com?token=secret")
+    monkeypatch.setattr(bark, "send", fail)
+    with pytest.raises(DeliveryError, match="^transport_error$"):
+        await dispatch("bark", {}, {}, timeout=1)
 
-        assert payload["body"] == "test body"
-        assert payload["title"] == "test title"
-        assert payload["device_key"] == "test-device-key"
-        assert payload["sound"] == "bell"
+@pytest.mark.asyncio
+async def test_timeout_is_bounded_and_safe(monkeypatch):
+    async def block(*_a, **_k):
+        await asyncio.sleep(10)
+    monkeypatch.setattr(ntfy, "send", block)
+    with pytest.raises(DeliveryError, match="^timeout$"):
+        await dispatch("ntfy", {}, {}, timeout=0.01)
 
-    def test_build_bark_payload_with_device_keys(self):
-        """Build Bark payload with multiple device keys."""
-        channel_config = {
-            "device_keys": ["key1", "key2"],
-        }
-        payload_template = {}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
+@pytest.mark.asyncio
+async def test_blocked_host_never_reaches_transport(monkeypatch, transport):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_a, **_k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))])
+    with pytest.raises(DeliveryError, match="^destination_blocked$"):
+        await dispatch("gotify", {"server_base_url":"https://push.example","app_token":"secret"}, {"body":"hi"}, timeout=1)
+    assert not transport[0]
 
-        payload = build_bark_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
+@pytest.mark.asyncio
+async def test_slow_dns_does_not_block_other_target_or_send_after_timeout(monkeypatch, transport):
+    started, release, finished = threading.Event(), threading.Event(), threading.Event()
 
-        assert payload["device_keys"] == ["key1", "key2"]
+    def check(url):
+        if "slow.example" in url:
+            started.set()
+            release.wait(2)
+            finished.set()
 
+    monkeypatch.setattr(provider_http, "assert_ssrf_safe", check)
+    loop = asyncio.get_running_loop()
+    before = loop.time()
+    slow = asyncio.create_task(dispatch("bark", {"server_base_url":"https://slow.example", "device_key":"key"}, {"body":"slow"}, timeout=0.05))
+    try:
+        assert await asyncio.to_thread(started.wait, 1)
+        result = await dispatch("bark", {"server_base_url":"https://fast.example", "device_key":"key"}, {"body":"fast"}, timeout=0.5)
+        assert result == {"http_status":200}
+        assert loop.time() - before < 0.5
+        with pytest.raises(DeliveryError, match="^timeout$"):
+            await slow
+    finally:
+        release.set()
+        await asyncio.to_thread(finished.wait, 1)
+        if not slow.done():
+            slow.cancel()
+            await asyncio.gather(slow, return_exceptions=True)
+    # Completion of the abandoned DNS lookup cannot resume the cancelled sender.
+    assert [request.url.host for request in transport[0]] == ["fast.example"]
 
-class TestNtfy:
-    """Test ntfy provider."""
+@pytest.mark.parametrize("kind,config", [
+    ("bark", {"server_base_url":"https://push.example","device_key":"k","default_payload_json":{}}),
+    ("mqtt", {"broker_host":"broker.example","topic":"x","tls_insecure":True}),
+    ("mqtt", {"broker_host":"broker.example","topic":"x/+"}),
+    ("mqtt", {"broker_host":"broker.example","topic":"x","username":"a"}),
+    ("ntfy", {"server_base_url":"https://push.example","topic":"../../outside"}),
+    ("gotify", {"server_base_url":"https://u:password@push.example","app_token":"key"}),
+    ("gotify", {"server_base_url":"https://push.example/?key=secret","app_token":"key"}),
+])
+def test_reject_legacy_or_unsafe_configuration(kind, config):
+    with pytest.raises((ValidationError, ValueError)):
+        normalize_target_config(kind, config)
 
-    def test_build_topic_url(self):
-        """Build topic URL from server and topic."""
-        assert (
-            build_topic_url("https://ntfy.sh", "mytopic") == "https://ntfy.sh/mytopic"
-        )
-        assert (
-            build_topic_url("https://ntfy.sh/", "mytopic") == "https://ntfy.sh/mytopic"
-        )
-        assert (
-            build_topic_url("https://ntfy.sh", "/mytopic") == "https://ntfy.sh/mytopic"
-        )
+def test_mqtt_defaults():
+    config = normalize_target_config("mqtt", {"broker_host":"broker.example","topic":"inbox"})
+    assert config == {"broker_host":"broker.example","broker_port":1883,"topic":"inbox","tls":False,"qos":1,"retain":False}
 
-    def test_coerce_header_value(self):
-        """Coerce various types to header strings."""
-        assert _coerce_header_value(None) is None
-        assert _coerce_header_value(True) == "true"
-        assert _coerce_header_value(False) == "false"
-        assert _coerce_header_value(42) == "42"
-        assert _coerce_header_value(3.14) == "3.14"
-        assert _coerce_header_value("test") == "test"
-        assert _coerce_header_value("  ") is None  # Empty after strip
+@pytest.mark.parametrize("qos", [0, 1, 2])
+def test_mqtt_waits_for_selected_qos_confirmation_and_verifies_tls(monkeypatch, qos):
+    import paho.mqtt.client as paho
+    calls = []
+    info = SimpleNamespace(rc=0, published=False)
+    info.is_published = lambda: info.published
+    class Client:
+        def __init__(self, *_a, **kwargs):
+            assert kwargs["reconnect_on_failure"] is False
+            self.on_connect = None
+            self.connected = False
+        def username_pw_set(self, username, password):
+            calls.append(("auth", username, password))
+        def tls_set_context(self, context):
+            assert context.verify_mode == ssl.CERT_REQUIRED
+            assert context.check_hostname is True
+            calls.append(("tls",))
+        def connect(self, host, port, keepalive):
+            calls.append(("connect", host, port, keepalive))
+            return 0
+        def loop(self, timeout):
+            assert 0 < timeout <= 0.1
+            if not self.connected:
+                self.connected = True
+                self.on_connect(self, None, None, SimpleNamespace(is_failure=False), None)
+            else:
+                info.published = True
+            calls.append(("loop",))
+            return 0
+        def publish(self, topic, payload, qos, retain):
+            calls.append(("publish", topic, payload, qos, retain))
+            return info
+        def disconnect(self):
+            calls.append(("disconnect",))
+    monkeypatch.setattr(paho, "Client", Client)
+    def forbidden(*_a, **_k):
+        raise AssertionError("must not alter global socket timeout")
+    monkeypatch.setattr(socket, "setdefaulttimeout", forbidden)
+    config = normalize_target_config("mqtt", {"broker_host":"broker.example","topic":"inbox","qos":qos,"tls":True,"username":"owner","password":"secret"})
+    assert mqtt._publish(config, {"body":"你好"}, timeout=1) == {"mqtt_qos":qos}
+    assert ("publish", "inbox", "你好".encode(), qos, False) in calls
+    assert sum(c[0] == "loop" for c in calls) == 2
+    assert calls[-1] == ("disconnect",)
 
-    def test_build_ntfy_request_basic(self):
-        """Build basic ntfy request."""
-        channel_config = {
-            "server_base_url": "https://ntfy.sh",
-            "topic": "test-topic",
-        }
-        payload_template = {"body": "{{message.body}}"}
-        message = {"body": "test message", "title": "test title", "priority": 3}
-        endpoint = {"name": "test"}
+class FakeProcess:
+    def __init__(self):
+        self.pid = None
+        self.alive = False
+        self.terminated = False
+        self.joined = False
+        self.closed = False
+    def start(self):
+        self.pid = 1
+        self.alive = True
+    def is_alive(self):
+        return self.alive
+    def terminate(self):
+        self.terminated = True
+        self.alive = False
+    def kill(self):
+        self.alive = False
+    def join(self, **_kwargs):
+        self.joined = True
+    def close(self):
+        self.closed = True
 
-        url, body, headers, auth = build_ntfy_request(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-            block_private_networks=False,
-        )
+@pytest.fixture
+def mqtt_process(monkeypatch):
+    process = FakeProcess()
+    connection = SimpleNamespace(poll=lambda:False, close=lambda:None)
+    context = SimpleNamespace(Pipe=lambda **_kwargs:(connection,connection), Process=lambda **_kwargs:process)
+    monkeypatch.setattr(mqtt.multiprocessing, "get_context", lambda _method: context)
+    return process
 
-        assert url == "https://ntfy.sh/test-topic"
-        assert body == b"test message"
-        assert headers["Title"] == "test title"
-        assert auth is None
+@pytest.mark.asyncio
+async def test_mqtt_timeout_stops_attempt_before_return(mqtt_process):
+    with pytest.raises(DeliveryError, match="^timeout$"):
+        await mqtt.send({}, {}, timeout=0.01)
+    assert mqtt_process.terminated and mqtt_process.joined and mqtt_process.closed
 
-    def test_build_ntfy_request_with_auth(self):
-        """Build ntfy request with authentication."""
-        channel_config = {
-            "server_base_url": "https://ntfy.sh",
-            "topic": "test-topic",
-            "username": "user",
-            "password": "pass",
-        }
-        payload_template = {}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
+@pytest.mark.asyncio
+async def test_mqtt_cancellation_stops_attempt_before_retry(mqtt_process):
+    task = asyncio.create_task(mqtt.send({}, {}, timeout=10))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert mqtt_process.terminated and mqtt_process.joined and mqtt_process.closed
 
-        url, body, headers, auth = build_ntfy_request(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-            block_private_networks=False,
-        )
+def test_mqtt_child_sanitizes_credentials_in_exceptions(monkeypatch):
+    messages = []
+    connection = SimpleNamespace(send=messages.append, close=lambda:None)
+    def fail(*_args):
+        raise RuntimeError("secret password")
+    monkeypatch.setattr(mqtt, "_publish", fail)
+    mqtt._child(connection, {}, {}, 1)
+    assert messages == [(False, "mqtt_transport_error")]
 
-        assert auth == ("user", "pass")
-
-    def test_build_ntfy_request_with_token(self):
-        """Build ntfy request with bearer token."""
-        channel_config = {
-            "server_base_url": "https://ntfy.sh",
-            "topic": "test-topic",
-            "access_token": "secret-token",
-        }
-        payload_template = {}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
-
-        url, body, headers, auth = build_ntfy_request(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-            block_private_networks=False,
-        )
-
-        assert headers["Authorization"] == "Bearer secret-token"
-        assert auth is None  # Token takes precedence
-
-    @pytest.mark.parametrize("msg_priority,expected", [(5, "urgent"), (1, "min")])
-    def test_build_ntfy_request_priority_mapping(self, msg_priority, expected):
-        """Test priority mapping to ntfy format."""
-        channel_config = {
-            "server_base_url": "https://ntfy.sh",
-            "topic": "test",
-        }
-        payload_template = {}
-        endpoint = {"name": "test"}
-
-        message = {"body": "test", "priority": msg_priority}
-        _, _, headers, _ = build_ntfy_request(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-            block_private_networks=False,
-        )
-        assert headers["Priority"] == expected
-
-    def test_build_ntfy_request_missing_config(self):
-        """Missing required config should raise ValueError."""
-        with pytest.raises(ValueError, match="missing_server_base_url"):
-            build_ntfy_request(
-                channel_config={"topic": "test"},
-                payload_template={},
-                message={"body": "test", "priority": 3},
-                ingest_endpoint={"name": "test"},
-                block_private_networks=False,
-            )
-
-        with pytest.raises(ValueError, match="missing_topic"):
-            build_ntfy_request(
-                channel_config={"server_base_url": "https://ntfy.sh"},
-                payload_template={},
-                message={"body": "test", "priority": 3},
-                ingest_endpoint={"name": "test"},
-                block_private_networks=False,
-            )
-
-
-class TestGotify:
-    """Test Gotify provider."""
-
-    def test_build_gotify_payload_basic(self):
-        """Build basic Gotify payload with body and title."""
-        channel_config = {}
-        payload_template = {"body": "{{message.body}}", "title": "{{message.title}}"}
-        message = {"body": "test body", "title": "test title", "priority": 3}
-        endpoint = {"name": "test-endpoint"}
-
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-
-        assert payload["message"] == "test body"
-        assert payload["title"] == "test title"
-
-    @pytest.mark.parametrize("msg_priority,expected", [(1, 0), (2, 2), (4, 7), (5, 10)])
-    def test_build_gotify_payload_priority_mapping(self, msg_priority, expected):
-        """Test priority mapping: 1→0, 2→2, 4→7, 5→10."""
-        channel_config = {}
-        payload_template = {}
-        endpoint = {"name": "test"}
-
-        message = {"body": "test", "priority": msg_priority}
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-        assert payload["priority"] == expected
-
-    def test_build_gotify_payload_default_extras(self):
-        """Test default_extras_json merges into extras."""
-        channel_config = {"default_extras_json": {"custom_key": "custom_value"}}
-        payload_template = {"extras": {"template_key": "template_value"}}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
-
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-
-        assert payload["extras"]["custom_key"] == "custom_value"
-        assert payload["extras"]["template_key"] == "template_value"
-
-    def test_build_gotify_payload_markdown_flag(self):
-        """Test markdown=True sets client::display contentType."""
-        channel_config = {}
-        payload_template = {"markdown": True}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
-
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-
-        assert payload["extras"]["client::display"]["contentType"] == "text/markdown"
-
-    def test_build_gotify_payload_click_url(self):
-        """Test click URL in template sets client::notification."""
-        channel_config = {}
-        payload_template = {"click": "https://example.com"}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
-
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-
-        assert (
-            payload["extras"]["client::notification"]["click"]["url"]
-            == "https://example.com"
-        )
-
-    def test_build_gotify_payload_default_priority(self):
-        """Test default_priority from config used when message priority is 3."""
-        channel_config = {"default_priority": 7}
-        payload_template = {}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
-
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-
-        assert payload["priority"] == 7
-
-    def test_build_gotify_payload_default_payload_merge(self):
-        """Test default_payload_json merges as base."""
-        channel_config = {"default_payload_json": {"sound": "bell", "vibration": True}}
-        payload_template = {"body": "test message"}
-        message = {"body": "test", "priority": 3}
-        endpoint = {"name": "test"}
-
-        payload = build_gotify_payload(
-            channel_config=channel_config,
-            payload_template=payload_template,
-            message=message,
-            ingest_endpoint=endpoint,
-        )
-
-        assert payload["sound"] == "bell"
-        assert payload["vibration"] is True
-        assert payload["message"] == "test message"
-
-    @pytest.mark.asyncio
-    async def test_send_gotify_push_url_and_headers(self):
-        """Test send_gotify_push constructs correct URL and headers."""
-        with (
-            patch("backend.providers.gotify.assert_ssrf_safe") as mock_ssrf,
-            patch(
-                "backend.providers.gotify.httpx.AsyncClient"
-            ) as mock_client_class,
-        ):
-            mock_response = AsyncMock()
-            mock_response.status_code = 200
-            mock_response.headers = {"Content-Type": "application/json"}
-            mock_response.content = b'{"id": 1}'
-            # json() is synchronous in httpx.Response
-            mock_response.json = lambda: {"id": 1}
-
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_response
-            mock_client.__aenter__.return_value = mock_client
-            mock_client.__aexit__.return_value = None
-            mock_client_class.return_value = mock_client
-
-            ok, meta = await send_gotify_push(
-                server_base_url="https://gotify.example.com",
-                app_token="test-token",
-                payload={"message": "test"},
-                timeout=5.0,
-                block_private_networks=False,
-            )
-
-            assert ok is True
-            assert meta["http_status"] == 200
-            assert meta["json"] == {"id": 1}
-
-            # Verify URL and headers
-            mock_client.post.assert_called_once()
-            call_args = mock_client.post.call_args
-            assert call_args[1]["json"] == {"message": "test"}
-            assert call_args[1]["headers"]["X-Gotify-Key"] == "test-token"
-            assert call_args[1]["headers"]["Content-Type"] == "application/json"
-            assert "https://gotify.example.com/message" in call_args[0]
-
-
-class TestMqtt:
-    def test_encode_payload_variants(self):
-        assert _encode_payload(b"raw") == b"raw"
-        assert _encode_payload("str") == b"str"
-        assert _encode_payload({"a": 1}) == b'{"a":1}'
-
-    def test_send_mqtt_publish_success(self, monkeypatch):
-        calls = {}
-
-        def fake_single(topic, **kwargs):
-            calls["topic"] = topic
-            calls["kwargs"] = kwargs
-
-        monkeypatch.setenv("MQTT_BLOCK_PRIVATE_NETWORKS", "false")
-        monkeypatch.setattr(
-            "socket.getaddrinfo",
-            lambda *args, **kwargs: [(0, 0, 0, "", ("93.184.216.34", 0))],
-        )
-        monkeypatch.setattr("paho.mqtt.publish.single", fake_single)
-        ok, meta = send_mqtt_publish(
-            broker_host="broker.example.com",
-            broker_port=1883,
-            topic="t/x",
-            payload="hello",
-            username=None,
-            password=None,
-            qos=0,
-            retain=False,
-            tls=False,
-            tls_insecure=False,
-            client_id=None,
-            keepalive_seconds=60,
-        )
-        assert ok is True and calls["topic"] == "t/x"
-        assert meta["broker_host"] == "broker.example.com"
-        kwargs = calls["kwargs"]
-        assert kwargs["payload"] == b"hello"
-        assert kwargs["hostname"] == "broker.example.com"
-        assert kwargs["port"] == 1883
-        assert kwargs["qos"] == 0
-        assert kwargs["retain"] is False
-
-    def test_send_mqtt_publish_rejects_private_host(self):
-        with pytest.raises(SSRFError):
-            send_mqtt_publish(
-                broker_host="192.168.1.10",
-                broker_port=1883,
-                topic="t",
-                payload="x",
-                username=None,
-                password=None,
-                qos=0,
-                retain=False,
-                tls=False,
-                tls_insecure=False,
-                client_id=None,
-                keepalive_seconds=60,
-            )
+@pytest.mark.asyncio
+async def test_real_mqtt_child_fails_closed_without_network():
+    # Literal loopback resolves locally in the child and is rejected before connect.
+    with pytest.raises(DeliveryError, match="^destination_blocked$"):
+        await mqtt.send({"broker_host":"127.0.0.1"}, {"body":"never sent"}, timeout=3)

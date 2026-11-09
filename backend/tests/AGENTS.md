@@ -1,17 +1,11 @@
 # backend/tests/AGENTS.md
 
-## Destructive Fixture Boundary
+Tests create temporary SQLite databases and private settings. Keep tests independent and use mocked provider transports; never point fixtures at a user's live data directory or send real notifications.
 
-- Use only a dedicated disposable PostgreSQL database; there is no SQLite test path. `TEST_DATABASE_URL` defaults to `postgresql://herald:herald@127.0.0.1:5432/herald`.
-- The autouse session fixture applies migrations; before every test, fixtures truncate `users, refresh_tokens, ingest_endpoints, channels, rules, messages, deliveries` with `CASCADE`.
-- Fixtures set `DB_POOL_CLASS=null` and clear settings/database caches around tests. Data helpers insert rows with asyncpg and encrypt channel configs.
-- Do not point tests at a development database containing data you need to keep. The `start.sh` database is not isolated from its running API/worker.
+Verify durable receipt, same-key replay/conflict, failed-only manual retry, bounded worker claims, restart recovery, cleanup retention, authentication separation, configuration redaction, and SSRF enforcement. A provider success followed by a crash can be repeated: do not assert exactly-once external effects.
 
-## Test Patterns
+From the repository root:
 
-- API tests use `httpx.AsyncClient` with `ASGITransport(app=app)` and `base_url="http://test"`.
-- Mark async tests with `@pytest.mark.asyncio`.
-- For config-sensitive tests, set env with `monkeypatch`, clear `get_settings.cache_clear()`, and recreate the app.
-- Keep fixture SQL aligned with migrations and tests independent of execution order.
-- Provider tests should mock external transports and assert request shape and SSRF behavior without exposing plaintext secrets in logs/snapshots.
-- Use the parent guide's pytest command, narrowing to affected test files where appropriate.
+```bash
+uv run --project backend --locked pytest backend/tests -q
+```

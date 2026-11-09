@@ -1,221 +1,108 @@
 # Operations
 
-This guide owns development commands, deployment prerequisites, and operator procedures. It describes the checked-in configuration, not a verified live deployment. All commands below run from the repository root unless another working directory is stated. Relay-specific provisioning and protocol are in [Edge Relay](10_edge.md).
+Commands run from the repository root unless stated otherwise. One resident application process serves HTTP, the built UI, and provider delivery. MQTT sends use bounded short-lived child processes, terminated and joined on timeout/cancellation. Keep its data directory on persistent local storage; network filesystems and multiple runtime instances are unsupported.
 
-## Processes
+## Local startup
 
-- `api`: FastAPI backend, `GET /health`, `/api/*`
-- `worker`: async delivery loop, `python -m backend.worker`
-- `db`: PostgreSQL 16
-- `frontend`: Vite in development or static SPA server on port `3100`
-- `edge`: Cloudflare Worker relay and EdgeOne Pages relay
-
-## Local Development
-
-Choose one startup path rather than running the helper and the full development Compose stack together. The helper needs Docker Compose, Python 3.13+, `uv`, `lsof`, and `pgrep`; it looks for `python3.13` first, then `python3` (which must be 3.13+). `full` also needs Node.js 24 and `pnpm` 10.30.1 on `PATH`.
+Requires Python 3.13+, uv, Node.js 24, and Corepack:
 
 ```bash
-# Helper: choose headless OR full.
-./start.sh headless
-./start.sh full
-# Alternative: run the backend stack entirely in containers.
-docker compose -f docker-compose.dev.yml up
+./start.sh
 ```
 
-`start.sh` uses `DB_PORT=35432`, `BACKEND_PORT=38000`, and `FRONTEND_PORT=35173` by default. Before starting, it recreates the development `db` container (retaining its volume), stops containers bound to these ports, and terminates their listeners—even the frontend port in headless mode. Use it only when those ports are safe to reclaim, or override the helper's three port variables. On exit it stops its database and managed API/Vite processes.
+This installs locked dependencies, builds `frontend/dist`, and runs `herald-backend`. `./start.sh dev` runs the API on 8000 and Vite on 35173 with same-origin API proxying. It stops only children it started and fails if required ports are occupied. Do not run a second API against the same data directory.
 
-`./start.sh full` starts PostgreSQL, the API, and Vite; `headless` omits Vite. **Neither starts the delivery worker.** To exercise provider delivery, run the worker in another terminal against the helper database, with the same secret/encryption settings as the API:
-
-```bash
-DATABASE_URL=postgresql://herald:herald@127.0.0.1:35432/herald_dev \
-  uv run --project backend --locked python -m backend.worker
-```
-
-Adjust `35432` if `DB_PORT` was overridden. Stop this separately started worker before stopping or restarting the helper. `docker compose -f docker-compose.dev.yml up` instead runs `db`, one-shot `migrate`, `api`, and `worker`; it publishes PostgreSQL on `${POSTGRES_PORT:-5432}` and the API on `8000`, but does not run the frontend. When adding Vite separately, set `VITE_API_URL=http://localhost:8000` and allow its actual origin with `CORS_ALLOWED_ORIGINS` for the API. Development Compose defaults CORS to `http://localhost:3000`, matching this repository's Vite configuration; update CORS if Vite uses a different origin.
-
-For manual backend startup, first provision a reachable PostgreSQL database and export `DATABASE_URL`. The migration CLI reads it directly and does not load an env file. Export the required secret settings too, or put them in `backend/.env` for the API and worker:
+Manual equivalent:
 
 ```bash
 uv sync --project backend --locked
-uv run --project backend --locked python -m backend.migrate
-uv run --project backend --locked herald-backend
-# Separate terminal, same database and settings:
-uv run --project backend --locked python -m backend.worker
-```
-
-Backend tests migrate and **truncate all application tables** in `TEST_DATABASE_URL` before each test; never point them at a database whose contents must survive. They default to `postgresql://herald:herald@127.0.0.1:5432/herald`. For an isolated disposable test database, choose a free port and create the container once:
-
-```bash
-docker run -d --name herald-test-pg -e POSTGRES_DB=herald -e POSTGRES_USER=herald \
-  -e POSTGRES_PASSWORD=herald -p 127.0.0.1:35433:5432 postgres:16-alpine
-# Wait until pg_isready succeeds before pytest.
-docker exec herald-test-pg pg_isready -U herald -d herald
-TEST_DATABASE_URL=postgresql://herald:herald@127.0.0.1:35433/herald \
-  uv run --project backend --locked pytest backend/tests -v
-```
-
-On later runs, start the same test container only if its database and port mapping match this example. It is independent of the helper's development database.
-
-Frontend commands (Node.js 24, Corepack available):
-
-```bash
 corepack pnpm@10.30.1 --dir frontend install --frozen-lockfile
-corepack pnpm@10.30.1 --dir frontend lint
 corepack pnpm@10.30.1 --dir frontend build
-VITE_API_URL=http://localhost:8000 corepack pnpm@10.30.1 --dir frontend dev
-corepack pnpm@10.30.1 --dir frontend preview
+uv run --project backend --locked herald-backend
 ```
 
-Set API CORS to the Vite/preview origin before browser testing. Frontend verification is lint and build; no frontend test runner is configured.
+Schema initialization is automatic. There is no external database, migration job, separate worker command, or older-database import path. Existing older data is not used or deleted by this version. Before replacing an installation, preserve its old data and choose a new data directory.
 
-Edge commands (Node.js 24):
+## Credentials
 
-```bash
-npm --prefix edge ci
-npm --prefix edge test
-npm --prefix edge run lint
-```
+The default data directory is `./data`. First startup (or `herald-backend init`) creates private `credentials.env` (mode 600), containing `HERALD_ADMIN_TOKEN`, `HERALD_INGEST_TOKEN`, and `HERALD_ENCRYPTION_KEY`. The data directory must have mode 700; existing less-private directories are rejected rather than silently changed. Use a private operator session to obtain only the token needed; do not paste credentials into logs, issue trackers, chat, or source files. The CLI reports the location without printing values.
 
-The edge test command rebuilds the generated EdgeOne shared-module copy before running Node tests. To check version metadata without starting services, run `python3 scripts/sync_version.py --check`. CI defines package checks in [ci.yml](../.github/workflows/ci.yml); choose checks for the affected package rather than starting the whole application for documentation-only changes.
+Give the management token to the owner for dashboard login and the ingest token to senders. Keep the encryption key private and backed up. To override generated credentials, set all three credential variables together; partial overrides fail. Preserve the encryption key for existing targets.
 
-## Production Compose
-
-For an authorized deployment, create a root `.env` from the template only if one does not already exist. Set real secrets before starting the production stack:
+The application reads process environment, not arbitrary `.env` files. `start.sh` loads an optional root `.env`; Compose reads it for interpolation. Create one only if needed, without overwriting an existing file:
 
 ```bash
 test -e .env || cp .env.example .env
 chmod 600 .env
-# edit POSTGRES_PASSWORD, SECRET_KEY, and CHANNEL_CONFIG_ENCRYPTION_KEY
+```
+
+## Container
+
+```bash
 docker compose up -d --build
+docker compose logs --tail=100 herald
 ```
 
-Docker Compose reads the root `.env` for interpolation; it passes only variables declared in the Compose service's `environment` block to containers. Adding an arbitrary backend variable to `.env` alone does not configure a container: use an explicit Compose override for additional settings, and recreate affected services. Direct API/worker commands load `backend/.env`, not the root `.env`; the migration CLI requires exported `DATABASE_URL`, and standalone edge config sync requires exported tokens.
+The root build context uses `backend/Dockerfile` to build the UI and backend into one image. The `herald` service stores SQLite and credentials in the `herald_data` named volume and publishes only `127.0.0.1:8000`. The container runs as uid/gid 10001. Bind mounts, if substituted, must be writable by that user. `HERALD_DATA_DIR` in the container is always `/data`; changing a host-shell variable does not relocate the named volume.
 
-`docker-compose.yml` builds the backend locally and runs `db`, one-shot `migrate`, `api`, and `worker`. API and worker wait for a healthy database and successful migration. If migration fails, inspect `docker compose logs migrate`, resolve the failure, and rerun the stack rather than bypassing the dependency. Compose does not publish the database port and does not run frontend or edge deployments. `EDGE_SYNC_TOKEN` is optional; when unset, `/api/edge-config` returns `404`. The database password is interpolated into a connection URL, so use a URL-safe password with this unmodified Compose example.
+Use `docker compose stop herald` before offline maintenance. `docker compose down` retains the named volume; never use `down -v` unless you intend to delete the instance and credentials. Do not scale the service. The data-directory lock rejects a second process, and SQLite is local single-instance storage.
 
-Root image CI builds only the backend for `linux/amd64,linux/arm64`; eligible main/tag pushes publish it to GHCR. It does not deploy services or publish a frontend/edge image; see [docker-images.yml](../.github/workflows/docker-images.yml).
+For remote access, terminate TLS in a reverse proxy and explicitly route it to the loopback port. Keep tokens out of URLs and proxy logs. The application ignores forwarded headers; authenticate with bearer tokens.
 
-The `api` service listens on plain HTTP `:8000`. In production, terminate TLS with any reverse proxy (Caddy, nginx, or Cloudflare) in front of it, then:
+## Configuration
 
-- point the proxy at `http://<host>:8000`,
-- set `FORWARDED_ALLOW_IPS` to the proxy's IP so client IPs and rate limits are honored,
-- set `CORS_ALLOWED_ORIGINS` to the dashboard's origin.
-
-Generate a Fernet key:
-
-```bash
-uv run --project backend --locked python - <<'PY'
-from cryptography.fernet import Fernet
-print(Fernet.generate_key().decode())
-PY
-```
-
-## Frontend (production)
-
-Build the static dashboard with the public backend URL baked in:
-
-```bash
-docker build -t herald-frontend --build-arg VITE_API_URL=https://api.example.com ./frontend
-docker run -d --restart unless-stopped -p 3100:3100 herald-frontend
-```
-
-The container exposes port `3100` and serves `/health` for probes. Put it behind your reverse proxy or CDN in production.
-
-## Environment
-
-| Variable | Scope | Notes |
+| Variable | Default | Meaning |
 | --- | --- | --- |
-| `DATABASE_URL` | backend | PostgreSQL URL; converted to `postgresql+asyncpg://` internally |
-| `TEST_DATABASE_URL` | backend tests | PostgreSQL URL used by pytest; defaults to `postgresql://herald:herald@127.0.0.1:5432/herald` |
-| `APP_ENV` | backend | `development` or `production`; production rejects default secrets |
-| `APP_VERSION` | backend | Optional version override for `/health` |
-| `SECRET_KEY` | backend | HMAC and JWT fallback key |
-| `JWT_SIGNING_KEY` | backend | Optional JWT signing override |
-| `JWT_ACCESS_TTL_SECONDS` | backend | Access-token TTL, default `900` |
-| `JWT_REFRESH_TTL_SECONDS` | backend | Refresh-token TTL, default `2592000` |
-| `CHANNEL_CONFIG_ENCRYPTION_KEY` | backend | Required in production |
-| `EDGE_SYNC_TOKEN` | backend/scripts | Enables `GET /api/edge-config` |
-| `CORS_ALLOWED_ORIGINS` | backend | Comma-separated browser origins |
-| `FORWARDED_ALLOW_IPS` | backend | Trusted proxy IPs passed to uvicorn. Set this when the API is behind a reverse proxy; otherwise rate limits key on the proxy IP and every sender shares one bucket. |
-| `RATE_LIMIT_INGEST_PER_MINUTE` | backend | Ingest token bucket limit, default `120` |
-| `RATE_LIMIT_AUTH_PER_MINUTE` | backend | Auth token bucket limit, default `10` |
-| `ALLOW_USER_SIGNUP` | backend | Set false after initial user creation if desired |
-| `WORKER_POLL_SECONDS` | worker | Sleep when no full batch is claimed, default `1.0` |
-| `WORKER_BATCH_SIZE` | worker | Claim batch size, default `50` |
-| `DELIVERY_MAX_ATTEMPTS` | worker | Terminal failure threshold, default `10` |
-| `DELIVERY_BACKOFF_BASE_SECONDS` | worker | Retry backoff base, default `5` |
-| `DELIVERY_BACKOFF_MAX_SECONDS` | worker | Retry backoff cap, default `1800` |
-| `DB_POOL_SIZE` | backend/worker | SQLAlchemy pool size, default `5` |
-| `DB_MAX_OVERFLOW` | backend/worker | SQLAlchemy overflow, default `10` |
-| `DB_POOL_RECYCLE` | backend/worker | SQLAlchemy recycle seconds, default `3600` |
-| `DB_POOL_CLASS` | backend/worker | Set `null` to use `NullPool` |
-| `LOG_LEVEL` | backend/worker | Default `INFO` |
-| `LOG_FORMAT` | backend/worker | `json` or `console` |
-| `SENTRY_DSN` | backend/worker | Enables Sentry |
-| `SENTRY_TRACES_SAMPLE_RATE` | backend/worker | Default `0.1` |
-| `SENTRY_ENVIRONMENT` | backend/worker | Default `production` |
-| `BACKEND_HOST` | backend CLI | Default bind host `0.0.0.0` |
-| `BACKEND_PORT` / `PORT` | backend CLI | Default port `8000` |
-| `WEB_CONCURRENCY` | backend CLI | Default uvicorn workers `2` |
-| `MQTT_BLOCK_PRIVATE_NETWORKS` | worker | Dispatch-time MQTT private-network guard, default on; channel validation still enforces SSRF checks |
-| `MQTT_SOCKET_TIMEOUT_SECONDS` | worker | MQTT socket timeout, default `5.0` |
-| `VITE_API_URL` | frontend | Backend base URL baked into the frontend build and used by browser API calls |
-| `RELAY_ADMIN_TOKEN` | edge/scripts/GitHub | Protects relay admin endpoints |
-| `UPSTREAM_URL` | edge | Fixed next-hop origin chosen by the operator; intended topology and alternatives are in [Edge Relay](10_edge.md) |
+| `HERALD_DATA_DIR` | `./data` | SQLite, credentials, process lock; `/data` in Compose |
+| `HERALD_HOST` | `127.0.0.1` | HTTP bind; container uses `0.0.0.0` internally |
+| `HERALD_PORT` | `8000` | HTTP port; Compose variable chooses host port |
+| `HERALD_DELIVERY_TIMEOUT` | `10` | Per-attempt provider timeout, seconds |
+| `HERALD_MAX_ATTEMPTS` | `5` | Attempts per automatic/manual retry cycle |
+| `HERALD_BACKOFF_BASE` | `5` | Initial retry delay, seconds |
+| `HERALD_BACKOFF_MAX` | `300` | Maximum retry delay, seconds |
+| `HERALD_CONCURRENCY` | `4` | Maximum concurrent provider attempts |
+| `HERALD_RETENTION_DAYS` | `30` | Successful-history cleanup threshold |
+| `HERALD_ADMIN_TOKEN` | generated | Management API/dashboard credential |
+| `HERALD_INGEST_TOKEN` | generated | External receive-only credential |
+| `HERALD_ENCRYPTION_KEY` | generated | Fernet key for target configuration |
 
-## Admin Tasks
+Worker settings must be positive. Credential tokens must differ and contain at least 32 characters. Run only one HTTP worker. Later attempts read the current target configuration, so edits can change where pending jobs are sent. Disabling a target excludes it from new receipts; already accepted jobs still run. Inspect pending work before modifying destinations.
 
-Run migrations against an explicitly configured target database. For a local checkout, export its raw PostgreSQL `DATABASE_URL` in the invoking shell first:
+## Delivery and recovery
+
+An accepted receipt means SQLite committed the message and every selected delivery. Provider failures retry with exponential backoff, then remain `failed` after the attempt-cycle limit. Use the dashboard or `POST /api/deliveries/{id}/retry` to retry an individual failure; successful deliveries are not resent. Each attempt increments total and cycle counters before sending.
+
+Startup recovers `sending` deliveries interrupted by a crash. A provider may already have received one, so duplicates are possible. This is at-least-once delivery. Keep senders' idempotency keys stable when retrying receipt requests; do not reuse a key for a different payload.
+
+There is no cleanup scheduler. The dashboard or `POST /api/cleanup` triggers cleanup, which only removes messages for which every delivery succeeded and the last completion exceeds the retention threshold. Pending and failed records are retained. Targets with unfinished work cannot be deleted. Check outstanding work and disk space during operations; provider/network failures do not justify deleting the queue.
+
+## Backup and restore
+
+`scripts/backup_db.sh` uses SQLite's online backup API to create a consistent `herald.sqlite3` plus a private copy of `credentials.env` in a new timestamped directory. Backups contain sensitive data and credentials; restrict access. It does not install a schedule or delete old backups. If credentials come from the environment instead, back them up separately in your secret manager.
+
+For local runs:
 
 ```bash
-uv run --project backend --locked python -m backend.migrate
+HERALD_DATA_DIR=/absolute/path/to/data BACKUP_DIR=/private/backups ./scripts/backup_db.sh
 ```
 
-For production Compose, use its one-shot `migrate` service (`docker compose run --rm migrate`) with the existing production environment, rather than a local command that may read different settings. Take a backup and coordinate writers before schema maintenance that requires it; startup already gates API/worker on successful migration.
-
-Reset a password without email:
+For Compose, use the same script inside the container and copy the generated directory to protected storage:
 
 ```bash
-docker compose exec api herald-backend reset-password user@example.com
+docker compose exec -T herald sh -c 'HERALD_DATA_DIR=/data BACKUP_DIR=/tmp/herald-backups /app/scripts/backup_db.sh'
+# Copy the specific backup directory reported above; destination must be private.
+docker compose cp herald:/tmp/herald-backups/<backup-directory> /private/backups/
 ```
 
-For local development with a reachable `DATABASE_URL`:
+For restore, stop all writers and preserve the current data directory first. Restore the backed-up SQLite file and the matching credential file into an empty replacement directory with owner-only permissions (directory 700, credential file 600). If environment credentials were used, supply that same encryption key. Do not restore a database over a running process, copy a live database without its WAL, or mix a database with unrelated keys. Point the instance at the replacement directory, start it, check `/health`, inspect targets/history, and verify queued delivery recovery. Provider effects may repeat after restoring older queue state.
+
+## Validation
 
 ```bash
-uv run --project backend --locked herald-backend reset-password user@example.com
+uv run --project backend --locked pytest backend/tests -q
+corepack pnpm@10.30.1 --dir frontend lint
+corepack pnpm@10.30.1 --dir frontend build
+python3 scripts/sync_version.py --check
 ```
 
-An operator can install this cron entry after checking Docker access, `PATH`, disk capacity, and the destination's permissions; the repository does not install a backup schedule:
-
-```cron
-0 3 * * * BACKUP_DIR=/var/backups/herald /path/to/herald/scripts/backup_db.sh
-```
-
-`scripts/backup_db.sh` runs `docker compose exec -T db pg_dump -U herald herald` from the repo root, writes `herald-<timestamp>.sql.gz.tmp`, renames it only after the dump/gzip pipeline succeeds, and deletes `herald-*.sql.gz` files older than `KEEP_DAYS` (default `14`) plus temporary dumps older than one day. `BACKUP_DIR` defaults to repository-local `backups/`; `COMPOSE_DB_SERVICE` can change the service name. The root `.env` used for Compose startup also covers cron. These are script defaults, not an established retention obligation. Dumps contain application data and encrypted channel configs; keep the encryption key and required secrets recoverable separately, and restrict backup access.
-
-For restore, the operator must choose and verify the target before loading data. The plain SQL dump includes schema creation, so it is not an in-place merge into an already initialized database. Stop all writers (including any API/worker instances outside this Compose project), preserve the current database, and prepare an empty replacement target before the load. For the Compose `herald` database, **only after it has been prepared empty**:
-
-```bash
-docker compose stop api worker
-set -o pipefail
-gunzip -c backups/herald-<timestamp>.sql.gz | docker compose exec -T db psql -v ON_ERROR_STOP=1 -U herald herald
-```
-
-If decompression or SQL loading fails, leave writers stopped, inspect the error, and prepare a fresh empty target before retrying; do not continue a partial restore. After a successful load, run the version's migrations with the same production settings, verify restored data and key availability, then `docker compose start api worker` and check health. Preparing or replacing the database is deliberately not automated by this example.
-
-Sync edge relay config after endpoint/user changes or relay provisioning. Use the project's Python 3.13+ interpreter for `python3` below (the script's type syntax requires at least 3.10). Export both tokens in the invoking shell; root `.env` is not read by this Python script:
-
-```bash
-EDGE_SYNC_TOKEN="$EDGE_SYNC_TOKEN" RELAY_ADMIN_TOKEN="$RELAY_ADMIN_TOKEN" \
-  python3 scripts/sync_edge_config.py \
-    --backend https://backend.example.com \
-    --edges https://cf.example.workers.dev,https://edge.example.cn
-```
-
-Follow [config sync and failure handling](10_edge.md#config). If any relay update fails, the script exits nonzero after attempting all relays; fix it and retry rather than assuming they are consistent. The checked-in EdgeOne drain workflow is manual, not scheduled; see [Drain Fallback](10_edge.md#drain-fallback).
-
-## Health
-
-- Backend: `GET /health`, returns `503` when the database check fails.
-- Frontend static server: `GET /health` checks the server, not backend reachability.
-- Cloudflare and EdgeOne relays: `GET /healthz` checks liveness, not config, storage, or upstream health. Use authenticated `/admin/status` to inspect backlog and config version.
+Tests use temporary SQLite files and mocked providers. `GET /health` returns `503` for database failure or a stopped delivery task. A delivery-result database failure stops the loop instead of silently losing work; resolve the storage problem and restart the instance so startup recovery requeues interrupted work. A healthy API does not prove an external provider delivered a message.

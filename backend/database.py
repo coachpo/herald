@@ -1,153 +1,60 @@
-from __future__ import annotations
+"""SQLite durability settings and the complete, single-version schema."""
+from contextlib import contextmanager
+from pathlib import Path
+import sqlite3
 
-import asyncio
-import os
-import uuid
-import warnings
-from dataclasses import dataclass
-from typing import Any
+SCHEMA = '''
+CREATE TABLE IF NOT EXISTS targets (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+ config_encrypted TEXT NOT NULL, is_default INTEGER NOT NULL, enabled INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS messages (
+ id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL,
+ priority INTEGER NOT NULL CHECK(priority BETWEEN 1 AND 5),
+ received_at REAL NOT NULL, idempotency_key TEXT UNIQUE, content_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS deliveries (
+ id TEXT PRIMARY KEY, message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+ target_id TEXT REFERENCES targets(id) ON DELETE SET NULL,
+ target_name TEXT NOT NULL, kind TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('pending','sending','retry','sent','failed')),
+ attempts INTEGER NOT NULL DEFAULT 0, cycle_attempts INTEGER NOT NULL DEFAULT 0,
+ available_at REAL NOT NULL, lease_token TEXT, last_error TEXT,
+ created_at REAL NOT NULL, updated_at REAL NOT NULL, completed_at REAL,
+ UNIQUE(message_id, target_id)
+);
+CREATE INDEX IF NOT EXISTS delivery_due ON deliveries(status,available_at);
+CREATE INDEX IF NOT EXISTS delivery_message ON deliveries(message_id);
+CREATE INDEX IF NOT EXISTS messages_received ON messages(received_at DESC,id DESC);
+'''
 
-from sqlalchemy import MetaData, Table
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.pool import NullPool
-
-from .config import get_settings
-
-
-@dataclass(frozen=True)
-class ReflectedTables:
-    users: Table
-    ingest_endpoints: Table
-    channels: Table
-    rules: Table
-    messages: Table
-    deliveries: Table
-    refresh_tokens: Table
-
-
-_engine: AsyncEngine | None = None
-_sessionmaker: async_sessionmaker[AsyncSession] | None = None
-_tables: ReflectedTables | None = None
-_tables_lock: asyncio.Lock | None = None
-
-
-def _get_tables_lock() -> asyncio.Lock:
-    global _tables_lock
-    if _tables_lock is None:
-        _tables_lock = asyncio.Lock()
-    return _tables_lock
-
-
-def get_engine() -> AsyncEngine:
-    global _engine
-    if _engine is None:
-        settings = get_settings()
-        async_url = settings.async_database_url
-        use_null_pool = os.environ.get("DB_POOL_CLASS", "").lower() == "null"
-        engine_kwargs: dict[str, Any] = {
-            "future": True,
-            "pool_pre_ping": True,
-        }
-        if use_null_pool:
-            engine_kwargs["poolclass"] = NullPool
-            engine_kwargs.pop("pool_pre_ping", None)
-        else:
-            engine_kwargs["pool_size"] = settings.db_pool_size
-            engine_kwargs["max_overflow"] = settings.db_max_overflow
-            engine_kwargs["pool_recycle"] = settings.db_pool_recycle
-        _engine = create_async_engine(async_url, **engine_kwargs)
-    return _engine
+@contextmanager
+def connection(path: Path, *, write: bool = False):
+    db = sqlite3.connect(path, timeout=5, isolation_level=None)
+    db.row_factory = sqlite3.Row
+    try:
+        db.execute('PRAGMA foreign_keys=ON')
+        db.execute('PRAGMA synchronous=FULL')
+        db.execute('PRAGMA busy_timeout=5000')
+        if write:
+            db.execute('BEGIN IMMEDIATE')
+        yield db
+        if write:
+            db.commit()
+    except BaseException:
+        if db.in_transaction:
+            db.rollback()
+        raise
+    finally:
+        db.close()
 
 
-def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
-    global _sessionmaker
-    if _sessionmaker is None:
-        _sessionmaker = async_sessionmaker(get_engine(), expire_on_commit=False)
-    return _sessionmaker
-
-
-async def get_session():
-    async with get_sessionmaker()() as session:
-        yield session
-
-
-async def get_tables() -> ReflectedTables:
-    global _tables
-    if _tables is not None:
-        return _tables
-
-    async with _get_tables_lock():
-        if _tables is not None:
-            return _tables
-
-        metadata = MetaData()
-        only_tables = [
-            "users",
-            "ingest_endpoints",
-            "channels",
-            "rules",
-            "messages",
-            "deliveries",
-            "refresh_tokens",
-        ]
-
-        async with get_engine().begin() as connection:
-            with warnings.catch_warnings():
-                from sqlalchemy.exc import SAWarning
-
-                warnings.filterwarnings(
-                    "ignore",
-                    message="Skipped unsupported reflection of expression-based index.*",
-                    category=SAWarning,
-                )
-                await connection.run_sync(
-                    lambda sync_connection: metadata.reflect(
-                        bind=sync_connection,
-                        only=only_tables,
-                    )
-                )
-
-        _tables = ReflectedTables(
-            users=metadata.tables["users"],
-            ingest_endpoints=metadata.tables["ingest_endpoints"],
-            channels=metadata.tables["channels"],
-            rules=metadata.tables["rules"],
-            messages=metadata.tables["messages"],
-            deliveries=metadata.tables["deliveries"],
-            refresh_tokens=metadata.tables["refresh_tokens"],
-        )
-        return _tables
-
-
-def serialize_uuid(value: Any) -> str:
-    if isinstance(value, uuid.UUID):
-        return str(value)
-
-    raw = str(value)
-    if len(raw) == 32:
-        return str(uuid.UUID(hex=raw))
-    return str(uuid.UUID(raw))
-
-
-def clear_database_state() -> None:
-    global _engine, _sessionmaker, _tables, _tables_lock
-    _engine = None
-    _sessionmaker = None
-    _tables = None
-    _tables_lock = None
-
-
-async def dispose_database_state() -> None:
-    global _engine, _sessionmaker, _tables, _tables_lock
-    engine = _engine
-    _engine = None
-    _sessionmaker = None
-    _tables = None
-    _tables_lock = None
-    if engine is not None:
-        await engine.dispose()
+def initialize(path: Path) -> None:
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with connection(path) as db:
+        version = db.execute('PRAGMA user_version').fetchone()[0]
+        if version not in (0, 1):
+            raise RuntimeError('unsupported database schema; use a new data directory')
+        db.execute('PRAGMA journal_mode=WAL')
+        db.executescript('BEGIN IMMEDIATE;\n' + SCHEMA + '\nPRAGMA user_version=1;\nCOMMIT;')
+    path.chmod(0o600)

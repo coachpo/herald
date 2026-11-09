@@ -1,30 +1,23 @@
 # backend/AGENTS.md
 
-## Change Boundaries
+## Boundaries
 
-- Keep HTTP parsing/status translation in `routes/`, business logic and transaction ownership in `services/`, provider dispatch in `channel_dispatch.py` and `providers/`.
-- Use reflected tables from `database.get_tables()`, not ORM model classes. Apply numbered SQL migrations with `python -m backend.migrate` before schema-dependent work.
-- Custom middleware must be pure ASGI; do not use `BaseHTTPMiddleware`.
-- Channel configs stay encrypted except at validation/serialization/dispatch boundaries; use `services/channel_records.py` and `core/crypto.py`.
-- API responses use dashed UUIDs via `serialize_uuid()`/schemas; public ingest also accepts dashless endpoint IDs.
-- Changes to `config.py`, `database.py`, or schema exports affect routes, services, and worker. Check all affected callers.
-- When changing rule semantics, check live ingest and preview/test callers together; see the [documented filter limitations](../docs/04_api_spec.md#rules).
+- `api.py` handles HTTP parsing/authentication and calls `store.Store` for durable operations.
+- `store.py` owns SQLite schema and transactions. Use stdlib sqlite3, WAL, synchronous FULL, foreign keys, and bounded busy timeout. No network operation may hold a database transaction.
+- `app.py` owns the exclusive data-directory lock and one lifespan delivery worker. `cli.py` starts one HTTP process; do not introduce multi-worker startup.
+- `worker.py` claims bounded work, counts attempts before sends, persists outcomes, and recovers interrupted sends. Only failed deliveries may be manually retried; never resend sent deliveries.
+- `channel_dispatch.py` and `providers/` own provider serialization and transport. Retain shared SSRF protections and sanitize transport errors.
+- `config.py` creates or loads private local credentials. `security.py` keeps admin and ingest tokens separate. Never print token/key values.
+- Encrypt target configurations using `core/crypto.py`; expose only redacted configuration in APIs. Send both external-ingest and dashboard messages through the same receipt transaction.
 
-## Commands and Prerequisites
+## Validation
 
-Requires Python 3.13+, uv, and PostgreSQL. From the repository root:
+From the repository root, Python 3.13+ and uv:
 
 ```bash
 uv sync --project backend --locked
-# Export a reachable raw PostgreSQL DATABASE_URL before migration or startup.
-uv run --project backend --locked python -m backend.migrate
+uv run --project backend --locked pytest backend/tests -q
 uv run --project backend --locked herald-backend
-# Separate process for queued delivery:
-uv run --project backend --locked python -m backend.worker
-# Dedicated disposable PostgreSQL database only; fixtures migrate and truncate it:
-TEST_DATABASE_URL=postgresql://herald:herald@127.0.0.1:5432/herald uv run --project backend --locked pytest backend/tests -v
 ```
 
-The migration entry point reads exported `DATABASE_URL` directly; it does not load `backend/.env`. API/worker settings load that file without overriding existing environment variables. Use a raw `postgresql://` URL; settings derive the SQLAlchemy asyncpg URL.
-
-Password recovery uses `uv run --project backend --locked herald-backend reset-password <email>`; it mutates the selected database and prints a generated password. See [Operations](../docs/07_operations.md) for environment and recovery procedures.
+Tests use disposable SQLite files and mocked provider transports. No external database is needed. See [Operations](../docs/07_operations.md); do not start services for documentation-only checks.

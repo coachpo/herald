@@ -1,135 +1,42 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
-
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  version-alignment:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Check version alignment
-        run: python3 scripts/sync_version.py --check
-
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: version-alignment
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: herald
-          POSTGRES_USER: herald
-          POSTGRES_PASSWORD: herald
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U herald -d herald"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 12
-    env:
-      DATABASE_URL: postgresql://herald:herald@127.0.0.1:5432/herald
-      TEST_DATABASE_URL: postgresql://herald:herald@127.0.0.1:5432/herald
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
-
-      - name: Sync backend dependencies
-        run: uv sync --project backend --locked
-
-      - name: Apply database migrations
-        run: uv run --project backend --locked python -m backend.migrate
-
-      - name: Run backend tests
-        run: uv run --project backend --locked pytest backend/tests/ -v
-
+      - run: python3 scripts/sync_version.py --check
+      - run: uv sync --project backend --locked
+      - run: uv run --project backend --locked pytest backend/tests -q
   frontend:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: version-alignment
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.30.1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        run: pnpm --dir frontend install --frozen-lockfile
-
-      - name: Lint frontend
-        run: pnpm --dir frontend lint
-
-      - name: Build frontend
-        run: pnpm --dir frontend build
-
-  edge:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: version-alignment
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: edge/package-lock.json
-
-      - name: Install edge dependencies
-        run: npm --prefix edge ci
-
-      - name: Run edge tests
-        run: npm --prefix edge test
-
-      - name: Lint edge
-        run: npm --prefix edge run lint
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir frontend lint
+      - run: pnpm --dir frontend build

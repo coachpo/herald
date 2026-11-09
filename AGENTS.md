@@ -1,36 +1,31 @@
 # AGENTS.md
 
-## Where To Look
+Herald is a single-user SQLite store-and-forward service. One FastAPI process owns the API, built dashboard, and bounded delivery worker. Read the [repository guide](docs/09_repo_structure.md) and subtree guidance before editing.
 
-| Task | Location |
-| --- | --- |
-| Backend runtime and schema | `backend/app.py`, `backend/cli.py`, `backend/database.py`, `backend/migrations/`, `backend/migrate.py` |
-| Auth | `backend/routes/auth.py`, `backend/services/auth.py`, `backend/auth/` |
-| Ingest | `backend/routes/ingest.py`, `backend/services/ingest.py` |
-| Delivery worker | `backend/worker.py`, `backend/channel_dispatch.py`, `backend/providers/` |
-| Edge config export | `backend/routes/__init__.py`, `backend/edge_config.py` |
-| Frontend routes and API/auth helpers | `frontend/src/router.tsx`, `frontend/src/lib/` |
-| Edge relay | `edge/shared/` (canonical), `edge/cloudflare/`, `edge/edgeone/` |
-| Local orchestration, sync, backup | `start.sh`, `docker-compose*.yml`, `scripts/` |
+## Shared constraints
 
-## Shared Constraints
-
-- Follow subtree `AGENTS.md` files for package commands and local invariants. All command examples in these guides run from the repository root unless stated otherwise.
-- Preserve SSRF enforcement in `backend/core/ssrf.py`, token hashing, channel-config encryption, and header redaction. Do not log or commit secrets.
-- Do not store auth tokens in `localStorage`, render ingested payloads as HTML, or hardcode frontend secrets.
+- Preserve durable receipt: commit the message and every selected delivery before returning success. Both send APIs use the same Store operation.
+- Preserve SQLite WAL, synchronous FULL, foreign keys, short transactions, and exclusive process locking. Never add a second resident application/worker process or network calls inside transactions.
+- Keep management and ingest tokens separate, hash before constant-time comparison, encrypt target configurations, and never log or commit secrets.
+- Keep SSRF destination/DNS checks, TLS verification, and HTTP redirect restrictions. DNS validation and client connection are separate; do not claim address pinning. Never render message content as HTML or store tokens in localStorage.
+- Delivery is at least once. Preserve idempotency conflicts, failed-only manual retry, successful delivery history, and retention of all unfinished work.
 - Do not add `as any`, `@ts-ignore`, or `@ts-expect-error`.
-- `VERSION` owns package versions. Use `scripts/sync_version.py` to synchronize its managed metadata; verify with `python3 scripts/sync_version.py --check`.
-- Do not hand-edit generated EdgeOne `_shared/` modules or `docs/openapi.yaml`; follow the local generation guidance.
+- `VERSION` owns backend/frontend package versions; run `python3 scripts/sync_version.py --check`.
+- Do not hand-edit generated `docs/openapi.yaml`; generate it from `create_app().openapi()` using a temporary data directory, without starting services.
 
-## Design and Development Defaults
+## Commands
 
-Apply the [development principles](docs/09_repo_structure.md#development-principles): record uncertain capability/tier/quota assumptions using the looser supported option; assume legitimate requests without adding unrequested abuse handling or conservative limits; choose the best-case path and make worst-case handling an explicit decision. Revisit assumptions when authoritative limits, measured failures, or accepted requirements justify it. These defaults do not weaken existing security or privacy obligations.
+From the repository root, Python 3.13+, uv, Node.js 24, and Corepack:
 
-Keep source files cohesive and navigable. Split along responsibilities when growth obscures behavior or review; respect existing size limits, but do not invent a universal line cap or fragment files merely to shorten them.
+```bash
+uv sync --project backend --locked
+uv run --project backend --locked pytest backend/tests -q
+corepack pnpm@10.30.1 --dir frontend install --frozen-lockfile
+corepack pnpm@10.30.1 --dir frontend lint
+corepack pnpm@10.30.1 --dir frontend build
+./start.sh
+```
 
-## Validation and Documentation
+Tests use temporary SQLite stores. `./start.sh dev` also starts Vite; production needs only the single backend process and persistent data directory. Existing cloud tasks are already isolated: use the provided checkout and do not create a worktree unless requested.
 
-- Run the affected package checks listed in its guide; backend tests require a dedicated PostgreSQL database and truncate business tables.
-- For documentation-only changes, inspect relevant definitions and links and use small non-destructive checks; do not start the full application or run unrelated suites. There is no dedicated documentation-check job in current CI.
-- `start.sh` stops existing listeners/containers on its helper ports, even in headless mode. Do not run it just to inspect commands; `./start.sh --help` is non-starting. It does not start the delivery worker.
-- Use the [README documentation index](README.md#docs) for canonical facts and [Operations](docs/07_operations.md) for setup, configuration, and operational procedures. Keep detailed project explanations out of agent guides.
+Documentation-only edits need source/link review and `git diff --check`, not unrelated full suites. Detailed setup and backup procedures belong in [Operations](docs/07_operations.md).

@@ -1,40 +1,22 @@
-# Repo Structure
+# Repository guide
 
-```text
-herald/
-├── backend/                 # FastAPI backend, migrations, worker
-├── frontend/                # React/Vite dashboard
-├── edge/
-│   ├── shared/              # relay protocol helpers
-│   ├── cloudflare/          # Worker + Durable Object
-│   ├── edgeone/             # Pages function + build helper
-│   └── tests/               # node:test suite
-├── docs/                    # markdown specs + OpenAPI
-├── scripts/                 # sync/backup/version helpers
-├── docker-compose.yml       # production compose
-├── docker-compose.dev.yml   # development compose
-└── start.sh                 # local helper
-```
-
-## Boundaries
-
-- Backend owns durable storage, rule semantics, provider dispatch, and machine config export.
-- Frontend owns browser UX only.
-- Edge owns ingress relay behavior only.
-
-## Startup
-
-- `docker compose up` runs production-posture backend services after the required environment variables have been configured.
-- `docker compose -f docker-compose.dev.yml up` runs `db`, `migrate`, `api`, and `worker`; it does not run Vite.
-- `./start.sh full` runs local PostgreSQL, the backend API, and Vite with helper ports; `headless` omits Vite. Neither mode starts the delivery worker.
-
-Use [Operations](07_operations.md) for startup prerequisites, port ownership, environment configuration, and the separate worker command. Frontend-only setup is in the [frontend README](../frontend/README.md).
+| Path | Owns |
+| --- | --- |
+| `backend/config.py`, `security.py` | Private local credentials and separate bearer-token authentication |
+| `backend/api.py`, `models.py` | HTTP input/output contract |
+| `backend/store.py` | SQLite schema, atomic receipt, claims, retries, cleanup |
+| `backend/worker.py` | Bounded in-process provider dispatch |
+| `backend/channel_dispatch.py`, `providers/`, `core/` | Provider formatting, encryption, and outbound safety |
+| `backend/app.py`, `cli.py` | Single-process lifecycle, data-directory lock, API/UI |
+| `frontend/` | Single-user React dashboard and Vite development |
+| `scripts/` | Version alignment and consistent SQLite backups |
+| `docker-compose.yml`, `backend/Dockerfile`, `start.sh` | Single-service packaging and startup |
+| `docs/` | Architecture, data, API, security, and operations |
 
 ## Development principles
 
-These are the shared design and development defaults, not claims about a deployment's capacity or permission to remove existing safeguards.
+Keep the durable path direct: validate and select targets, atomically store receipt/jobs, then dispatch outside the transaction. Use short cohesive modules, explicit ownership, and standard-library SQLite instead of adding infrastructure. Split code only when responsibilities become hard to navigate.
 
-- When platform capabilities, resource tiers, or quotas are uncertain, implement against the looser supported option and record it as a working assumption. Revisit when authoritative platform documentation, an observed limit, or an accepted requirement establishes a tighter constraint; do not present an assumed quota as measured behavior.
-- Assume the overwhelming majority of requests are legitimate. Do not add preemptive abuse handling, conservative rate limits, or adversarial hardening beyond accepted requirements. Revisit when concrete operational evidence or an explicitly accepted security/product requirement calls for it.
-- Choose the best-case path by default. Treat worst-case handling as a named decision with its triggering evidence or requirement, not inherited caution. Preserve the existing SSRF checks, authentication, encryption, redaction, configured limits, and other obligations in [Security and Privacy](06_security_privacy.md).
-- Keep source files cohesive, navigable, and reviewable. When growth mixes responsibilities, hides important behavior, or makes focused changes difficult to review, split by cohesive responsibility within the task's scope. Follow established project size limits; where none exist, use those concrete symptoms rather than a universal line-count cap. Do not introduce fragments or abstractions merely to shorten files.
+Record uncertain platform limits as assumptions rather than inventing conservative caps or abuse policies. Use the supported best-case path and revisit assumptions when evidence or accepted requirements changes. This does not weaken existing credential, SSRF, privacy, or durability requirements.
+
+`VERSION` is the source of package versions. `scripts/sync_version.py` updates backend and frontend metadata; `--check` verifies without changing them. API schema is generated from the app; documentation must describe current behavior, not retained obsolete designs.

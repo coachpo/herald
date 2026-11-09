@@ -1,7 +1,5 @@
 .DS_Store
 .env
-deploy/.env
-deploy/*.env
 .env.*
 !.env.example
 .python-version
@@ -20,3 +18,10 @@ dist/
 .sisyphus/
 .evidence/
 .ruff_cache/
+
+# Private SQLite state, credentials, process lock, and backups.
+/data/
+backups/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

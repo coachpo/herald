@@ -1,52 +1,46 @@
-import type { ApiError } from "@/lib/types";
-
-import { buildPublicApiUrl } from "@/lib/public-api";
-
-export async function readJson<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  return text ? (JSON.parse(text) as T) : ({} as T);
-}
-
-export async function readApiError(res: Response): Promise<ApiError> {
-  try {
-    const data = await readJson<ApiError>(res);
-    if (data && typeof data.code === "string" && typeof data.message === "string") {
-      return data;
-    }
-  } catch {
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
   }
-  return { code: "http_error", message: `HTTP ${res.status}` };
 }
 
-export function readRequestError(error: unknown): ApiError {
-  if (error instanceof Error) {
-    const message = error.message.trim();
-    if (message && message !== "Failed to fetch") {
-      return { code: "request_failed", message };
-    }
-  }
-
-  return {
-    code: "request_failed",
-    message: "Request failed. Check the server and try again.",
-  };
-}
-
-export async function apiFetch(
+export async function api<T>(
+  token: string,
   path: string,
-  init: RequestInit & { accessToken?: string | null } = {},
-) {
-  const { accessToken, headers, ...rest } = init;
-  const h = new Headers(headers);
-  if (accessToken) {
-    h.set("Authorization", `Bearer ${accessToken}`);
-  }
-  h.set("Accept", "application/json");
-
-  const url = buildPublicApiUrl(path);
-  return fetch(url, {
-    ...rest,
-    headers: h,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Accept", "application/json");
+  if (init.body) headers.set("Content-Type", "application/json");
+  const response = await fetch(`/api${path}`, {
+    ...init,
+    headers,
     credentials: "omit",
   });
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const data: { detail?: unknown; message?: string } =
+        await response.json();
+      if (typeof data.detail === "string") message = data.detail;
+      else if (typeof data.message === "string") message = data.message;
+      else if (Array.isArray(data.detail)) {
+        message = data.detail
+          .map((item: { msg?: string }) => item.msg ?? "Invalid input")
+          .join("; ");
+      }
+    } catch {
+      /* Keep the HTTP status if an intermediary returns non-JSON. */
+    }
+    throw new ApiError(message, response.status);
+  }
+  return response.status === 204 ? (undefined as T) : response.json();
+}
+
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Request failed";
 }
