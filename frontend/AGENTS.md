@@ -1,60 +1,25 @@
 # frontend/AGENTS.md
 
-## Overview
+## Commands
 
-React 19 + Vite + React Router dashboard. Production requests go directly from the browser to the backend via `VITE_API_URL`.
+Requires Node 24 and pnpm 10.30.1. From the repository root:
 
-## Command Notes
-
-- Root `AGENTS.md` carries the normal frontend lint/build commands.
-- Extra local commands are `corepack pnpm@10.30.1 --dir frontend install`, `corepack pnpm@10.30.1 --dir frontend dev`, and `corepack pnpm@10.30.1 --dir frontend preview`.
-
-## Structure
-
-```text
-frontend/
-├── src/components/
-├── src/layouts/
-├── src/lib/
-├── src/pages/
-├── src/router.tsx
-├── src/main.tsx
-└── deploy/server.mjs
+```bash
+corepack pnpm@10.30.1 --dir frontend install --frozen-lockfile
+corepack pnpm@10.30.1 --dir frontend dev
+corepack pnpm@10.30.1 --dir frontend lint
+corepack pnpm@10.30.1 --dir frontend build
 ```
 
-## Routes
+There is no frontend test runner. Verify changes with lint plus the production build. Preview uses `corepack pnpm@10.30.1 --dir frontend preview` after building.
 
-```text
-/login /signup
-/ /messages /messages/:id /channels /rules /ingest-endpoints /account
-```
+## Change Boundaries
 
-## Key Patterns
-
-- `AuthLayout` and `DashboardLayout` provide `AuthProvider`.
-- `AuthGate` refreshes on mount and redirects unauthenticated users to `/login?next=...`.
-- Refresh token stays in `sessionStorage` key `herald_refresh_token`.
-- Access token stays in React state.
-- `apiFetch()` uses `credentials: "omit"`.
-- `authedFetch()` retries once after refresh on `401`.
-- `buildIngestUrl()` converts UUIDs to hex for public ingest URLs.
-- `src/lib/` is high blast radius; check auth, API calls, and all protected pages when changing it.
-- Page state is local React state; there is no query/client state library.
-- Frontend has no test runner; verification is lint plus production build.
-
-## UI Notes
-
-- Dashboard home shows quick actions, recent messages, recent failures, and setup progress.
-- Messages page exposes endpoint, priority-range, and time-range filters.
-- Channels page supports create/delete/test for Bark, ntfy, MQTT, and Gotify.
-- Rules page supports create, preview/test, list, and delete.
-- Ingest endpoints page shows the key once at creation and provides copyable URL/curl examples.
-- Account page handles change email, change password, and delete account.
-- Channel form config is split under `pages/dashboard/channels/`; keep provider validators and defaults together.
-- Production Docker serving uses `deploy/server.mjs`, not nginx or Vite preview.
-
-## Do Not
-
-- Do not store auth tokens in `localStorage`.
-- Do not hardcode secrets into frontend code.
-- Do not render ingested payloads as HTML.
+- Routes live in `src/router.tsx`; `AuthLayout`/`DashboardLayout` supply auth and `AuthGate` protects dashboard routes.
+- Shared API/auth/DTO changes belong in `src/lib/`; check its local guide and affected protected pages together.
+- Keep provider-specific channel form defaults and validators together under `src/pages/dashboard/channels/`.
+- Page state is local React state; no query/client-state library is configured.
+- Tokens and browser credentials follow the `src/lib/` guide; root security restrictions still apply.
+- Global design tokens and Tailwind v4 configuration live in `src/globals.css`; reusable primitives live in `src/components/ui/`.
+- `VITE_API_URL` is a build-time public API origin, not a secret or runtime container setting. When empty, browser requests use the dashboard origin; do not assume Vite proxying also exists in production.
+- Production Docker serving uses `deploy/server.mjs`, not nginx or Vite preview. See the [frontend README](README.md) and [Operations](../docs/07_operations.md#frontend-production).

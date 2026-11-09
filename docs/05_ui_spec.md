@@ -19,7 +19,7 @@
 - Messages page supports endpoint, priority range, and time filters plus batch delete by age and optional endpoint.
 - Message detail shows payload fields, body wrap/no-wrap, request metadata, extras, headers, query params, deliveries with attempts/timestamps/errors/provider responses, and soft delete.
 - Channels page creates, tests, and deletes Bark, ntfy, MQTT, and Gotify channels.
-- Rules page creates enabled/disabled rules with endpoint chips, body contains/regex, priority min/max, tags, group, and JSON payload templates. The tester runs a sample payload against enabled rules for a selected endpoint. Endpoint and tag filters are available in the UI/tester, while current live delivery matching only applies body, priority, and group.
+- Rules page creates enabled/disabled rules with endpoint chips, body contains/regex, priority min/max, tags, group, and JSON payload templates; existing rules can be listed and deleted, but there is no rule-edit screen. The tester previews enabled rules for a selected endpoint without sending to providers. A matching preview is not proof of live delivery: current endpoint/tag filters prevent live ingest matching; see the authoritative [rule limitations](04_api_spec.md#rules).
 - Ingest endpoints page creates endpoints, shows the raw key once, lists existing endpoints, copies dashless ingest URLs and curl examples, and can revoke or archive endpoints.
 - Account page changes email/password and deletes the account.
 

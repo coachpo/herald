@@ -1,6 +1,8 @@
 # Product Scope
 
-Herald is a self-hosted notification gateway for one operator or a small trusted group. It receives structured JSON events, keeps filterable history, and forwards matched events to notification providers.
+Herald is a self-hosted notification gateway intended for one operator or a small trusted group. It receives structured JSON events, keeps filterable history, and forwards matched events to notification providers.
+
+The features below describe the current implementation, not evidence of a running deployment, actual user scale, or data-retention obligations. Runtime relationships are documented in [Architecture](02_architecture.md); request contracts and known behavior differences belong to the [API Guide](04_api_spec.md).
 
 ## User Jobs
 
@@ -17,7 +19,7 @@ Herald is a self-hosted notification gateway for one operator or a small trusted
 - JSON ingest with required non-empty `body` and optional `title`, `group`, `priority` 1-5, string-array `tags`, http(s) `url`, and string-valued `extras`.
 - Message list/detail, delivery history, soft delete, and age-based batch delete optionally scoped to one endpoint.
 - Channel create/list/delete/test for Bark, ntfy, MQTT, and Gotify.
-- Rule create/list/get/update/delete/test APIs with payload templates. Live delivery matching applies body, priority, and group filters; the UI and preview APIs also store/test endpoint-id and tag filters.
+- Rule create/list/get/update/delete/test APIs with payload templates. Live delivery matching supports body, priority, and group filters. Endpoint-id and tag filters can be stored and previewed, but currently prevent matching in live ingest; see the [rule limitations](04_api_spec.md#rules).
 - Cloudflare Durable Object relay and EdgeOne Pages KV relay.
 
 ## Non-Goals

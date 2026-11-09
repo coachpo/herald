@@ -1,32 +1,10 @@
 # edge/shared/AGENTS.md
 
-## Overview
+## Shared Protocol Constraints
 
-Canonical relay protocol modules imported by Cloudflare Worker code and copied into EdgeOne Pages functions. Edit here first, then rebuild EdgeOne `_shared`.
-
-## Files
-
-| File | Role |
-| --- | --- |
-| `auth.mjs` | Endpoint id normalization, SHA-256 key digest, constant-time compare |
-| `config-cache.mjs` | TTL cache around relay config loading |
-| `http.mjs` | JSON response and bearer admin auth helpers |
-| `relay.mjs` | Relay headers, envelope shape, forwarding, backoff |
-| `validate.mjs` | Public ingest payload validation |
-
-## Protocol Rules
-
-- Endpoint auth compares dashless endpoint ids and `sha256(trim(rawKey))` with backend-exported `key_sha256`.
-- Accepted payload fields are `body`, `title`, `group`, `priority`, `tags`, `url`, and `extras`.
-- `parseRelayHeaders()` preserves only valid incoming message id / received-at values and sanitizes relay via.
-- `forwardEnvelope()` posts to fixed `UPSTREAM_URL` at `/api/ingest/{endpoint_id}` with the original ingest key.
-- Permanent upstream statuses are `400, 401, 403, 404, 413, 415, 422`; other failures retry with capped backoff.
-- Pending envelopes may include raw ingest keys; dead records in platform runtimes must redact them.
-
-## Generated Copy
-
-```bash
-bash edge/edgeone/build.sh
-```
-
-`edge/edgeone/edge-functions/_shared/` is generated from this directory. Do not hand-edit or add guidance there. After rebuilding, run the root edge test command.
+- This is the canonical source imported by Cloudflare and copied into EdgeOne; do not add guidance or edit modules in the generated `edgeone/edge-functions/_shared/` copy.
+- `auth.mjs` compares dashless endpoint IDs and `sha256(trim(rawKey))` against exported `key_sha256`; keep the backend export and relay verifier compatible.
+- `validate.mjs` accepts `body`, `title`, `group`, `priority`, `tags`, `url`, and `extras`. Check backend ingest validation alongside relay validation when changing the public payload.
+- `relay.mjs` preserves only valid message-id/received-at values and sanitizes relay-via; `forwardEnvelope()` posts to fixed `UPSTREAM_URL/api/ingest/{endpoint_id}` with the original ingest key.
+- Permanent upstream statuses are `400, 401, 403, 404, 413, 415, 422`; other failures retry with capped backoff. Pending envelopes may contain raw keys; platform dead-record paths must redact them.
+- After changes, run the parent edge test/lint commands. The test pre-hook rebuilds the EdgeOne copy; explicit rebuild is `bash edge/edgeone/build.sh`.

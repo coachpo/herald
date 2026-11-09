@@ -1,6 +1,6 @@
 # edge
 
-Cloudflare and EdgeOne relay package for Herald.
+Cloudflare and EdgeOne relay package for Herald. The backend remains responsible for rules and provider delivery. See [Edge Relay](../docs/10_edge.md) for protocol, provisioning, config sync, and drain procedures.
 
 ## Layout
 
@@ -11,34 +11,33 @@ Cloudflare and EdgeOne relay package for Herald.
 
 ## Commands
 
+Run from `edge/` with Node.js 24:
+
 ```bash
-npm install
+npm ci
 npm test
 npm run lint
 npm run dev
-npm run deploy
 ```
+
+`npm test` first rebuilds the generated EdgeOne `_shared/` copy. `npm run dev` starts the Cloudflare relay, not EdgeOne. Ingest also needs relay config and the bindings described in the [relay guide](../docs/10_edge.md).
 
 ## Cloudflare
 
-```bash
-npm run dev
-npm run deploy
-```
-
-Configure `edge/cloudflare/wrangler.toml` with the KV namespace and Durable Object migration.
+For an authorized deployment, configure `cloudflare/wrangler.toml`, provision the KV/DO bindings, authenticate Wrangler, and set the admin secret before running `npm run deploy` from `edge/`. The checked-in namespace and upstream URL are placeholders; see [Cloudflare provisioning](../docs/10_edge.md#cloudflare).
 
 ## EdgeOne
 
+After provisioning the project, binding, environment, and CLI authentication in the [EdgeOne guide](../docs/10_edge.md#edgeone), deploy from `edge/edgeone/`:
+
 ```bash
-cd edgeone
 bash build.sh
 npx edgeone pages link
 npx edgeone pages deploy
 ```
 
-The build step copies `shared/*.mjs` into `edgeone/edge-functions/_shared/`.
+The build step copies `shared/*.mjs` into `edgeone/edge-functions/_shared/`; edit only the canonical files in `shared/`. EdgeOne CLI is not a locked dependency of this package.
 
 ## Config
 
-Use `scripts/sync_edge_config.py` from the repo root to push backend endpoint digests to each relay's `/admin/config` endpoint.
+Use the [config sync procedure](../docs/10_edge.md#config) from the repo root after endpoint changes. The [drain fallback](../docs/10_edge.md#drain-fallback) is manual in the checked-in workflow; there is no enabled periodic EdgeOne drain.

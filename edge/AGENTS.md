@@ -1,41 +1,24 @@
 # edge/AGENTS.md
 
-## Overview
+## Commands
 
-Store-and-forward relay package for Cloudflare Workers and EdgeOne Pages. The edge code authenticates endpoint keys with `key_sha256`, validates payload shape, buffers envelopes, and forwards upstream. Backend remains the delivery engine.
+From the repository root, with Node 24:
 
-## Structure
-
-```text
-edge/
-├── shared/       # auth, validation, relay, config-cache, HTTP helpers
-├── cloudflare/   # Worker entry, Durable Object, wrangler config
-├── edgeone/      # Pages function and build helper
-└── tests/        # node:test suite
+```bash
+npm --prefix edge ci
+npm --prefix edge test
+npm --prefix edge run lint
 ```
 
-## Command Notes
+`npm test` runs `edgeone/build.sh` first. Cloudflare local development uses `npm --prefix edge run dev`; deployment is a separate external write, not a validation command. See the [edge runbook](../docs/10_edge.md) for bindings, secrets, and deployment.
 
-- Root `AGENTS.md` carries the normal edge test/lint commands.
-- Extra package commands are `npm --prefix edge install`, `npm --prefix edge run dev`, and `npm --prefix edge run deploy`.
-- For EdgeOne, run `bash edge/edgeone/build.sh` before local dev or deployment so shared modules are copied into the Pages function tree.
+## Runtime and Generated Boundaries
 
-## HTTP Surface
-
-- `GET /healthz`
-- `POST /api/ingest/{endpoint_id}`
-- `POST /admin/config`
-- `GET /admin/status`
-- `POST /relay/drain`
-
-Admin routes require `Authorization: Bearer $RELAY_ADMIN_TOKEN`.
-
-## Runtime Notes
-
-- `edge/shared/` is canonical; `edge/edgeone/edge-functions/_shared/` is generated and must not be hand-edited.
-- Cloudflare uses Durable Object SQLite and alarms.
-- EdgeOne uses Pages KV with `p_` pending keys and `d_` dead keys.
-- EdgeOne KV binding is global `EDGE_CONFIG`, not `context.env.EDGE_CONFIG`.
-- `UPSTREAM_URL` is fixed deployment config, not user input.
-- Relays preserve valid incoming message id / received-at headers and append their platform to relay via.
-- Relays store raw ingest keys only inside pending envelopes and redact them in dead records.
+- Edit protocol/auth/validation in `edge/shared/`, the canonical source for both platforms. `edge/edgeone/edge-functions/_shared/` is generated; never edit it by hand. Run `bash edge/edgeone/build.sh` before EdgeOne dev/deploy.
+- Cloudflare buffers in Durable Object SQLite with alarms. EdgeOne buffers in Pages KV with `p_` pending and `d_` dead keys.
+- EdgeOne KV is bound through global `EDGE_CONFIG`, not `context.env.EDGE_CONFIG`.
+- Keep `UPSTREAM_URL` fixed in deployment configuration, not request-controlled. Backend remains the rule/provider dispatch engine.
+- Preserve valid incoming message-id/received-at headers and append the platform to relay-via. Shared protocol details belong in the `shared/` guide.
+- Pending envelopes contain raw ingest keys; dead records must redact them.
+- Admin config/status/drain routes require bearer `RELAY_ADMIN_TOKEN`. Do not confuse this with the backend's `EDGE_SYNC_TOKEN`.
+- GitHub edge-drain scheduling is commented out; do not assume idle EdgeOne queues have a configured scheduled retry.

@@ -1,36 +1,16 @@
 # frontend/src/lib/AGENTS.md
 
-## Overview
+## Auth and API Contracts
 
-Shared frontend contract layer for API URLs, authenticated fetches, auth state, JSON helpers, DTO types, and utility classes. Changes here affect most dashboard routes.
+- `auth.tsx`: refresh token stays in `sessionStorage` under `herald_refresh_token`; access token stays in React state. Refresh de-duplicates in-flight requests and schedules renewal before JWT expiry.
+- `authed.ts`: `authedFetch()` retries once after a `401` and successful refresh. Do not add unbounded retry loops.
+- `api.ts`: keep `credentials: "omit"` because auth is bearer-token based.
+- Storage changes require checking `AuthProvider`, `AuthGate`, and account/login flows together.
+- `types.ts` owns the DTOs consumed by pages; fix DTO drift and callers instead of hiding it with casts.
 
-## Files
+## Public URL Contracts
 
-| File | Role |
-| --- | --- |
-| `api.ts` | `apiFetch`, JSON parsing, API/request error normalization |
-| `auth.tsx` | `AuthProvider`, login/logout/refresh, token storage |
-| `authed.ts` | Bearer-token fetch with one refresh retry on `401` |
-| `public-api.ts` | `VITE_API_URL` normalization and ingest URL generation |
-| `types.ts` | Backend DTOs consumed by pages |
-| `json.ts`, `utils.ts` | Display formatting and class-name helpers |
-
-## Auth Rules
-
-- Refresh token stays in `sessionStorage` under `herald_refresh_token`.
-- Access token stays only in React state.
-- `refresh()` de-duplicates in-flight refresh requests and schedules renewal before JWT expiry.
-- `authedFetch()` retries once after `401`; do not add unbounded retry loops.
-- `apiFetch()` must keep `credentials: "omit"` because auth is bearer-token based.
-
-## API URL Rules
-
-- `buildPublicApiUrl()` strips credentials, path, query, and hash from `VITE_API_URL`.
-- Non-local `http://` origins are upgraded to `https://`.
+- `public-api.ts` normalizes configured `VITE_API_URL` to an origin by stripping credentials/path/query/hash. Empty config uses `window.location.origin`; non-local HTTP is upgraded to HTTPS.
 - `buildIngestUrl()` converts dashed UUIDs to dashless hex for public ingest URLs.
-
-## Do Not
-
-- Do not change token storage without updating `AuthProvider`, `AuthGate`, and account/login flows together.
-- Do not paper over DTO drift with casts; update `types.ts` and affected page code.
-- Do not let `apiFetch()` start sending cookies or browser credentials.
+- Check both authenticated API calls and copied public ingest URLs when changing URL handling; deployment paths must remain origin-based.
+- Use the parent frontend lint/build checks after changes here.

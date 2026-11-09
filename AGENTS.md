@@ -1,101 +1,36 @@
 # AGENTS.md
 
-**Snapshot:** 2026-07-09, branch `main`, commit `9653752`
-
-## Overview
-
-Herald ingests structured JSON over HTTP, stores messages, and forwards them to Bark, ntfy, MQTT, or Gotify. The monorepo contains `backend/`, `frontend/`, `edge/`, docs, scripts, and local orchestration.
-
-## Structure
-
-```text
-herald/
-├── backend/            # FastAPI backend, migrations, worker
-├── frontend/           # React 19 + Vite dashboard
-├── edge/               # shared relay code, Cloudflare Worker, EdgeOne Pages function
-├── docs/               # specs and operations docs
-├── scripts/            # sync, backup, version helpers
-├── docker-compose.yml
-├── docker-compose.dev.yml
-└── start.sh
-```
-
 ## Where To Look
 
 | Task | Location |
 | --- | --- |
-| Backend runtime | `backend/cli.py`, `backend/main.py`, `backend/app.py` |
-| SQL migrations | `backend/migrations/`, `backend/migrate.py` |
+| Backend runtime and schema | `backend/app.py`, `backend/cli.py`, `backend/database.py`, `backend/migrations/`, `backend/migrate.py` |
 | Auth | `backend/routes/auth.py`, `backend/services/auth.py`, `backend/auth/` |
 | Ingest | `backend/routes/ingest.py`, `backend/services/ingest.py` |
-| Delivery worker | `backend/worker.py`, `backend/channel_dispatch.py` |
+| Delivery worker | `backend/worker.py`, `backend/channel_dispatch.py`, `backend/providers/` |
 | Edge config export | `backend/routes/__init__.py`, `backend/edge_config.py` |
-| Frontend routes | `frontend/src/router.tsx` |
-| Frontend auth/API helpers | `frontend/src/lib/` |
-| Edge relay | `edge/shared/`, `edge/cloudflare/`, `edge/edgeone/` |
+| Frontend routes and API/auth helpers | `frontend/src/router.tsx`, `frontend/src/lib/` |
+| Edge relay | `edge/shared/` (canonical), `edge/cloudflare/`, `edge/edgeone/` |
+| Local orchestration, sync, backup | `start.sh`, `docker-compose*.yml`, `scripts/` |
 
-## Code Map
+## Shared Constraints
 
-| Symbol / File | Type | Role |
-| --- | --- | --- |
-| `backend.app.create_app` | Function | Builds FastAPI app, middleware, `/health`, routers |
-| `backend.routes.router` | Router | Main `/api` dashboard router plus `/api/edge-config` |
-| `backend.routes.ingest.ingest_message` | Route | Manual ingest body/header parsing and relay idempotency |
-| `backend.services.ingest.create_ingest_message` | Function | Persists messages and creates delivery rows |
-| `backend.worker.process_delivery_batch` | Function | Claims, retries, and dispatches queued deliveries |
-| `frontend/src/router.tsx` | Router | Browser routes and auth/dashboard layout split |
-| `frontend/src/lib/auth.tsx` | Module | Access/refresh token lifecycle for protected routes |
-| `edge/shared/relay.mjs` | Module | Shared relay envelope, headers, forwarding, backoff |
-| `edge/cloudflare/src/worker.mjs` | Worker | Cloudflare Worker and Durable Object buffer |
-| `edge/edgeone/edge-functions/[[default]].js` | Function | EdgeOne Pages relay and KV queue |
-
-## Communication
-
-```text
-Frontend -> Backend /api/*
-Backend ingest -> messages + deliveries -> worker -> providers
-Backend /api/edge-config -> sync script -> relay /admin/config
-EdgeOne -> Cloudflare -> Backend
-Cloudflare -> Backend
-```
-
-## Conventions
-
-- Keep package-specific guidance in child `AGENTS.md` files.
-- Use `python -m backend.migrate` for schema setup.
-- `start.sh` uses development compose and helper ports `35432`, `38000`, and `35173`.
-- Production compose runs `db`, `migrate`, `api`, and `worker`; it does not run frontend or edge.
-- `VERSION` is source of truth; `scripts/sync_version.py --check` verifies backend, frontend, and edge metadata.
-- Root image CI builds only the backend image for `linux/amd64,linux/arm64`.
-- Edge deployment is explicit and package-local.
-
-## Do Not
-
-- Do not disable SSRF checks in `backend/core/ssrf.py`.
-- Do not log or commit secrets.
-- Do not store auth tokens in `localStorage`.
+- Follow subtree `AGENTS.md` files for package commands and local invariants. All command examples in these guides run from the repository root unless stated otherwise.
+- Preserve SSRF enforcement in `backend/core/ssrf.py`, token hashing, channel-config encryption, and header redaction. Do not log or commit secrets.
+- Do not store auth tokens in `localStorage`, render ingested payloads as HTML, or hardcode frontend secrets.
 - Do not add `as any`, `@ts-ignore`, or `@ts-expect-error`.
+- `VERSION` owns package versions. Use `scripts/sync_version.py` to synchronize its managed metadata; verify with `python3 scripts/sync_version.py --check`.
+- Do not hand-edit generated EdgeOne `_shared/` modules or `docs/openapi.yaml`; follow the local generation guidance.
 
-## Commands
+## Design and Development Defaults
 
-```bash
-./start.sh --help
-./start.sh headless
-./start.sh full
-docker compose up
+Apply the [development principles](docs/09_repo_structure.md#development-principles): record uncertain capability/tier/quota assumptions using the looser supported option; assume legitimate requests without adding unrequested abuse handling or conservative limits; choose the best-case path and make worst-case handling an explicit decision. Revisit assumptions when authoritative limits, measured failures, or accepted requirements justify it. These defaults do not weaken existing security or privacy obligations.
 
-uv sync --project backend --locked
-uv run --project backend --locked python -m backend.migrate
-uv run --project backend --locked herald-backend
-uv run --project backend --locked python -m backend.worker
-uv run --project backend --locked pytest backend/tests -v
+Keep source files cohesive and navigable. Split along responsibilities when growth obscures behavior or review; respect existing size limits, but do not invent a universal line cap or fragment files merely to shorten them.
 
-corepack pnpm@10.30.1 --dir frontend lint
-corepack pnpm@10.30.1 --dir frontend build
+## Validation and Documentation
 
-npm --prefix edge test
-npm --prefix edge run lint
-
-python3 scripts/sync_version.py --check
-EDGE_SYNC_TOKEN=... RELAY_ADMIN_TOKEN=... python3 scripts/sync_edge_config.py --backend https://backend.example.com --edges https://edge.example.com
-```
+- Run the affected package checks listed in its guide; backend tests require a dedicated PostgreSQL database and truncate business tables.
+- For documentation-only changes, inspect relevant definitions and links and use small non-destructive checks; do not start the full application or run unrelated suites. There is no dedicated documentation-check job in current CI.
+- `start.sh` stops existing listeners/containers on its helper ports, even in headless mode. Do not run it just to inspect commands; `./start.sh --help` is non-starting. It does not start the delivery worker.
+- Use the [README documentation index](README.md#docs) for canonical facts and [Operations](docs/07_operations.md) for setup, configuration, and operational procedures. Keep detailed project explanations out of agent guides.

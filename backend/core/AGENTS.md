@@ -1,30 +1,11 @@
 # backend/core/AGENTS.md
 
-## Overview
+## Shared Helper Constraints
 
-Security and data-shaping helpers shared by services, providers, and tests. Small files here have high blast radius.
-
-## Files
-
-| File | Role |
-| --- | --- |
-| `crypto.py` | Fernet JSON encryption/decryption for channel configs |
-| `redaction.py` | Header redaction before message storage/logging |
-| `rules.py` | Framework-independent rule matching |
-| `ssrf.py` | DNS/IP/network guard for outbound URLs and MQTT hosts |
-| `template.py` | Payload template rendering for provider dispatch |
-
-## Conventions
-
-- Keep helpers framework-independent and easy to unit test.
-- `assert_ssrf_safe()` guards user-controlled URLs; `assert_host_ssrf_safe()` guards bare hosts such as MQTT hosts.
-- `redact_headers()` protects stored message headers; add secret-like header names here, not at call sites.
-- Rule matching is shared by live ingest and rule preview/test behavior; keep filter semantics aligned with API docs.
-- Template rendering should treat missing values as data problems, not code execution.
-
-## Do Not
-
-- Do not weaken current SSRF rejection for loopback, link-local, and private network targets.
-- Do not add provider-specific branching to `rules.py`.
-- Do not serialize decrypted channel configs into logs, errors, or response metadata.
-- Do not use ad hoc encryption or redaction outside this package.
+- Keep these helpers framework-independent; services and providers share them.
+- Preserve URL guarding in `ssrf.assert_ssrf_safe()` and bare-host guarding in `ssrf.assert_host_ssrf_safe()`. Do not weaken loopback/link-local rejection or bypass the existing private-network policy at callers.
+- Add secret-like header names centrally in `redaction.redact_headers()`, not ad hoc at storage/logging call sites.
+- Use `crypto.py` for channel encryption; do not add ad hoc encryption or expose decrypted configs in logs, errors, or response metadata.
+- `rules.rule_matches_message()` is shared by live ingest and rule preview/test. Check both message shapes and the [API contract](../../docs/04_api_spec.md#rules) before changing it; do not add provider-specific branches.
+- Keep `template.py` data-only; missing values must not become executable code.
+- Validate affected behavior with the existing `backend/tests/test_core.py` and relevant provider/API tests using the dedicated PostgreSQL setup in the parent guide.
