@@ -271,11 +271,11 @@ export function TargetForm({
               }))
             }
           />
-          Default target
+          Fallback default target
         </label>
         <p className="field-help">
-          Messages without explicit destinations go to all enabled default
-          targets. Existing queued deliveries are not changed.
+          Automatic routing uses enabled default targets only when no rule
+          matches. Existing queued deliveries are not changed.
         </p>
       </fieldset>
 

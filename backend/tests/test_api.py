@@ -241,3 +241,176 @@ def test_oversized_message_never_creates_receipt(client, api_target, ingest_head
     assert response.status_code == 413
     with sqlite3.connect(settings.database_path) as db:
         assert db.execute('SELECT COUNT(*) FROM messages').fetchone()[0] == 0
+
+
+def rule_for(target_id, **changes):
+    return {'id': 'urgent', 'enabled': True,
+            'all': [{'field': 'priority', 'op': 'gte', 'value': 4}],
+            'target_ids': [target_id], **changes}
+
+
+def test_routing_requires_management_auth_and_json(client, admin_headers, ingest_headers):
+    for headers in ({}, ingest_headers):
+        assert client.get('/api/routing', headers=headers).status_code == 401
+        assert client.put('/api/routing', headers=headers, json={'revision': 0, 'rules': []}).status_code == 401
+    assert client.get('/api/routing', headers=admin_headers).json() == {'revision': 0, 'rules': []}
+    response = client.put('/api/routing', headers={**admin_headers, 'Content-Type': 'text/plain'},
+                          content='{"revision":0,"rules":[]}')
+    assert response.status_code == 415
+    malformed = client.put('/api/routing', headers={**admin_headers, 'Content-Type': 'application/json'},
+                           content='not-json')
+    assert malformed.status_code == 422
+    assert client.get('/api/routing', headers=admin_headers).json() == {'revision': 0, 'rules': []}
+
+
+@pytest.mark.parametrize('change', [
+    {'id': ''}, {'enabled': 'true'}, {'all': []}, {'target_ids': []},
+    {'unknown': 'field'},
+    {'all': [{'field': 'priority', 'op': 'contains', 'value': 4}]},
+    {'all': [{'field': 'priority', 'op': 'gte', 'value': True}]},
+    {'all': [{'field': 'priority', 'op': 'gte', 'value': '4'}]},
+    {'all': [{'field': 'priority', 'op': 'gte', 'value': 0}]},
+    {'all': [{'field': 'priority', 'op': 'gte', 'value': 6}]},
+    {'all': [{'field': 'title', 'op': 'eq', 'value': 4}]},
+    {'all': [{'field': 'body', 'op': 'gte', 'value': 'x'}]},
+    {'all': [{'field': 'source', 'op': 'eq', 'value': 'x'}]},
+    {'all': [{'field': 'body', 'op': 'eq', 'value': 'x', 'extra': True}]},
+])
+def test_invalid_routing_expressions_are_422_without_config_changes(client, api_target, admin_headers, change):
+    request = {'revision': 0, 'rules': [rule_for(api_target['id'], **change)]}
+    response = client.put('/api/routing', headers=admin_headers, json=request)
+    assert response.status_code == 422, response.text
+    assert client.get('/api/routing', headers=admin_headers).json() == {'revision': 0, 'rules': []}
+
+
+@pytest.mark.parametrize('config_payload', [
+    {'revision': -1, 'rules': []}, {'revision': True, 'rules': []},
+    {'revision': '0', 'rules': []}, {'revision': 0, 'rules': [], 'extra': 'x'},
+    {'rules': []}, {'revision': 0},
+])
+def test_invalid_routing_config_is_422(client, admin_headers, config_payload):
+    assert client.put('/api/routing', headers=admin_headers, json=config_payload).status_code == 422
+
+
+def test_routing_versioning_normalization_missing_references_and_clear(client, api_target, admin_headers, target_body):
+    other = client.post('/api/targets', headers=admin_headers,
+                        json={**target_body, 'name': 'Other', 'is_default': False, 'enabled': False}).json()
+    first = rule_for(api_target['id'])
+    duplicate = client.put('/api/routing', headers=admin_headers,
+                           json={'revision': 0, 'rules': [first, first]})
+    assert duplicate.status_code == 422
+    missing = client.put('/api/routing', headers=admin_headers,
+                         json={'revision': 0, 'rules': [rule_for('missing')]})
+    assert missing.status_code == 400 and missing.json()['detail'] == 'target_unavailable'
+    first.pop('enabled')
+    first['target_ids'] = [other['id'], api_target['id'], other['id']]
+    response = client.put('/api/routing', headers=admin_headers, json={'revision': 0, 'rules': [first]})
+    assert response.status_code == 200
+    saved = response.json()
+    assert saved['revision'] == 1
+    assert saved['rules'][0]['enabled'] is True
+    assert saved['rules'][0]['target_ids'] == sorted({api_target['id'], other['id']})
+    assert client.get('/api/routing', headers=admin_headers).json() == saved
+    stale = client.put('/api/routing', headers=admin_headers, json={'revision': 0, 'rules': []})
+    assert stale.status_code == 409 and stale.json()['detail'] == 'routing_changed'
+    assert client.get('/api/routing', headers=admin_headers).json() == saved
+    cleared = client.put('/api/routing', headers=admin_headers, json={'revision': 1, 'rules': []})
+    assert cleared.status_code == 200 and cleared.json() == {'revision': 2, 'rules': []}
+
+
+@pytest.mark.parametrize('enabled', [True, False])
+def test_target_deletion_requires_removing_disabled_or_enabled_rule_references(client, api_target, admin_headers, enabled):
+    saved = client.put('/api/routing', headers=admin_headers, json={
+        'revision': 0, 'rules': [rule_for(api_target['id'], enabled=enabled)]})
+    assert saved.status_code == 200
+    blocked = client.delete('/api/targets/' + api_target['id'], headers=admin_headers)
+    assert blocked.status_code == 409 and blocked.json()['detail'] == 'target_referenced_by_routing'
+    assert client.put('/api/routing', headers=admin_headers, json={'revision': 1, 'rules': []}).status_code == 200
+    assert client.delete('/api/targets/' + api_target['id'], headers=admin_headers).status_code == 204
+
+
+@pytest.mark.parametrize('endpoint', ['/api/ingest', '/api/messages'])
+@pytest.mark.parametrize('target_selection', ['omitted', 'null'])
+def test_both_receive_apis_automatically_route_without_defaults(client, target_body, admin_headers, ingest_headers,
+                                                             settings, endpoint, target_selection):
+    target = client.post('/api/targets', headers=admin_headers,
+                         json={**target_body, 'is_default': False}).json()
+    assert client.put('/api/routing', headers=admin_headers, json={
+        'revision': 0, 'rules': [rule_for(target['id'])]}).status_code == 200
+    request = {'body': 'Automatically routed', 'priority': 4}
+    if target_selection == 'null':
+        request['target_ids'] = None
+    headers = admin_headers if endpoint == '/api/messages' else ingest_headers
+    response = client.post(endpoint, headers=headers, json=request)
+    assert response.status_code == 201, response.text
+    message_id = response.json()['message_id']
+    expected = {'mode': 'rules', 'rules_revision': 1, 'matched_rule_ids': ['urgent']}
+    with sqlite3.connect(settings.database_path) as db:
+        import json
+        assert json.loads(db.execute('SELECT routing_decision_json FROM messages WHERE id=?',
+                                     (message_id,)).fetchone()[0]) == expected
+        assert db.execute('SELECT target_id FROM deliveries WHERE message_id=?',
+                          (message_id,)).fetchone()[0] == target['id']
+    detail = client.get('/api/messages/' + message_id, headers=admin_headers).json()
+    assert detail['routing_decision'] == expected
+    assert 'routing_decision_json' not in detail
+    assert client.get('/api/messages', headers=admin_headers).json()['messages'][0]['routing_decision'] == expected
+
+
+@pytest.mark.parametrize('endpoint', ['/api/ingest', '/api/messages'])
+def test_both_receive_apis_preserve_explicit_empty_and_unavailable_target_errors(client, api_target, target_body,
+                                                                               admin_headers, ingest_headers,
+                                                                               settings, endpoint):
+    disabled = client.post('/api/targets', headers=admin_headers,
+                           json={**target_body, 'name': 'Disabled', 'enabled': False}).json()
+    # A matching rule with one disabled destination rejects atomically even
+    # though the enabled default target could receive the message.
+    client.put('/api/routing', headers=admin_headers, json={
+        'revision': 0, 'rules': [rule_for(api_target['id'], target_ids=[api_target['id'], disabled['id']])]})
+    headers = admin_headers if endpoint == '/api/messages' else ingest_headers
+    for targets, expected_error in ((None, 'target_unavailable'), ([], 'no_targets'),
+                                    ([api_target['id'], 'missing'], 'target_unavailable')):
+        response = client.post(endpoint, headers=headers,
+                               json={'body': 'Rejected atomically', 'priority': 4, 'target_ids': targets})
+        assert response.status_code == 400
+        assert response.json()['detail'] == expected_error
+    with sqlite3.connect(settings.database_path) as db:
+        assert db.execute('SELECT COUNT(*) FROM messages').fetchone()[0] == 0
+        assert db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0] == 0
+    explicit = client.post(endpoint, headers=headers,
+                           json={'body': 'Explicit bypass', 'priority': 4, 'target_ids': [api_target['id']]})
+    assert explicit.status_code == 201
+    decision = client.get('/api/messages/' + explicit.json()['message_id'], headers=admin_headers).json()['routing_decision']
+    assert decision == {'mode': 'explicit', 'rules_revision': None, 'matched_rule_ids': []}
+
+
+def test_cross_endpoint_idempotent_replay_does_not_reroute_after_config_change(client, api_target,
+                                                                            admin_headers, ingest_headers):
+    assert client.put('/api/routing', headers=admin_headers, json={
+        'revision': 0, 'rules': [rule_for(api_target['id'])]}).status_code == 200
+    request = {'body': 'Fixed routing', 'priority': 4, 'idempotency_key': 'cross-endpoint-rules'}
+    first = client.post('/api/ingest', headers=ingest_headers, json=request)
+    assert first.status_code == 201
+    before = client.get('/api/messages/' + first.json()['message_id'], headers=admin_headers).json()
+    assert client.put('/api/routing', headers=admin_headers, json={'revision': 1, 'rules': []}).status_code == 200
+    replay = client.post('/api/messages', headers=admin_headers, json={**request, 'target_ids': None})
+    assert replay.status_code == 200 and replay.json() == {**first.json(), 'duplicate': True}
+    assert client.get('/api/messages/' + first.json()['message_id'], headers=admin_headers).json() == before
+    conflict = client.post('/api/messages', headers=admin_headers, json={**request, 'priority': 3})
+    assert conflict.status_code == 409 and conflict.json()['detail'] == 'idempotency_conflict'
+
+
+@pytest.mark.parametrize('endpoint', ['/api/ingest', '/api/messages'])
+def test_no_rule_match_and_no_default_is_a_server_rejection_without_receipt(client, target_body,
+                                                                          admin_headers, ingest_headers,
+                                                                          settings, endpoint):
+    target = client.post('/api/targets', headers=admin_headers,
+                         json={**target_body, 'is_default': False}).json()
+    client.put('/api/routing', headers=admin_headers,
+               json={'revision': 0, 'rules': [rule_for(target['id'])]})
+    response = client.post(endpoint, headers=admin_headers if endpoint == '/api/messages' else ingest_headers,
+                           json={'body': 'No matching rule or default', 'priority': 1})
+    assert response.status_code == 400 and response.json()['detail'] == 'no_targets'
+    with sqlite3.connect(settings.database_path) as db:
+        assert db.execute('SELECT COUNT(*) FROM messages').fetchone()[0] == 0
+        assert db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0] == 0

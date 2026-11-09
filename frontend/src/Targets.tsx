@@ -2,10 +2,13 @@ import { Feedback } from "./components/Feedback";
 import { Icon } from "./components/Icon";
 import { Modal } from "./components/Modal";
 import { TargetForm } from "./components/TargetForm";
+import { RoutingRules } from "./components/RoutingRules";
 import { useTargets } from "./hooks/useTargets";
+import type { RoutingManager } from "./hooks/useRouting";
 import type { Target } from "./lib/types";
 
 export interface TargetsProps {
+  readonly routing: RoutingManager;
   readonly token: string;
   readonly targets: readonly Target[];
   readonly reload: () => Promise<void>;
@@ -22,6 +25,7 @@ const providerNames = {
 };
 
 export function Targets({
+  routing,
   token,
   targets,
   reload,
@@ -84,8 +88,8 @@ export function Targets({
             <Icon name="target" size={28} />
             <h2>No destinations yet</h2>
             <p className="muted">
-              Add a delivery target, then make it a default or choose it when
-              sending.
+              Add a delivery target, then select it in routing rules, make it a
+              fallback default, or choose it when sending.
             </p>
             <button
               type="button"
@@ -171,10 +175,12 @@ export function Targets({
       </section>
 
       <p className="muted small">
-        Default targets receive messages without explicit destinations, but only
-        while enabled. Disabling a target does not cancel deliveries already
-        queued.
+        Enabled default targets receive automatically routed messages only when
+        no routing rule matches. Disabling a target does not cancel deliveries
+        already queued.
       </p>
+
+      <RoutingRules manager={routing} targets={targets} targetsLoading={loading} />
 
       {manager.editor && (
         <Modal
@@ -204,8 +210,9 @@ export function Targets({
               undone.
             </p>
             <p className="muted">
-              Targets with unfinished or failed deliveries cannot be deleted.
-              Successful delivery history is kept.
+              Remove this target from every routing rule, including disabled
+              rules, and save the rules first. Targets with unfinished or failed
+              deliveries cannot be deleted. Successful delivery history is kept.
             </p>
             {manager.deleteError && (
               <Feedback tone="error">{manager.deleteError}</Feedback>

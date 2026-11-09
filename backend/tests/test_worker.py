@@ -320,3 +320,102 @@ async def test_result_commit_failure_does_not_cancel_sibling_and_stops_the_worke
     assert sibling_finished.is_set()
     assert store.get_message(first_receipt['message_id'])['deliveries'][0]['status'] == 'sending'
     assert store.get_message(sibling_receipt['message_id'])['deliveries'][0]['status'] == 'sent'
+
+
+@pytest.mark.asyncio
+async def test_rule_fanout_retry_preserves_success_and_uses_latest_disabled_target_config(
+        store, target_body, settings, monkeypatch):
+    first = store.create_target({**target_body, 'is_default': False})
+    second = store.create_target({
+        **target_body, 'name': 'Independent B', 'is_default': False,
+        'config': {**target_body['config'], 'topic': 'original-b'},
+    })
+    later = store.create_target({
+        **target_body, 'name': 'New route only', 'is_default': False,
+        'config': {**target_body['config'], 'topic': 'later-target'},
+    })
+    store.update_routing({'revision': 0, 'rules': [{
+        'id': 'urgent', 'all': [{'field': 'priority', 'op': 'gte', 'value': 4}],
+        'target_ids': [first['id'], second['id']],
+    }]})
+    receipt = received(store, priority=5, idempotency_key='unchanging-rule-fanout')
+    initial = store.get_message(receipt['message_id'])
+    ids = {d['target_id']: d['id'] for d in initial['deliveries']}
+    expected_decision = {'mode': 'rules', 'rules_revision': 1,
+                         'matched_rule_ids': ['urgent']}
+    assert initial['routing_decision'] == expected_decision
+
+    # Neither configuration changes nor disabled destinations cancel durable jobs.
+    store.update_routing({'revision': 1, 'rules': [{
+        'id': 'changed-route', 'all': [{'field': 'priority', 'op': 'gte', 'value': 4}],
+        'target_ids': [later['id']],
+    }]})
+    store.update_target(second['id'], {
+        **target_body, 'name': second['name'], 'is_default': False, 'enabled': False,
+        'config': {**target_body['config'], 'topic': 'failed-b'},
+    })
+    calls = []
+
+    async def dispatch(kind, config, message, *, timeout):
+        calls.append((config['topic'], message['priority']))
+        if config['topic'] == 'failed-b':
+            raise DeliveryError('provider_unavailable')
+        return {'http_status': 200}
+
+    monkeypatch.setattr(worker_module, 'dispatch', dispatch)
+    worker = Worker(store, replace(settings, max_attempts=1))
+    loop = asyncio.get_running_loop()
+    real_finish = store.finish
+
+    async def deliver_committed(expected_ids):
+        # Signal only after the actual SQLite result transaction commits. This
+        # coordinates the worker without guessing when provider calls settle.
+        committed = asyncio.Queue()
+
+        def finish(delivery_id, *args, **kwargs):
+            result = real_finish(delivery_id, *args, **kwargs)
+            loop.call_soon_threadsafe(committed.put_nowait, delivery_id)
+            return result
+
+        monkeypatch.setattr(store, 'finish', finish)
+        task = asyncio.create_task(worker.run())
+        try:
+            observed = [await asyncio.wait_for(committed.get(), 2)
+                        for _ in expected_ids]
+            assert set(observed) == set(expected_ids)
+        finally:
+            await stop(task)
+            monkeypatch.setattr(store, 'finish', real_finish)
+
+    await deliver_committed(ids.values())
+    settled = {d['target_id']: d for d in
+               store.get_message(receipt['message_id'])['deliveries']}
+    assert settled[first['id']]['status'] == 'sent'
+    assert settled[first['id']]['attempts'] == 1
+    assert settled[second['id']]['status'] == 'failed'
+    assert settled[second['id']]['attempts'] == 1
+    assert sorted(calls) == sorted([(target_body['config']['topic'], 5), ('failed-b', 5)])
+
+    store.update_target(second['id'], {
+        **target_body, 'name': second['name'], 'is_default': False, 'enabled': False,
+        'config': {**target_body['config'], 'topic': 'recovered-b'},
+    })
+    retried = store.manual_retry(ids[second['id']])
+    assert retried['attempts'] == 1 and retried['cycle_attempts'] == 0
+    assert received(store, priority=5, idempotency_key='unchanging-rule-fanout') == {
+        'message_id': receipt['message_id'], 'duplicate': True,
+    }
+    await deliver_committed([ids[second['id']]])
+
+    final = store.get_message(receipt['message_id'])
+    results = {d['target_id']: d for d in final['deliveries']}
+    assert set(results) == {first['id'], second['id']}
+    assert results[first['id']] == settled[first['id']]
+    assert results[second['id']]['status'] == 'sent'
+    assert results[second['id']]['attempts'] == 2
+    assert results[second['id']]['cycle_attempts'] == 1
+    assert final['routing_decision'] == expected_decision
+    assert len(calls) == 3
+    assert calls[-1] == ('recovered-b', 5)
+    assert [topic for topic, _ in calls].count(target_body['config']['topic']) == 1
+    assert 'later-target' not in [topic for topic, _ in calls]

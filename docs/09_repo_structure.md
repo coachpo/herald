@@ -4,7 +4,9 @@
 | --- | --- |
 | `backend/config.py`, `security.py` | Private local credentials and separate bearer-token authentication |
 | `backend/api.py`, `models.py` | HTTP input/output contract |
-| `backend/store.py` | SQLite schema, atomic receipt, claims, retries, cleanup |
+| `backend/database.py` | SQLite schema v2 initialization and transactional v1 migration |
+| `backend/store.py` | Atomic receipt/routing selection, revisioned rule configuration, claims, retries, cleanup |
+| `backend/routing.py` | Pure priority/title/body matching and union of all matching rule targets |
 | `backend/worker.py` | Bounded in-process provider dispatch |
 | `backend/channel_dispatch.py`, `providers/`, `core/` | Provider formatting, encryption, and outbound safety |
 | `backend/app.py`, `cli.py` | Single-process lifecycle, data-directory lock, API/UI |
@@ -15,7 +17,9 @@
 
 ## Development principles
 
-Keep the durable path direct: validate and select targets, atomically store receipt/jobs, then dispatch outside the transaction. Use short cohesive modules, explicit ownership, and standard-library SQLite instead of adding infrastructure. Split code only when responsibilities become hard to navigate.
+Keep the durable path direct: validate and fingerprint the request, check idempotency inside the write transaction, select targets from explicit IDs or one routing revision, atomically store message/decision/jobs, then dispatch outside the transaction. The fingerprint excludes routing results. Defaults apply only when no rule matches. Retries use persisted deliveries, never reroute, and successful deliveries remain untouched. Use short cohesive modules, explicit ownership, and standard-library SQLite instead of adding infrastructure. Split code only when responsibilities become hard to navigate.
+
+Keep routing configuration and receipt selection in Store's SQLite transactions; the pure matcher must not access the database or network. Configuration changes affect new messages, while attempts read the latest target configuration rather than a snapshot. Rule order preserves configuration and explanation order, not execution priority. The existing Targets workspace owns rule management through a separate editor component/hook; message details display the recorded routing explanation without reconstructing old rules.
 
 Record uncertain platform limits as assumptions rather than inventing conservative caps or abuse policies. Use the supported best-case path and revisit assumptions when evidence or accepted requirements changes. This does not weaken existing credential, SSRF, privacy, or durability requirements.
 

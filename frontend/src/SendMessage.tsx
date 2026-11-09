@@ -104,7 +104,7 @@ export function SendMessage({
                       checked={!form.explicit}
                       onChange={() => form.setExplicit(false)}
                     />
-                    Use enabled defaults
+                    Automatic · rules, then default fallback
                   </label>
                   <label className="checkbox-row">
                     <input
@@ -144,21 +144,19 @@ export function SendMessage({
                     ))}
                   </div>
                 ) : (
-                  <div className="default-targets">
-                    {form.defaults.map((target) => (
-                      <div key={target.id}>
-                        <Icon name="target" size={16} />
-                        <span>{target.name}</span>
-                        <span className="small muted">{target.kind}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!loading && form.destinations.length === 0 && (
                   <p className="routing-help">
-                    {form.explicit && form.enabled.length > 0
+                    The server selects the union of all matching rules’ targets.
+                    If no rule matches, it uses enabled default targets. The
+                    receipt is rejected if there are no targets or any selected
+                    target is unavailable. Check the stored message for the
+                    actual targets and routing decision.
+                  </p>
+                )}
+                {!loading && form.explicit && form.destinations.length === 0 && (
+                  <p className="routing-help">
+                    {form.enabled.length > 0
                       ? "Choose at least one target."
-                      : "No enabled default targets. Choose specific targets or configure a default."}
+                      : "No enabled targets. Configure a target before selecting it."}
                   </p>
                 )}
               </fieldset>
@@ -178,15 +176,16 @@ export function SendMessage({
                   form.busy ||
                   loading ||
                   !form.body.trim() ||
-                  form.destinations.length === 0
+                  (form.explicit && form.destinations.length === 0)
                 }
               >
                 <Icon name="send" />
                 {form.busy ? "Storing…" : "Store and queue"}
               </button>
               <span className="small muted">
-                {form.destinations.length} target
-                {form.destinations.length === 1 ? "" : "s"} selected
+                {form.explicit
+                  ? `${form.destinations.length} target${form.destinations.length === 1 ? "" : "s"} selected`
+                  : "Targets selected by the server at receipt"}
               </span>
             </div>
           </form>
@@ -215,8 +214,9 @@ export function SendMessage({
             </li>
           </ol>
           <p className="small muted">
-            Disabled targets never receive new messages. Omitting specific
-            targets uses all enabled defaults.
+            Explicit selection bypasses routing rules and default targets.
+            Automatic selection uses enabled defaults only when no rule matches.
+            Rules and default changes affect new receipts, not queued deliveries.
           </p>
         </aside>
       </div>

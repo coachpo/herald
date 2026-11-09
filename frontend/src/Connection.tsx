@@ -75,9 +75,11 @@ export function Connection({
               </p>
               <pre>{`curl -X POST "${window.location.origin}${settings.ingest_path}" \\\n  -H "Authorization: Bearer $HERALD_INGEST_TOKEN" \\\n  -H 'Content-Type: application/json' \\\n  -d '{"body":"Hello from my script"}'`}</pre>
               <p className="small muted">
-                Omit <code>target_ids</code> to use all enabled default targets,
-                or include an array of target IDs. A successful receipt confirms
-                storage; forwarding is asynchronous.
+                Omit <code>target_ids</code> to select targets by routing rules;
+                only zero matching rules falls back to all enabled default
+                targets. Include a nonempty array of target IDs to bypass rules
+                and defaults. A successful receipt confirms storage; forwarding
+                is asynchronous.
               </p>
             </>
           )}

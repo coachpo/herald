@@ -1,3 +1,5 @@
+import type { RoutingConfig } from "./types";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -43,4 +45,14 @@ export async function api<T>(
 
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Request failed";
+}
+export function getRouting(token: string, signal?: AbortSignal) {
+  return api<RoutingConfig>(token, "/routing", { signal });
+}
+
+export function putRouting(token: string, config: RoutingConfig) {
+  return api<RoutingConfig>(token, "/routing", {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
 }

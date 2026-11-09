@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import json
 import sqlite3
+import threading
 
 import pytest
 
-from backend.store import Store
+from backend.store import Store, StoreError
 
 
 def payload(**changes):
@@ -272,3 +275,191 @@ def test_wrong_encryption_key_fails_closed_without_replacing_stored_credentials(
         assert db.execute('SELECT config_encrypted FROM targets WHERE id=?', (target['id'],)).fetchone()[0] == original
     store.initialize()
     assert store.list_targets()[0]['id'] == target['id']
+
+
+def routing_rule(rule_id, *targets, enabled=True, minimum=3):
+    return {'id': rule_id, 'enabled': enabled,
+            'all': [{'field': 'priority', 'op': 'gte', 'value': minimum}],
+            'target_ids': [target['id'] for target in targets]}
+
+
+def test_rules_union_without_defaults_and_explicit_selection_bypasses_routing(store, target_body):
+    default = make_target(store, target_body)
+    first = make_target(store, target_body, name='Rule A', is_default=False)
+    second = make_target(store, target_body, name='Rule B', is_default=False)
+    store.update_routing({'revision': 0, 'rules': [
+        routing_rule('first', first), routing_rule('overlap', first, second)]})
+    receipt = store.receive(payload())
+    message = store.get_message(receipt['message_id'])
+    assert {d['target_id'] for d in message['deliveries']} == {first['id'], second['id']}
+    assert message['routing_decision'] == {
+        'mode': 'rules', 'rules_revision': 1, 'matched_rule_ids': ['first', 'overlap']}
+    explicit = store.receive(payload(target_ids=[default['id'], default['id']]))
+    detail = store.get_message(explicit['message_id'])
+    assert [d['target_id'] for d in detail['deliveries']] == [default['id']]
+    assert detail['routing_decision'] == {
+        'mode': 'explicit', 'rules_revision': None, 'matched_rule_ids': []}
+    assert store.list_messages()['messages'][0]['routing_decision'] == detail['routing_decision']
+    assert 'routing_decision_json' not in message
+
+
+def test_rules_zero_matches_fall_back_only_to_enabled_defaults(store, target_body):
+    default = make_target(store, target_body)
+    make_target(store, target_body, name='Disabled default', enabled=False)
+    routed = make_target(store, target_body, name='Rule only', is_default=False)
+    store.update_routing({'revision': 0, 'rules': [routing_rule('urgent', routed, minimum=5)]})
+    receipt = store.receive(payload(priority=1))
+    message = store.get_message(receipt['message_id'])
+    assert [d['target_id'] for d in message['deliveries']] == [default['id']]
+    assert message['routing_decision'] == {
+        'mode': 'defaults', 'rules_revision': 1, 'matched_rule_ids': []}
+
+
+def test_rule_replay_keeps_original_fingerprint_targets_and_decision(store, target_body, settings):
+    original = make_target(store, target_body, is_default=False)
+    replacement = make_target(store, target_body, name='Replacement', is_default=False)
+    store.update_routing({'revision': 0, 'rules': [routing_rule('original', original)]})
+    request = payload(idempotency_key='original-rules')
+    receipt = store.receive(request)
+    canonical = {'title': request['title'], 'body': request['body'],
+                 'priority': request['priority'], 'target_ids': None}
+    expected_hash = hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(',', ':'),
+                                             ensure_ascii=False).encode()).hexdigest()
+    with sqlite3.connect(settings.database_path) as db:
+        assert db.execute('SELECT content_hash FROM messages').fetchone()[0] == expected_hash
+    store.update_routing({'revision': 1, 'rules': [routing_rule('replacement', replacement)]})
+    store.update_target(original['id'], {**target_body, 'is_default': False, 'enabled': False})
+    assert store.receive(request) == {'message_id': receipt['message_id'], 'duplicate': True}
+    with pytest.raises(StoreError, match='idempotency_conflict'):
+        store.receive({**request, 'body': 'changed'})
+    message = store.get_message(receipt['message_id'])
+    assert [d['target_id'] for d in message['deliveries']] == [original['id']]
+    assert message['routing_decision']['matched_rule_ids'] == ['original']
+    assert message['routing_decision']['rules_revision'] == 1
+    assert len(store.list_messages()['messages']) == 1
+
+
+def test_selected_disabled_target_rejects_entire_rule_fanout_without_fallback(store, target_body, settings):
+    make_target(store, target_body)
+    active = make_target(store, target_body, name='Selected active', is_default=False)
+    disabled = make_target(store, target_body, name='Selected disabled', is_default=False, enabled=False)
+    # Existing disabled targets may be referenced by configuration, but selecting
+    # one must reject the whole receive rather than silently using defaults.
+    store.update_routing({'revision': 0, 'rules': [routing_rule('both', active, disabled)]})
+    for requested in (None, [active['id'], disabled['id']], [active['id'], 'missing']):
+        with pytest.raises(StoreError, match='target_unavailable'):
+            store.receive(payload(target_ids=requested))
+    with sqlite3.connect(settings.database_path) as db:
+        assert db.execute('SELECT COUNT(*) FROM messages').fetchone()[0] == 0
+        assert db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0] == 0
+
+
+def test_rule_receipt_and_decision_commit_together_or_rollback(store, target_body, settings):
+    targets = [make_target(store, target_body, name=f'Rule target {i}', is_default=False) for i in range(2)]
+    store.update_routing({'revision': 0, 'rules': [routing_rule('both', *targets)]})
+    with sqlite3.connect(settings.database_path) as db:
+        db.execute("""CREATE TRIGGER fail_second_rule_delivery BEFORE INSERT ON deliveries
+            WHEN (SELECT COUNT(*) FROM deliveries)=1
+            BEGIN SELECT RAISE(ABORT, 'simulated fanout failure'); END""")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.receive(payload(idempotency_key='atomic-routing'))
+    with sqlite3.connect(settings.database_path) as db:
+        assert db.execute('SELECT COUNT(*) FROM messages').fetchone()[0] == 0
+        assert db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0] == 0
+        db.execute('DROP TRIGGER fail_second_rule_delivery')
+    receipt = store.receive(payload(idempotency_key='atomic-routing'))
+    with sqlite3.connect(settings.database_path) as db:
+        row = db.execute('SELECT routing_decision_json FROM messages WHERE id=?',
+                         (receipt['message_id'],)).fetchone()
+        assert json.loads(row[0]) == {'mode': 'rules', 'rules_revision': 1, 'matched_rule_ids': ['both']}
+        assert db.execute('SELECT COUNT(*) FROM deliveries WHERE message_id=?',
+                          (receipt['message_id'],)).fetchone()[0] == 2
+
+
+def test_concurrent_config_updates_compare_revision_inside_write_transaction(store, target):
+    barrier = threading.Barrier(2)
+
+    def update(rule_id):
+        barrier.wait(timeout=2)
+        try:
+            return store.update_routing({'revision': 0, 'rules': [routing_rule(rule_id, target)]})
+        except StoreError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(update, ('a', 'b')))
+    assert results.count('routing_changed') == 1
+    successes = [result for result in results if isinstance(result, dict)]
+    assert len(successes) == 1
+    assert store.get_routing() == successes[0]
+    assert successes[0]['revision'] == 1
+
+
+@pytest.mark.parametrize('first_operation', ['receive', 'update'])
+def test_config_update_and_receipt_use_one_serialized_config_version(store, target_body, monkeypatch, first_operation):
+    old = make_target(store, target_body, name='Old', is_default=False)
+    new = make_target(store, target_body, name='New', is_default=False)
+    store.update_routing({'revision': 0, 'rules': [routing_rule('old', old)]})
+    transaction_owned = threading.Event()
+    other_started = threading.Event()
+    release = threading.Event()
+    local = threading.local()
+    read = store._routing
+
+    def pause_with_write_lock(db):
+        value = read(db)
+        if getattr(local, 'operation', None) == first_operation:
+            transaction_owned.set()
+            assert release.wait(2), 'test did not release first write transaction'
+        return value
+
+    monkeypatch.setattr(store, '_routing', pause_with_write_lock)
+
+    def operation(name):
+        local.operation = name
+        if name != first_operation:
+            other_started.set()
+        if name == 'receive':
+            return store.receive(payload())
+        return store.update_routing({'revision': 1, 'rules': [routing_rule('new', new)]})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(operation, first_operation)
+        try:
+            assert transaction_owned.wait(2)
+            second = pool.submit(operation, 'update' if first_operation == 'receive' else 'receive')
+            assert other_started.wait(2)
+        finally:
+            release.set()
+        results = [first.result(), second.result()]
+    receipt = next(result for result in results if 'message_id' in result)
+    message = store.get_message(receipt['message_id'])
+    expected_rule, expected_target, expected_revision = (
+        ('old', old, 1) if first_operation == 'receive' else ('new', new, 2))
+    assert message['routing_decision'] == {
+        'mode': 'rules', 'rules_revision': expected_revision, 'matched_rule_ids': [expected_rule]}
+    assert [d['target_id'] for d in message['deliveries']] == [expected_target['id']]
+    assert store.get_routing()['revision'] == 2
+
+
+@pytest.mark.parametrize('enabled', [True, False])
+def test_delete_and_rule_update_cannot_leave_dangling_references(store, target, enabled):
+    barrier = threading.Barrier(2)
+
+    def operation(name):
+        barrier.wait(timeout=2)
+        try:
+            if name == 'delete':
+                store.delete_target(target['id'])
+            else:
+                store.update_routing({'revision': 0, 'rules': [routing_rule('reference', target, enabled=enabled)]})
+            return name + '_ok'
+        except StoreError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = set(pool.map(operation, ('delete', 'update')))
+    assert results in ({'delete_ok', 'target_unavailable'},
+                       {'update_ok', 'target_referenced_by_routing'})
+    existing = {target['id'] for target in store.list_targets()}
+    assert all(set(rule['target_ids']) <= existing for rule in store.get_routing()['rules'])

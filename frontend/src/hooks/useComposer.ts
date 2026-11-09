@@ -20,13 +20,10 @@ export function useComposer(
     duplicate: boolean;
   } | null>(null);
   const enabled = targets.filter((target) => target.enabled);
-  const defaults = enabled.filter((target) => target.is_default);
-  const destinations = explicit
-    ? enabled.filter((target) => selected.includes(target.id))
-    : defaults;
+  const destinations = enabled.filter((target) => selected.includes(target.id));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (busy || !body.trim() || !destinations.length) return;
+    if (busy || !body.trim() || (explicit && !destinations.length)) return;
     setBusy(true);
     setError("");
     setReceipt(null);
@@ -72,7 +69,6 @@ export function useComposer(
     error,
     receipt,
     enabled,
-    defaults,
     destinations,
     submit,
   };

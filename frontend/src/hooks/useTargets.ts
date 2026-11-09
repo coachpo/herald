@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, errorText } from "../lib/api";
+import { api, ApiError, errorText } from "../lib/api";
 import type { Config, Target, TargetInput } from "../lib/types";
 
 interface UseTargetsOptions {
@@ -156,7 +156,11 @@ export function useTargets({ token, reload, report }: UseTargetsOptions) {
       await api<void>(token, `/targets/${deleting.id}`, { method: "DELETE" });
     } catch (error) {
       report(error);
-      setDeleteError(errorText(error));
+      setDeleteError(
+        error instanceof ApiError && error.message === "target_referenced_by_routing"
+          ? "Remove this target from every routing rule, including disabled rules, and save the rules before deleting it."
+          : errorText(error),
+      );
       setBusy(null);
       return;
     }

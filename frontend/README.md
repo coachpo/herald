@@ -2,6 +2,10 @@
 
 A small React interface for a single operator: configure Bark, ntfy, MQTT, or Gotify targets; submit messages; inspect asynchronous delivery results; and retry failed deliveries.
 
+The Targets workspace also edits automatic routing rules as one versioned configuration. Every enabled rule requires all its conditions to match, and targets from all matches are combined. Only zero matches falls back to enabled default targets. Explicit selection sends to the selected targets and bypasses routing rules and defaults. Rules and defaults affect new receipts only; the detail panel shows the recorded selection mode, rule version and matched IDs alongside the actual deliveries. This explanation does not preserve historical rule or target configurations.
+
+Saving rules uses the loaded revision. If another session changes the configuration, the editor keeps the unsaved draft and asks you to reload; reloading unsaved changes requires an explicit discard confirmation. Remove all rule references, including disabled rules, before deleting a target.
+
 Use the management token from the server's private `credentials.env` file to connect. It stays in this browser tab's session storage. The separate ingest token is never returned by the dashboard API. Outlet credentials are encrypted on the server, omitted from read responses, and preserved when an edit leaves their fields blank.
 
 From the repository root, with Node 24 and pnpm 10.30.1:

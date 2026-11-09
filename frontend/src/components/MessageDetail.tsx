@@ -81,6 +81,31 @@ export function MessageDetail({
         <h3>Message</h3>
         <p className="message-body">{message.body}</p>
       </section>
+      <section className="routing-decision stack" aria-label="Routing decision">
+        <h3>Routing decision</h3>
+        {message.routing_decision ? (
+          <>
+            <p>
+              Selection: {message.routing_decision.mode === "explicit"
+                ? "Explicit targets"
+                : message.routing_decision.mode === "rules"
+                  ? "Matching rules"
+                  : "Default fallback (no matching rules)"}
+            </p>
+            <p className="small muted">
+              Rules revision: {message.routing_decision.rules_revision ?? "Not applicable (explicit selection)"}
+            </p>
+            <p className="small muted">
+              Matched rule IDs: {message.routing_decision.matched_rule_ids.length === 0 ? "None" : message.routing_decision.matched_rule_ids.map((id, index) => (
+                <span key={id}>{index > 0 ? ", " : ""}<code>{id}</code></span>
+              ))}
+            </p>
+            <p className="small muted">Recorded at receipt. Rule IDs and version are an explanation, not a historical copy of rule or target configuration. Final targets and current delivery states appear below.</p>
+          </>
+        ) : (
+          <p className="small muted">No routing decision was recorded for this message.</p>
+        )}
+      </section>
       <section className="delivery-results">
         <div className="section-heading">
           <h3>Delivery results</h3>

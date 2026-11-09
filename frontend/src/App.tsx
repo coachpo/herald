@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSession } from "./hooks/useSession";
 import { useTheme } from "./hooks/useTheme";
 import { useMessages } from "./hooks/useMessages";
+import { useRouting } from "./hooks/useRouting";
 import { Messages } from "./Messages";
 import { SendMessage } from "./SendMessage";
 import { Targets } from "./Targets";
@@ -24,6 +25,7 @@ interface WorkspaceProps {
 }
 
 function Workspace({ session }: WorkspaceProps) {
+  const routing = useRouting(session.token, session.report);
   const [view, setView] = useState<View>("messages");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [inspectReceipt, setInspectReceipt] = useState(false);
@@ -90,6 +92,7 @@ function Workspace({ session }: WorkspaceProps) {
           />
         ) : view === "targets" ? (
           <Targets
+            routing={routing}
             token={session.token}
             targets={session.targets}
             reload={session.reloadTargets}

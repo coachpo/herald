@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 
-from .models import MessageInput, TargetInput
+from .models import MessageInput, RoutingInput, TargetInput
 from .tasks import database_call
 from .security import require_admin, require_ingest
 
@@ -46,6 +46,16 @@ async def settings(request: Request):
 @router.get('/targets', dependencies=[Depends(require_admin)])
 async def targets(request: Request):
     return {'targets': await database_call(request.app.state.store.list_targets)}
+
+
+@router.get('/routing', response_model=RoutingInput, dependencies=[Depends(require_admin)])
+async def routing(request: Request):
+    return await database_call(request.app.state.store.get_routing)
+
+
+@router.put('/routing', response_model=RoutingInput, dependencies=[Depends(require_admin), Depends(require_json)])
+async def update_routing(payload: RoutingInput, request: Request):
+    return await database_call(request.app.state.store.update_routing, payload.model_dump())
 
 
 @router.post('/targets', status_code=201, dependencies=[Depends(require_admin), Depends(require_json)])

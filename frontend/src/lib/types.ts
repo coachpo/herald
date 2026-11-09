@@ -9,6 +9,21 @@ export type Target = {
   enabled: boolean;
 };
 export type TargetInput = Omit<Target, "id">;
+export type RoutingCondition =
+  | { field: "priority"; op: "eq" | "gte" | "lte"; value: number }
+  | { field: "title" | "body"; op: "eq" | "prefix" | "contains"; value: string };
+export type RoutingRule = {
+  id: string;
+  enabled: boolean;
+  all: RoutingCondition[];
+  target_ids: string[];
+};
+export type RoutingConfig = { revision: number; rules: RoutingRule[] };
+export type RoutingDecision = {
+  mode: "explicit" | "rules" | "defaults";
+  rules_revision: number | null;
+  matched_rule_ids: string[];
+};
 export type Delivery = {
   id: string;
   target_id: string;
@@ -25,6 +40,7 @@ export type Message = {
   body: string;
   priority: number;
   received_at: string;
+  routing_decision: RoutingDecision | null;
   deliveries: Delivery[];
 };
 export type MessagePage = { messages: Message[]; next_cursor?: string | null };

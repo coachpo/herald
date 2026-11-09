@@ -9,7 +9,8 @@ import time
 from uuid import uuid4
 from . import database
 from .core.crypto import decrypt_json_bytes, encrypt_json_bytes
-from .models import MessageInput, TargetInput
+from .models import MessageInput, RoutingInput, TargetInput
+from .routing import match_rules
 from .target_config import normalize_target_config
 
 _SECRETS = {'device_key', 'access_token', 'app_token', 'password'}
@@ -108,8 +109,34 @@ class Store:
         with database.connection(self.db_path, write=True) as db:
             if db.execute("SELECT 1 FROM deliveries WHERE target_id=? AND status!='sent' LIMIT 1", (target_id,)).fetchone():
                 raise StoreError('target_has_unfinished_deliveries', 409)
+            if any(target_id in rule['target_ids'] for rule in self._routing(db)['rules']):
+                raise StoreError('target_referenced_by_routing', 409)
             if not db.execute('DELETE FROM targets WHERE id=?', (target_id,)).rowcount:
                 raise StoreError('target_not_found', 404)
+
+    def _routing(self, db):
+        row = db.execute('SELECT revision,rules_json FROM routing_config WHERE id=1').fetchone()
+        return {'revision': row['revision'], 'rules': json.loads(row['rules_json'])}
+
+    def get_routing(self):
+        with database.connection(self.db_path) as db:
+            return self._routing(db)
+
+    def update_routing(self, payload):
+        data = RoutingInput.model_validate(payload).model_dump()
+        with database.connection(self.db_path, write=True) as db:
+            current = self._routing(db)
+            if current['revision'] != data['revision']:
+                raise StoreError('routing_changed', 409)
+            # Disabled rules retain references too; enabling a target is required
+            # only when a new receipt actually selects it.
+            for target_id in {target_id for rule in data['rules'] for target_id in rule['target_ids']}:
+                if db.execute('SELECT 1 FROM targets WHERE id=?', (target_id,)).fetchone() is None:
+                    raise StoreError('target_unavailable')
+            revision = current['revision'] + 1
+            db.execute('UPDATE routing_config SET revision=?,rules_json=? WHERE id=1',
+                       (revision, _json(data['rules'])))
+        return {'revision': revision, 'rules': data['rules']}
 
     def receive(self, payload, *, now=None):
         data = MessageInput.model_validate(payload).model_dump()
@@ -126,19 +153,28 @@ class Store:
                     if original['content_hash'] != content_hash:
                         raise StoreError('idempotency_conflict', 409)
                     return {'message_id': original['id'], 'duplicate': True}
+            decision = {'mode': 'explicit', 'rules_revision': None, 'matched_rule_ids': []}
             if requested is None:
-                targets = db.execute('SELECT * FROM targets WHERE enabled=1 AND is_default=1 ORDER BY id').fetchall()
-            else:
-                targets = []
-                for target_id in requested:
-                    target = db.execute('SELECT * FROM targets WHERE id=? AND enabled=1', (target_id,)).fetchone()
-                    if target is None:
-                        raise StoreError('target_unavailable')
-                    targets.append(target)
+                routing = self._routing(db)
+                matched, requested = match_rules(routing['rules'], data)
+                decision = {'mode': 'rules' if matched else 'defaults',
+                            'rules_revision': routing['revision'], 'matched_rule_ids': matched}
+                if not matched:
+                    requested = [row['id'] for row in db.execute(
+                        'SELECT id FROM targets WHERE enabled=1 AND is_default=1 ORDER BY id')]
+            targets = []
+            for target_id in requested:
+                target = db.execute('SELECT * FROM targets WHERE id=? AND enabled=1', (target_id,)).fetchone()
+                if target is None:
+                    raise StoreError('target_unavailable')
+                targets.append(target)
             if not targets:
                 raise StoreError('no_targets')
-            db.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?)',
-                       (message_id, data['title'], data['body'], data['priority'], stamp, data['idempotency_key'], content_hash))
+            db.execute('''INSERT INTO messages
+                (id,title,body,priority,received_at,idempotency_key,content_hash,routing_decision_json)
+                VALUES (?,?,?,?,?,?,?,?)''',
+                       (message_id, data['title'], data['body'], data['priority'], stamp,
+                        data['idempotency_key'], content_hash, _json(decision)))
             for target in targets:
                 db.execute('''INSERT INTO deliveries
                     (id,message_id,target_id,target_name,kind,status,available_at,created_at,updated_at)
@@ -156,6 +192,8 @@ class Store:
     def _message(self, db, row):
         value = dict(row)
         value.pop('content_hash', None)
+        decision = value.pop('routing_decision_json')
+        value['routing_decision'] = json.loads(decision) if decision is not None else None
         value['received_at'] = _date(value['received_at'])
         value['deliveries'] = [self._delivery(d) for d in db.execute(
             'SELECT * FROM deliveries WHERE message_id=? ORDER BY created_at,id', (row['id'],))]
