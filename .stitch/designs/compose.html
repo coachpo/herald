@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-[#f3f5f6]" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Herald — Send message</title>
+<!-- IBM Plex Sans & IBM Plex Mono Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-container-lowest": "#ffffff",
+            "on-secondary-fixed": "#031f26",
+            "on-secondary-container": "#4f6871",
+            "tertiary-fixed-dim": "#fdb87c",
+            "outline-variant": "#bfc8cc",
+            "surface-container-highest": "#e1e3e4",
+            "secondary": "#49626b",
+            "tertiary-container": "#8c5724",
+            "primary-fixed": "#b2ebff",
+            "error-container": "#ffdad6",
+            "surface-container-high": "#e6e8e9",
+            "surface-tint": "#12677b",
+            "on-background": "#191c1d",
+            "inverse-surface": "#2d3132",
+            "background": "#f8fafb",
+            "on-secondary-fixed-variant": "#324a52",
+            "error": "#ba1a1a",
+            "on-primary-fixed-variant": "#004e5e",
+            "inverse-primary": "#8ad1e7",
+            "tertiary-fixed": "#ffdcc1",
+            "secondary-fixed-dim": "#b0cbd5",
+            "surface-dim": "#d8dadb",
+            "on-tertiary-container": "#ffd9bc",
+            "on-primary-fixed": "#001f27",
+            "on-error": "#ffffff",
+            "on-primary-container": "#abeaff",
+            "primary-fixed-dim": "#8ad1e7",
+            "on-secondary": "#ffffff",
+            "tertiary": "#70400e",
+            "on-surface-variant": "#3f484c",
+            "surface-variant": "#e1e3e4",
+            "surface-bright": "#f8fafb",
+            "on-tertiary-fixed-variant": "#6a3b08",
+            "secondary-fixed": "#cce7f1",
+            "on-primary": "#ffffff",
+            "on-tertiary": "#ffffff",
+            "outline": "#6f797c",
+            "secondary-container": "#cce7f1",
+            "primary": "#005364",
+            "on-surface": "#191c1d",
+            "inverse-on-surface": "#eff1f2",
+            "primary-container": "#1b6c80",
+            "surface-container": "#eceeef",
+            "on-tertiary-fixed": "#2e1500",
+            "on-error-container": "#93000a",
+            "surface-container-low": "#f2f4f5",
+            "surface": "#f8fafb"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["IBM Plex Sans", "sans-serif"],
+            display: ["IBM Plex Sans", "sans-serif"],
+            body: ["IBM Plex Sans", "sans-serif"],
+            label: ["IBM Plex Sans", "sans-serif"],
+            mono: ["IBM Plex Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    /* Utilitarian touch control defaults */
+    input, textarea, select, button {
+      font-family: inherit;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="h-full text-on-surface font-body bg-[#f3f5f6] antialiased select-none flex justify-center">
+<!-- Mobile Viewport Container (Target 390px wide standard mobile framing) -->
+<div class="w-full max-w-[412px] min-h-screen bg-background flex flex-col relative pb-20 shadow-none border-x border-outline-variant/30">
+<!-- TopAppBar (from Shared Components JSON specifications) -->
+<header class="bg-background dark:bg-inverse-surface border-b border-outline-variant dark:border-outline flat no shadows h-12 w-full px-4 flex items-center justify-between sticky top-0 z-40">
+<div class="flex items-center space-x-2">
+<!-- Brand Mark: Three offset horizontal strokes ending in arrow -->
+<div aria-label="Herald Delivery Ledger" class="flex items-center gap-1.5">
+<svg class="text-primary-container shrink-0" fill="none" height="18" viewbox="0 0 22 18" width="22">
+<path d="M1 3H14M12 1L16 3L12 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+<path d="M3 9H17M15 7L19 9L15 11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+<path d="M1 15H19M17 13L21 15L17 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+<span class="font-headline text-lg font-bold tracking-tight text-on-surface dark:text-inverse-on-surface">Herald</span>
+</div>
+</div>
+<!-- Action items: Mode switcher -->
+<div class="flex items-center gap-1">
+<button aria-label="Toggle theme" class="w-9 h-9 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors" title="Toggle Theme" type="button">
+<span class="material-symbols-outlined text-[20px]">dark_mode</span>
+</button>
+</div>
+</header>
+<!-- Subheader Bar with Return Action and Title -->
+<nav class="h-11 px-3 border-b border-outline-variant/40 bg-surface-container-low/70 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<a aria-label="Return to messages ledger" class="h-8 px-2 -ml-1 inline-flex items-center gap-1 text-xs font-medium text-secondary hover:text-on-surface rounded active:bg-surface-container transition-colors" href="#messages">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span>Ledger</span>
+</a>
+<span class="text-outline-variant text-xs">/</span>
+<h1 class="font-headline text-sm font-semibold text-on-surface tracking-tight">Send message</h1>
+</div>
+<div class="flex items-center">
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono text-secondary bg-surface-container-high">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+          single-user
+        </span>
+</div>
+</nav>
+<!-- Main Content Work Area with 16px/24px gutters -->
+<main class="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+<!-- Success / Inline State Feedback Panel (Recent Queue Receipt) -->
+<div class="border border-[#246444]/30 bg-[#e6f2ea] rounded p-3 text-xs text-[#131416] space-y-2">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#246444] shrink-0"></span>
+<span class="font-semibold text-[#246444] tracking-tight">Received and queued</span>
+</div>
+<span class="font-mono text-[11px] text-[#5d5f60]">12s ago</span>
+</div>
+<div class="flex items-center justify-between text-[11px] pt-0.5">
+<div class="flex items-center gap-1 font-mono text-[#131416]">
+<span class="text-[#5d5f60]">ID:</span>
+<span class="font-medium underline decoration-dotted underline-offset-2">msg_8f92a1c4</span>
+</div>
+<button class="font-medium text-primary-container underline hover:text-primary transition-colors cursor-pointer py-1" type="button">
+            View message →
+          </button>
+</div>
+</div>
+<!-- Message Creation Form -->
+<form class="space-y-4" onsubmit="event.preventDefault();">
+<!-- Input: Optional Title -->
+<div class="space-y-1.5">
+<div class="flex justify-between items-baseline">
+<label class="font-label text-xs font-semibold text-on-surface" for="msg-title">
+              Title
+            </label>
+<span class="text-[11px] text-secondary font-mono">optional</span>
+</div>
+<input class="w-full text-xs font-body rounded border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface placeholder:text-outline focus:border-primary-container focus:ring-1 focus:ring-primary-container focus:outline-none transition-all" id="msg-title" name="title" placeholder="e.g., Database migration notice" type="text"/>
+</div>
+<!-- Input: Message Body (Required) -->
+<div class="space-y-1.5">
+<div class="flex justify-between items-baseline">
+<label class="font-label text-xs font-semibold text-on-surface" for="msg-body">
+              Message body <span class="text-error font-normal">*</span>
+</label>
+<span class="text-[11px] font-mono text-secondary" id="char-count">
+              0 / 4096
+            </span>
+</div>
+<textarea class="w-full text-xs font-body rounded border border-outline-variant bg-surface-container-lowest p-3 text-on-surface placeholder:text-outline focus:border-primary-container focus:ring-1 focus:ring-primary-container focus:outline-none transition-all resize-y" id="msg-body" name="body" oninput="document.getElementById('char-count').innerText = this.value.length + ' / 4096'" placeholder="Payload content to push..." required="" rows="4"></textarea>
+</div>
+<!-- Priority Selector -->
+<div class="space-y-1.5">
+<div class="flex justify-between items-baseline">
+<label class="font-label text-xs font-semibold text-on-surface" for="msg-priority">
+              Priority level
+            </label>
+<span class="text-[11px] text-secondary font-mono">P1–P5</span>
+</div>
+<div class="relative">
+<select class="w-full appearance-none text-xs font-body rounded border border-outline-variant bg-surface-container-lowest px-3 py-2.5 pr-8 text-on-surface focus:border-primary-container focus:ring-1 focus:ring-primary-container focus:outline-none transition-all cursor-pointer" id="msg-priority" name="priority">
+<option value="1">1 — Lowest (Background telemetry)</option>
+<option value="2">2 — Low (Informational updates)</option>
+<option selected="" value="3">3 — Standard (Default dispatch)</option>
+<option value="4">4 — High (Operational alert)</option>
+<option value="5">5 — Urgent (Paging / Critical bypass)</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Targets Fieldset -->
+<fieldset class="border border-outline-variant/60 rounded p-3 bg-surface-container-lowest space-y-3">
+<legend class="text-xs font-semibold font-label px-1 text-on-surface">
+            Delivery targets
+          </legend>
+<!-- Toggle Mode Tabs -->
+<div class="grid grid-cols-2 gap-1 p-0.5 bg-surface-container-low rounded border border-outline-variant/40 text-xs">
+<button class="py-1.5 text-center font-medium text-secondary rounded hover:text-on-surface transition-colors" type="button">
+              Use enabled defaults
+            </button>
+<button class="py-1.5 text-center font-semibold bg-surface-container-lowest text-on-surface shadow-xs rounded border border-outline-variant/30" type="button">
+              Choose specific
+            </button>
+</div>
+<!-- Target Checkbox Rows (Min 48px touch targets, comfortable tapping) -->
+<div class="divide-y divide-outline-variant/40 -mx-1">
+<!-- Target 1: Bark -->
+<label class="flex items-start gap-3 p-2.5 min-h-[48px] cursor-pointer hover:bg-surface-container-low/50 rounded transition-colors">
+<input checked="" class="mt-1 h-4 w-4 rounded border-outline text-primary-container focus:ring-primary-container focus:ring-offset-0 focus:ring-1 cursor-pointer" name="targets[]" type="checkbox" value="bark_primary"/>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium text-on-surface">Backup phone Bark</span>
+<span class="text-[10px] font-mono px-1 bg-surface-container text-secondary rounded">Default</span>
+</div>
+<p class="text-[11px] text-on-surface-variant break-words mt-0.5">
+                  Push token active • Channel APNs
+                </p>
+</div>
+</label>
+<!-- Target 2: Operations ntfy -->
+<label class="flex items-start gap-3 p-2.5 min-h-[48px] cursor-pointer hover:bg-surface-container-low/50 rounded transition-colors">
+<input checked="" class="mt-1 h-4 w-4 rounded border-outline text-primary-container focus:ring-primary-container focus:ring-offset-0 focus:ring-1 cursor-pointer" name="targets[]" type="checkbox" value="ntfy_ops"/>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium text-on-surface">Operations ntfy</span>
+<span class="text-[10px] font-mono px-1 bg-surface-container text-secondary rounded">Tier-1</span>
+</div>
+<p class="text-[11px] text-on-surface-variant break-words mt-0.5">
+                  High priority topic: <code class="font-mono text-[10px] bg-surface-container-high px-1 py-0.5 rounded">ops-alerts</code>
+</p>
+</div>
+</label>
+<!-- Target 3: Telegram -->
+<label class="flex items-start gap-3 p-2.5 min-h-[48px] cursor-pointer hover:bg-surface-container-low/50 rounded transition-colors">
+<input class="mt-1 h-4 w-4 rounded border-outline text-primary-container focus:ring-primary-container focus:ring-offset-0 focus:ring-1 cursor-pointer" name="targets[]" type="checkbox" value="tg_oncall"/>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium text-on-surface">Engineering On-Call Telegram</span>
+<span class="text-[10px] font-mono px-1 bg-surface-container-high text-secondary rounded">Fallback</span>
+</div>
+<p class="text-[11px] text-on-surface-variant break-words mt-0.5">
+                  Chat ID: <code class="font-mono text-[10px]">-1008472910</code> • Secondary route
+                </p>
+</div>
+</label>
+</div>
+<!-- Ledger Guarantee Notice -->
+<div class="bg-surface-container-low border border-outline-variant/40 rounded p-2.5 flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] text-primary-container mt-0.5 shrink-0">info</span>
+<p class="text-[11px] leading-4 text-on-surface-variant">
+<strong class="font-semibold text-on-surface">Receipt guarantee:</strong> Receipt means accepted into the local durable queue, not verified physical delivery on destination device.
+            </p>
+</div>
+</fieldset>
+<!-- Primary Form Action -->
+<div class="pt-2">
+<button class="w-full h-11 bg-primary-container text-on-primary font-headline text-xs font-semibold rounded flex items-center justify-center gap-2 hover:bg-[#155666] active:scale-[0.99] transition-all cursor-pointer shadow-none" type="submit">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span>Store and queue</span>
+</button>
+<div class="flex items-center justify-center gap-1.5 mt-2 text-[11px] font-mono text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-[#246444]"></span>
+<span>Ledger daemon online</span>
+</div>
+</div>
+</form>
+</main>
+<!-- BottomNavBar (Shared Component from JSON specifications) -->
+<!-- Destination count: 3; Labels: Messages, Send, Targets; Active: Send -->
+<nav class="fixed bottom-0 left-0 w-full z-50 h-16 flex justify-around items-center px-4 bg-surface-container-low dark:bg-surface-dim border-t border-outline-variant dark:border-outline flat no shadows max-w-[412px] left-1/2 -translate-x-1/2">
+<!-- Destination 1: Messages -->
+<a aria-label="Messages" class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim gap-1 hover:text-primary dark:hover:text-inverse-primary transition-colors active:scale-95 transition-transform" href="#messages">
+<span class="material-symbols-outlined text-[20px]">inbox</span>
+<span class="font-label text-xs font-medium">Messages</span>
+</a>
+<!-- Destination 2: Send (Active item according to page context) -->
+<a aria-current="page" aria-label="Send" class="flex flex-col items-center justify-center text-primary dark:text-inverse-primary font-semibold gap-1 hover:text-primary dark:hover:text-inverse-primary transition-colors active:scale-95 transition-transform" href="#send">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">send</span>
+<span class="font-label text-xs font-medium">Send</span>
+</a>
+<!-- Destination 3: Targets -->
+<a aria-label="Targets" class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim gap-1 hover:text-primary dark:hover:text-inverse-primary transition-colors active:scale-95 transition-transform" href="#targets">
+<span class="material-symbols-outlined text-[20px]">devices</span>
+<span class="font-label text-xs font-medium">Targets</span>
+</a>
+</nav>
+</div>
+</body></html>

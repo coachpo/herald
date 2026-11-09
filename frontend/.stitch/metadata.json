@@ -1,0 +1,124 @@
+{
+  "projectId": "5701621175042394082",
+  "title": "Herald — Delivery ledger UI redesign",
+  "deviceType": "RESPONSIVE",
+  "Last Sync Time": "2026-11-09T19:27:09.275Z",
+  "designSystems": {
+    "light": "assets/18024183445211519821",
+    "dark": "assets/7680595233516220540"
+  },
+  "screens": {
+    "inbox": {
+      "id": "f3ecffd91bd24a60872b7436a2b6a2af",
+      "label": "Herald · Notification Delivery Inbox",
+      "sourceScreen": "projects/5701621175042394082/screens/f3ecffd91bd24a60872b7436a2b6a2af",
+      "dimensions": {
+        "width": "2560",
+        "height": "2048"
+      },
+      "deviceType": "DESKTOP",
+      "canvasPosition": null
+    },
+    "compose": {
+      "id": "7932c74bd7174f10b86066a90e5049ca",
+      "label": "Herald · Send Message",
+      "sourceScreen": "projects/5701621175042394082/screens/7932c74bd7174f10b86066a90e5049ca",
+      "dimensions": {
+        "width": "780",
+        "height": "1768"
+      },
+      "deviceType": "MOBILE",
+      "canvasPosition": null
+    },
+    "targets": {
+      "id": "5375331c01434638bc460a6f3000f7d6",
+      "label": "Herald · Delivery Targets",
+      "sourceScreen": "projects/5701621175042394082/screens/5375331c01434638bc460a6f3000f7d6",
+      "dimensions": {
+        "width": "2560",
+        "height": "2048"
+      },
+      "deviceType": "DESKTOP",
+      "canvasPosition": null
+    },
+    "login": {
+      "id": "b3938fe9d9ec4c5aaf2cfe0030ccaf5f",
+      "label": "Herald · Connect Ledger (Mobile)",
+      "sourceScreen": "projects/5701621175042394082/screens/b3938fe9d9ec4c5aaf2cfe0030ccaf5f",
+      "dimensions": {
+        "width": "2560",
+        "height": "2048"
+      },
+      "deviceType": "DESKTOP",
+      "canvasPosition": null
+    },
+    "detail-mobile": {
+      "id": "bea40552093b4b95b242eaf1ada6f6d3",
+      "label": "Herald · Message Delivery Detail (Mobile)",
+      "sourceScreen": "projects/5701621175042394082/screens/bea40552093b4b95b242eaf1ada6f6d3",
+      "dimensions": {
+        "width": "780",
+        "height": "2694"
+      },
+      "deviceType": "MOBILE",
+      "canvasPosition": null
+    },
+    "inbox-dark-mobile": {
+      "id": "22c16d97b45045bbb434ece7d07891a9",
+      "label": "Herald · Notification Delivery Inbox",
+      "sourceScreen": "projects/5701621175042394082/screens/22c16d97b45045bbb434ece7d07891a9",
+      "dimensions": {
+        "width": "780",
+        "height": "1822"
+      },
+      "deviceType": "MOBILE",
+      "canvasPosition": null
+    },
+    "login-dark-desktop": {
+      "id": "14447b605657435db5bebd9cf0b7bf65",
+      "label": "Herald · Connect Ledger",
+      "sourceScreen": "projects/5701621175042394082/screens/14447b605657435db5bebd9cf0b7bf65",
+      "dimensions": {
+        "width": "2560",
+        "height": "2048"
+      },
+      "deviceType": "DESKTOP",
+      "canvasPosition": null
+    },
+    "compose-edit": {
+      "id": "cf6f157427b74ff8a8b101774790a5f5",
+      "label": "Herald · Send Message",
+      "sourceScreen": "projects/5701621175042394082/screens/cf6f157427b74ff8a8b101774790a5f5",
+      "dimensions": {
+        "width": "780",
+        "height": "1768"
+      },
+      "deviceType": "MOBILE",
+      "canvasPosition": null
+    },
+    "inbox-edit": {
+      "id": "05eb3fada3c74454b1cb4a3437efbccf",
+      "label": "Herald · Notification Delivery Inbox",
+      "sourceScreen": "projects/5701621175042394082/screens/05eb3fada3c74454b1cb4a3437efbccf",
+      "dimensions": {
+        "width": "2560",
+        "height": "2048"
+      },
+      "deviceType": "DESKTOP",
+      "canvasPosition": null
+    },
+    "login-dark-edit": {
+      "id": "b2bf5f82e479410391e9c8d396635822",
+      "label": "Herald · Connect Ledger",
+      "sourceScreen": "projects/5701621175042394082/screens/b2bf5f82e479410391e9c8d396635822",
+      "dimensions": {
+        "width": "2560",
+        "height": "2048"
+      },
+      "deviceType": "DESKTOP",
+      "canvasPosition": null
+    }
+  },
+  "retrieval": "get_screen + download_file (fetch-stitch.sh returned HTTP 401; current MCP requires authenticated download_file)",
+  "canvasPositionNote": "Stitch get_project did not return canvas positions; none inferred."
+}

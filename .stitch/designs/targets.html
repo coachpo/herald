@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Herald — Delivery Targets</title>
+<!-- IBM Plex Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-tertiary": "#ffffff",
+            "on-secondary-fixed": "#031f26",
+            "inverse-on-surface": "#eff1f2",
+            "on-secondary-fixed-variant": "#324a52",
+            "tertiary-container": "#8c5724",
+            "on-primary-fixed": "#001f27",
+            "surface": "#f8fafb",
+            "primary-fixed-dim": "#8ad1e7",
+            "primary-fixed": "#b2ebff",
+            "on-tertiary-fixed-variant": "#6a3b08",
+            "on-secondary": "#ffffff",
+            "secondary-fixed": "#cce7f1",
+            "on-error-container": "#93000a",
+            "on-error": "#ffffff",
+            "on-tertiary-container": "#ffd9bc",
+            "tertiary-fixed": "#ffdcc1",
+            "surface-container-lowest": "#ffffff",
+            "tertiary": "#70400e",
+            "secondary-fixed-dim": "#b0cbd5",
+            "primary-container": "#1b6c80",
+            "surface-dim": "#d8dadb",
+            "surface-container-low": "#f2f4f5",
+            "surface-container-highest": "#e1e3e4",
+            "on-primary-fixed-variant": "#004e5e",
+            "on-background": "#191c1d",
+            "surface-container-high": "#e6e8e9",
+            "inverse-primary": "#8ad1e7",
+            "on-surface": "#191c1d",
+            "surface-variant": "#e1e3e4",
+            "on-primary-container": "#abeaff",
+            "surface-container": "#eceeef",
+            "surface-bright": "#f8fafb",
+            "error": "#ba1a1a",
+            "background": "#f8fafb",
+            "outline": "#6f797c",
+            "secondary": "#49626b",
+            "on-surface-variant": "#3f484c",
+            "inverse-surface": "#2d3132",
+            "on-secondary-container": "#4f6871",
+            "secondary-container": "#cce7f1",
+            "outline-variant": "#bfc8cc",
+            "primary": "#005364",
+            "on-tertiary-fixed": "#2e1500",
+            "error-container": "#ffdad6",
+            "surface-tint": "#12677b",
+            "tertiary-fixed-dim": "#fdb87c",
+            "on-primary": "#ffffff"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            "headline": ["IBM Plex Sans", "sans-serif"],
+            "display": ["IBM Plex Sans", "sans-serif"],
+            "body": ["IBM Plex Sans", "sans-serif"],
+            "label": ["IBM Plex Sans", "sans-serif"],
+            "mono": ["IBM Plex Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+    }
+    /* Discrete scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f2f4f5;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #bfc8cc;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6f797c;
+    }
+  </style>
+</head>
+<body class="bg-surface-container-low text-on-surface h-full flex overflow-hidden antialiased select-none">
+<!-- ========================================================================= -->
+<!-- 1. LEFT SIDE NAVIGATION BAR (228px FIXED BRAND ANCHOR)                   -->
+<!-- ========================================================================= -->
+<aside class="w-[228px] h-screen fixed top-0 left-0 flex flex-col justify-between bg-surface-container-low border-r border-outline-variant/30 select-none z-30">
+<div class="flex flex-col p-3 gap-y-6">
+<!-- Brand Logo / Product Mark -->
+<div class="px-2 pt-1 flex items-center gap-2.5">
+<div class="w-7 h-7 rounded bg-primary text-on-primary flex items-center justify-center shrink-0">
+<!-- Herald three-stroke delivery arrow mark -->
+<svg class="stroke-current stroke-2" fill="none" height="18" viewbox="0 0 24 24" width="18">
+<path d="M3 6h9m-9 6h14m-14 6h11m3-3l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline text-base font-semibold tracking-tight text-on-surface leading-tight">Herald</span>
+<span class="text-xs text-on-surface-variant font-normal leading-none mt-0.5">Single-user workspace</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col space-y-1">
+<!-- Messages -->
+<a class="flex items-center justify-between px-2.5 py-1.5 text-on-surface-variant font-normal rounded-DEFAULT transition-colors duration-150 ease-in-out hover:bg-surface-variant/50 group text-sm leading-5" href="#">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-outline group-hover:text-on-surface">inbox</span>
+<span>Messages</span>
+</div>
+<span class="font-mono text-xs px-1.5 py-0.2 rounded bg-surface-container-high text-on-surface-variant font-normal">18</span>
+</a>
+<!-- Send message -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 text-on-surface-variant font-normal rounded-DEFAULT transition-colors duration-150 ease-in-out hover:bg-surface-variant/50 group text-sm leading-5" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-on-surface">send</span>
+<span>Send message</span>
+</a>
+<!-- Targets (ACTIVE) -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 bg-surface-container-lowest text-primary font-medium rounded-DEFAULT transition-colors duration-150 ease-in-out shadow-none text-sm leading-5" href="#">
+<span class="material-symbols-outlined text-primary font-medium" style="font-variation-settings: 'FILL' 1;">alt_route</span>
+<span>Targets</span>
+</a>
+<!-- Connection destinations -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 text-on-surface-variant font-normal rounded-DEFAULT transition-colors duration-150 ease-in-out hover:bg-surface-variant/50 group text-sm leading-5" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-on-surface">hub</span>
+<span>Connection destinations</span>
+</a>
+</nav>
+</div>
+<!-- Sidebar Footer -->
+<div class="p-3 border-t border-outline-variant/30 flex flex-col space-y-1">
+<button class="flex items-center gap-2 px-2.5 py-1.5 text-xs text-on-surface-variant rounded-DEFAULT hover:bg-surface-variant/50 transition-colors duration-150 text-left w-full">
+<span class="material-symbols-outlined text-outline text-[16px]">palette</span>
+<span>Theme: System</span>
+</button>
+<button class="flex items-center gap-2 px-2.5 py-1.5 text-xs text-on-surface-variant rounded-DEFAULT hover:bg-surface-variant/50 transition-colors duration-150 text-left w-full">
+<span class="material-symbols-outlined text-outline text-[16px]">logout</span>
+<span>Disconnect</span>
+</button>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- 2. TOP CONTEXT BAR (48px FIXED BRAND ANCHOR)                              -->
+<!-- ========================================================================= -->
+<header class="h-12 w-[calc(100%-228px)] fixed top-0 right-0 z-20 bg-surface-container-low border-b border-outline-variant/30 px-6 flex items-center justify-between">
+<!-- Breadcrumb -->
+<div class="flex items-center space-x-2 text-xs font-body tracking-normal">
+<span class="font-headline font-medium uppercase tracking-wider text-on-surface-variant">NOTIFICATION WORKSPACE</span>
+<span class="text-outline-variant">/</span>
+<span class="text-on-surface font-medium">Delivery targets</span>
+</div>
+<!-- Right utility status cluster -->
+<div class="flex items-center space-x-4">
+<div class="flex items-center space-x-1.5 text-xs text-on-surface-variant font-body">
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-medium text-on-surface">4 destinations configured</span>
+<span class="text-outline-variant">|</span>
+<span class="text-on-surface-variant text-[11px]">4s refresh active</span>
+</div>
+<div class="flex items-center space-x-1 border-l border-outline-variant/40 pl-3">
+<button class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high transition-opacity duration-150 flex items-center" title="Refresh target status">
+<span class="material-symbols-outlined text-[17px]">refresh</span>
+</button>
+<button class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high transition-opacity duration-150 flex items-center" title="Workspace view preferences">
+<span class="material-symbols-outlined text-[17px]">tune</span>
+</button>
+</div>
+</div>
+</header>
+<!-- ========================================================================= -->
+<!-- 3. MAIN INSET WORK SHEET (Framed 8px inset, 16px radius, flat ledger)     -->
+<!-- ========================================================================= -->
+<div class="ml-[228px] mt-12 w-[calc(100%-228px)] h-[calc(100vh-48px)] p-2 bg-surface-container-low overflow-hidden">
+<!-- Inset white worksheet -->
+<main class="w-full h-full bg-surface-container-lowest rounded-xl border border-outline-variant/30 flex flex-col overflow-hidden">
+<!-- Worksheet Canvas Header -->
+<div class="px-6 py-4 border-b border-outline-variant/30 flex items-center justify-between shrink-0 bg-surface-container-lowest">
+<div>
+<h1 class="text-[20px] leading-7 font-headline font-semibold text-on-surface tracking-tight">Targets</h1>
+<p class="text-xs text-on-surface-variant mt-0.5">Delivery target endpoints and dispatch routing destinations</p>
+</div>
+<div class="flex items-center space-x-3">
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-on-background text-surface-container-lowest rounded-DEFAULT hover:opacity-90 active:scale-[0.99] text-xs font-medium transition-all shadow-none">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>Add target</span>
+</button>
+</div>
+</div>
+<!-- Master-Detail Split Workspace -->
+<div class="flex-1 flex overflow-hidden">
+<!-- =================================================================== -->
+<!-- LEFT LEDGER PANE (~58% Width)                                       -->
+<!-- =================================================================== -->
+<section class="w-[58%] border-r border-outline-variant/30 flex flex-col justify-between overflow-hidden bg-surface-container-lowest">
+<!-- Scrollable Table Section -->
+<div class="overflow-y-auto flex-1">
+<table class="w-full text-left text-xs border-collapse">
+<thead class="sticky top-0 bg-surface-container-low text-on-surface-variant font-medium border-b border-outline-variant/30 text-[11px] uppercase tracking-wider select-none z-10">
+<tr>
+<th class="py-2.5 px-4 font-medium" scope="col">Target &amp; Type</th>
+<th class="py-2.5 px-4 font-medium" scope="col">Endpoint / Identity</th>
+<th class="py-2.5 px-3 font-medium text-center" scope="col">Status</th>
+<th class="py-2.5 px-4 font-medium text-right" scope="col">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20 font-body">
+<!-- ROW 1: Bark -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group cursor-pointer">
+<td class="py-3 px-4 align-top">
+<div class="flex items-start gap-2">
+<div class="mt-0.5 w-2 h-2 rounded-full bg-outline-variant shrink-0"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-medium text-on-surface text-sm">Backup phone Bark</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-secondary-container text-on-secondary-fixed-variant">Default</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[11px] text-on-surface-variant font-medium">Bark</span>
+<span class="text-outline-variant">•</span>
+<span class="font-mono text-[10px] text-outline tracking-tight">tgt_bark_01</span>
+</div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 align-top">
+<div class="font-mono text-[11px] text-on-surface truncate max-w-[220px]" title="https://api.day.app/push">
+                      https://api.day.app/push
+                    </div>
+<div class="font-mono text-[10px] text-on-surface-variant mt-1">
+                      Key: bk_••••••••39a1
+                    </div>
+</td>
+<td class="py-3 px-3 align-top text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium" style="background-color: #e6f2ea; color: #246444;">
+                      Enabled
+                    </span>
+</td>
+<td class="py-3 px-4 align-top text-right">
+<div class="flex items-center justify-end space-x-2 text-xs">
+<button class="text-on-surface-variant hover:text-on-surface font-medium hover:underline">Edit</button>
+<span class="text-outline-variant">·</span>
+<button class="text-on-surface-variant hover:text-on-surface">Disable</button>
+<span class="text-outline-variant">·</span>
+<button class="text-outline hover:text-error transition-colors">Delete</button>
+</div>
+</td>
+</tr>
+<!-- ROW 2: ntfy -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group cursor-pointer">
+<td class="py-3 px-4 align-top">
+<div class="flex items-start gap-2">
+<div class="mt-0.5 w-2 h-2 rounded-full bg-outline-variant shrink-0"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-medium text-on-surface text-sm">Operations ntfy</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[11px] text-on-surface-variant font-medium">ntfy</span>
+<span class="text-outline-variant">•</span>
+<span class="font-mono text-[10px] text-outline tracking-tight">tgt_ntfy_02</span>
+</div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 align-top">
+<div class="font-mono text-[11px] text-on-surface truncate max-w-[220px]" title="https://ntfy.sh">
+                      https://ntfy.sh
+                    </div>
+<div class="font-mono text-[10px] text-on-surface-variant mt-1">
+                      Topic: <span class="text-on-surface">ops-alerts</span>
+</div>
+</td>
+<td class="py-3 px-3 align-top text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium" style="background-color: #e6f2ea; color: #246444;">
+                      Enabled
+                    </span>
+</td>
+<td class="py-3 px-4 align-top text-right">
+<div class="flex items-center justify-end space-x-2 text-xs">
+<button class="text-on-surface-variant hover:text-on-surface font-medium hover:underline">Edit</button>
+<span class="text-outline-variant">·</span>
+<button class="text-on-surface-variant hover:text-on-surface">Disable</button>
+<span class="text-outline-variant">·</span>
+<button class="text-outline hover:text-error transition-colors">Delete</button>
+</div>
+</td>
+</tr>
+<!-- ROW 3: MQTT (FOCUSED / ACTIVE ROW) -->
+<tr class="bg-surface-container-low border-l-2 border-l-primary-container transition-colors">
+<td class="py-3 px-4 align-top">
+<div class="flex items-start gap-2">
+<div class="mt-0.5 w-2 h-2 rounded-full bg-primary-container shrink-0"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-medium text-on-surface text-sm">Home broker MQTT</span>
+<span class="text-[10px] font-mono px-1 bg-surface-container text-primary-container rounded">ACTIVE EDIT</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[11px] text-primary-container font-semibold">MQTT</span>
+<span class="text-outline-variant">•</span>
+<span class="font-mono text-[10px] text-on-surface-variant font-medium">tgt_mqtt_03</span>
+</div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 align-top">
+<div class="font-mono text-[11px] text-on-surface font-medium truncate max-w-[220px]" title="mqtt.internal.lan:1883">
+                      mqtt.internal.lan:1883
+                    </div>
+<div class="font-mono text-[10px] text-on-surface-variant mt-1">
+                      Topic: <span class="text-on-surface font-medium">herald/dispatches</span>
+</div>
+</td>
+<td class="py-3 px-3 align-top text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium" style="background-color: #e6f2ea; color: #246444;">
+                      Enabled
+                    </span>
+</td>
+<td class="py-3 px-4 align-top text-right">
+<div class="flex items-center justify-end space-x-2 text-xs">
+<span class="font-medium text-primary">Editing</span>
+<span class="text-outline-variant">·</span>
+<button class="text-on-surface-variant hover:text-on-surface">Disable</button>
+<span class="text-outline-variant">·</span>
+<button class="text-outline hover:text-error transition-colors">Delete</button>
+</div>
+</td>
+</tr>
+<!-- ROW 4: Gotify (DISABLED) -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group cursor-pointer opacity-75">
+<td class="py-3 px-4 align-top">
+<div class="flex items-start gap-2">
+<div class="mt-0.5 w-2 h-2 rounded-full bg-outline-variant shrink-0"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-medium text-on-surface text-sm">Server alerts Gotify</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[11px] text-on-surface-variant font-medium">Gotify</span>
+<span class="text-outline-variant">•</span>
+<span class="font-mono text-[10px] text-outline tracking-tight">tgt_gotify_04</span>
+</div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 align-top">
+<div class="font-mono text-[11px] text-on-surface truncate max-w-[220px]" title="https://gotify.internal.lan">
+                      https://gotify.internal.lan
+                    </div>
+<div class="font-mono text-[10px] text-on-surface-variant mt-1">
+                      Token: got_••••••••7c4b
+                    </div>
+</td>
+<td class="py-3 px-3 align-top text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-surface-container-high text-on-surface-variant">
+                      Disabled
+                    </span>
+</td>
+<td class="py-3 px-4 align-top text-right">
+<div class="flex items-center justify-end space-x-2 text-xs">
+<button class="text-on-surface-variant hover:text-on-surface font-medium hover:underline">Edit</button>
+<span class="text-outline-variant">·</span>
+<button class="text-on-surface-variant hover:text-on-surface font-medium text-primary">Enable</button>
+<span class="text-outline-variant">·</span>
+<button class="text-outline hover:text-error transition-colors">Delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Bottom Explanatory Banner (Ledger Guarantees) -->
+<div class="p-4 border-t border-outline-variant/30 bg-surface-container-low shrink-0 text-xs">
+<div class="flex gap-2.5 items-start">
+<span class="material-symbols-outlined text-outline shrink-0 text-[18px] mt-0.5">info</span>
+<div class="space-y-1">
+<span class="font-medium text-on-surface block">Delivery semantics</span>
+<p class="text-on-surface-variant leading-relaxed text-[11px]">
+                  Disabling a target halts routing for newly created messages. Any in-flight work already queued in the durable ledger will continue processing according to existing dispatch guarantees.
+                </p>
+</div>
+</div>
+</div>
+</section>
+<!-- =================================================================== -->
+<!-- RIGHT FORM PANE (~42% Width - FOCUSED EDIT TARGET FORM)             -->
+<!-- =================================================================== -->
+<section class="w-[42%] flex flex-col justify-between overflow-y-auto bg-surface-container-lowest">
+<div class="p-6 space-y-6">
+<!-- Form Title & Badge Header -->
+<div class="flex items-start justify-between pb-3 border-b border-outline-variant/30">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="text-base font-semibold text-on-surface tracking-tight">Edit target</h2>
+<span class="text-xs text-outline font-normal">—</span>
+<span class="text-xs font-mono bg-surface-container px-1.5 py-0.5 rounded text-on-surface font-medium">tgt_mqtt_03</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Configure broker protocol connection and dispatch topics</p>
+</div>
+<span class="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 text-on-surface-variant font-medium">
+                MQTT v3.1.1
+              </span>
+</div>
+<!-- Form Fields Grid -->
+<form class="space-y-4" onsubmit="event.preventDefault();">
+<!-- Name & Provider Row -->
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block text-xs font-medium text-on-surface mb-1">Target name</label>
+<input class="w-full text-xs font-body border border-outline-variant/60 rounded px-2.5 py-1.5 bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" type="text" value="Home broker MQTT"/>
+</div>
+<div>
+<label class="block text-xs font-medium text-on-surface mb-1 flex items-center justify-between">
+<span>Provider</span>
+<span class="text-[10px] text-outline flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">lock</span> Fixed</span>
+</label>
+<div class="w-full text-xs font-body border border-outline-variant/40 rounded px-2.5 py-1.5 bg-surface-container text-on-surface-variant cursor-not-allowed">
+                    MQTT
+                  </div>
+</div>
+</div>
+<!-- Host & Port Row -->
+<div class="grid grid-cols-3 gap-3">
+<div class="col-span-2">
+<label class="block text-xs font-medium text-on-surface mb-1">Broker host</label>
+<input class="w-full font-mono text-xs border border-outline-variant/60 rounded px-2.5 py-1.5 bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" type="text" value="mqtt.internal.lan"/>
+</div>
+<div>
+<label class="block text-xs font-medium text-on-surface mb-1">Port</label>
+<input class="w-full font-mono text-xs border border-outline-variant/60 rounded px-2.5 py-1.5 bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" type="number" value="1883"/>
+<span class="text-[10px] text-outline block mt-0.5">Default 1883, TLS 8883</span>
+</div>
+</div>
+<!-- Publish Topic -->
+<div>
+<label class="block text-xs font-medium text-on-surface mb-1">Publish topic</label>
+<input class="w-full font-mono text-xs border border-outline-variant/60 rounded px-2.5 py-1.5 bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" type="text" value="herald/dispatches"/>
+</div>
+<!-- Credentials Row -->
+<div class="grid grid-cols-2 gap-3 pt-1">
+<div>
+<label class="block text-xs font-medium text-on-surface mb-1">Username <span class="text-[10px] font-normal text-outline">(optional)</span></label>
+<input class="w-full font-mono text-xs border border-outline-variant/60 rounded px-2.5 py-1.5 bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" type="text" value="herald_egress"/>
+</div>
+<div>
+<label class="block text-xs font-medium text-on-surface mb-1">Password</label>
+<input class="w-full font-mono text-xs border border-outline-variant/60 rounded px-2.5 py-1.5 bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" placeholder="••••••••••••••••" type="password" value="secret_pass_token"/>
+<span class="text-[10px] text-outline block mt-0.5">Leave blank to keep stored credentials</span>
+</div>
+</div>
+<!-- Quality of Service (QoS) Selection -->
+<div class="pt-1">
+<label class="block text-xs font-medium text-on-surface mb-1.5">Quality of Service (QoS)</label>
+<div class="grid grid-cols-3 gap-2">
+<label class="flex flex-col p-2 border border-outline-variant/40 rounded cursor-pointer hover:bg-surface-container-low transition-colors">
+<div class="flex items-center space-x-1.5">
+<input class="text-primary focus:ring-primary border-outline-variant" name="qos" type="radio" value="0"/>
+<span class="text-xs font-medium text-on-surface">QoS 0</span>
+</div>
+<span class="text-[10px] text-outline mt-1 leading-tight">At most once</span>
+</label>
+<label class="flex flex-col p-2 border-2 border-primary-container bg-surface-container-low rounded cursor-pointer transition-colors">
+<div class="flex items-center space-x-1.5">
+<input checked="" class="text-primary focus:ring-primary border-outline-variant" name="qos" type="radio" value="1"/>
+<span class="text-xs font-semibold text-primary-container">QoS 1</span>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium mt-1 leading-tight">At least once</span>
+</label>
+<label class="flex flex-col p-2 border border-outline-variant/40 rounded cursor-pointer hover:bg-surface-container-low transition-colors">
+<div class="flex items-center space-x-1.5">
+<input class="text-primary focus:ring-primary border-outline-variant" name="qos" type="radio" value="2"/>
+<span class="text-xs font-medium text-on-surface">QoS 2</span>
+</div>
+<span class="text-[10px] text-outline mt-1 leading-tight">Exactly once</span>
+</label>
+</div>
+</div>
+<!-- Toggles & Flags -->
+<div class="pt-2 space-y-2.5 border-t border-outline-variant/20">
+<label class="flex items-center gap-2 cursor-pointer">
+<input checked="" class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4" type="checkbox"/>
+<span class="text-xs text-on-surface font-normal">Enable TLS (Secure transport over port 8883)</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer">
+<input class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4" type="checkbox"/>
+<span class="text-xs text-on-surface font-normal">Retain message flag on broker</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer">
+<input checked="" class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4" type="checkbox"/>
+<span class="text-xs font-medium text-on-surface">Enabled (Target active for new message routing)</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer">
+<input class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4" type="checkbox"/>
+<span class="text-xs text-on-surface font-normal">Default target (Include automatically when sending without specific target overrides)</span>
+</label>
+</div>
+<!-- Important Ledger Policy Callout Box -->
+<div class="p-3 bg-surface-container-low rounded border border-outline-variant/30 space-y-1.5 text-xs text-on-surface-variant">
+<div class="flex items-center gap-1.5 font-medium text-on-surface text-[11px]">
+<span class="material-symbols-outlined text-[15px] text-outline">verified_user</span>
+<span>Ledger configuration policy</span>
+</div>
+<ul class="list-disc pl-4 space-y-0.5 text-[11px] text-on-surface-variant">
+<li>Blank secret preserves stored credentials without rewriting keys.</li>
+<li>Defaults route only when target is enabled.</li>
+<li>Disabling prevents new dispatches; does not cancel or purge queued ledger records.</li>
+</ul>
+</div>
+<!-- Form Buttons -->
+<div class="flex items-center justify-between pt-3 border-t border-outline-variant/30">
+<div class="flex items-center space-x-2">
+<button class="px-4 py-1.5 bg-on-background text-surface-container-lowest rounded hover:opacity-90 active:scale-[0.99] text-xs font-medium transition-all" type="submit">
+                    Save target
+                  </button>
+<button class="px-3 py-1.5 border border-outline-variant text-on-surface rounded hover:bg-surface-container-low text-xs font-medium transition-colors" type="button">
+                    Cancel
+                  </button>
+</div>
+<span class="text-[11px] text-outline">tgt_mqtt_03 ready</span>
+</div>
+</form>
+<!-- Danger Zone Safeguard Dialog Notice -->
+<div class="pt-4 border-t border-outline-variant/30">
+<div class="p-3 rounded bg-surface-container-high/40 border border-outline-variant/40 flex items-start gap-2.5">
+<span class="material-symbols-outlined text-outline shrink-0 text-[18px]">lock_reset</span>
+<div class="text-[11px] leading-relaxed text-on-surface-variant">
+<span class="font-medium text-on-surface block mb-0.5">Safeguard notice</span>
+                  Cannot delete <code class="font-mono text-on-surface font-medium bg-surface-container px-1 py-0.2 rounded">Home broker MQTT</code> while unfinished or failed delivery receipts exist in ledger history. Archive or resolve in-flight dispatches first.
+                </div>
+</div>
+</div>
+<!-- Provider Schema Reference Box -->
+<div class="pt-2">
+<div class="p-3 bg-surface-container-low rounded border border-outline-variant/30 text-xs">
+<div class="text-[11px] font-semibold text-on-surface uppercase tracking-wider mb-2">Provider schema reference</div>
+<div class="space-y-1.5 font-mono text-[11px] text-on-surface-variant">
+<div class="flex items-baseline justify-between border-b border-outline-variant/20 pb-1">
+<span class="font-medium text-on-surface">Bark</span>
+<span class="text-outline text-[10px]">Server URL + Device Key</span>
+</div>
+<div class="flex items-baseline justify-between border-b border-outline-variant/20 pb-1">
+<span class="font-medium text-on-surface">ntfy</span>
+<span class="text-outline text-[10px]">Server URL + Topic + Optional Access Token</span>
+</div>
+<div class="flex items-baseline justify-between">
+<span class="font-medium text-on-surface">Gotify</span>
+<span class="text-outline text-[10px]">Server URL + Application Token</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body></html>

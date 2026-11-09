@@ -1,0 +1,408 @@
+/* Desktop width closes: 228px frame + (viewport − 236px) sheet + 8px inset.
+   The sheet's 24px gutters bound every title, list and footer. */
+.app-shell {
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: 48px 1fr;
+  min-height: 100dvh;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  grid-column: 1;
+  grid-row: 1;
+  padding: 20px 24px;
+  font-size: 22px;
+  font-weight: 600;
+  align-self: start;
+  position: sticky;
+  top: 12px;
+}
+.herald-mark {
+  color: var(--accent);
+  flex: none;
+}
+.brand small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.workspace-topbar {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  gap: 16px;
+  min-width: 0;
+}
+.workspace-context {
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspace-context span {
+  margin: 0 8px;
+  color: var(--control);
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+.theme-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.theme-picker select {
+  width: 98px;
+  min-height: 36px;
+  padding: 6px 9px;
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+  font-size: 12px;
+}
+.disconnect {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.main-navigation {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 62px 12px 160px;
+  position: sticky;
+  top: 48px;
+  height: calc(100dvh - 48px);
+}
+.main-navigation button {
+  justify-content: start;
+  padding: 10px 16px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font-weight: 400;
+}
+.main-navigation button:hover:not(:disabled) {
+  background: var(--active);
+  color: var(--text);
+}
+.main-navigation button[aria-current="page"] {
+  color: var(--text);
+  background: var(--active);
+  font-weight: 500;
+}
+.main-navigation button svg {
+  margin-right: 2px;
+}
+.sidebar-foot {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  max-width: 180px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sidebar-foot p {
+  margin-top: 6px;
+}
+.work-sheet {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0 8px 8px 0;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.page-heading p {
+  margin-top: 5px;
+}
+.heading-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.skip-link {
+  position: fixed;
+  top: -80px;
+  left: 12px;
+  z-index: 100;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+.skip-link:focus {
+  top: 12px;
+}
+.auth-shell {
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: 80px 1fr;
+  min-height: 100dvh;
+}
+.auth-shell .brand {
+  position: static;
+}
+.auth-shell .workspace-context {
+  display: none;
+}
+.auth-shell .workspace-topbar {
+  grid-row: 1;
+  padding-right: 32px;
+}
+.login-page {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: min(448px, calc(100% - 40px));
+  margin: clamp(36px, 10vh, 100px) auto 48px;
+}
+.login-form {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 32px;
+}
+.login-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+.login-form > .muted {
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+.login-form form {
+  display: grid;
+  gap: 10px;
+}
+.login-form .feedback {
+  margin-top: 16px;
+}
+.token-input {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--control);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.token-input input {
+  border: 0;
+  width: 100%;
+  background: transparent;
+}
+.token-input button {
+  margin-right: 4px;
+  min-width: 52px;
+  font-size: 12px;
+}
+.connect-button {
+  margin-top: 6px;
+  width: 100%;
+}
+.login-security {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 20px;
+  font-size: 13px;
+}
+.login-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.login-pipeline p {
+  flex: 0 0 100%;
+  text-align: center;
+  margin-top: 2px;
+}
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 64px auto 1fr;
+  }
+  .app-shell .brand {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 12px 24px;
+    position: static;
+    font-size: 20px;
+  }
+  .brand small {
+    font-size: 11px;
+  }
+  .workspace-topbar {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 8px 24px;
+    justify-self: end;
+  }
+  .workspace-context {
+    display: none;
+  }
+  .main-navigation {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    display: flex;
+    height: auto;
+    gap: 4px;
+    padding: 8px 24px;
+  }
+  .main-navigation button {
+    padding: 8px 16px;
+  }
+  .work-sheet {
+    grid-column: 1;
+    grid-row: 3;
+    margin-left: 8px;
+  }
+  .sidebar-foot {
+    display: none;
+  }
+  .theme-picker select {
+    min-height: 44px;
+  }
+  .auth-shell .workspace-topbar {
+    grid-column: 2;
+  }
+}
+@media (max-width: 600px) {
+  html {
+    scrollbar-gutter: auto;
+  }
+  .app-shell {
+    display: block;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+  .app-shell .brand,
+  .auth-shell .brand {
+    height: 72px;
+    padding: 16px;
+    width: fit-content;
+    font-size: 20px;
+  }
+  .brand small {
+    display: none;
+  }
+  .herald-mark {
+    width: 26px;
+  }
+  .workspace-topbar {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    padding: 0;
+    height: 44px;
+  }
+  .topbar-actions {
+    gap: 4px;
+  }
+  .theme-picker > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .theme-picker select {
+    width: 86px;
+    border-color: var(--control);
+    font-size: 14px;
+    padding: 8px;
+  }
+  .disconnect {
+    min-width: 44px;
+    padding: 10px;
+  }
+  .disconnect span {
+    display: none;
+  }
+  .main-navigation {
+    position: fixed;
+    z-index: 20;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    gap: 0;
+  }
+  .main-navigation button {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    padding: 6px 0;
+    min-height: 56px;
+  }
+  .main-navigation button svg {
+    margin: 0;
+  }
+  .main-navigation button[aria-current="page"] {
+    background: var(--raised);
+  }
+  .work-sheet {
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    padding: 22px 16px 24px;
+    min-height: calc(100dvh - 150px);
+  }
+  .page-heading {
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: flex-start;
+  }
+  .page-heading p {
+    font-size: 13px;
+  }
+  .page-heading > button {
+    font-size: 13px;
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  .auth-shell {
+    display: block;
+  }
+  .auth-shell .workspace-topbar {
+    padding: 0;
+  }
+  .login-page {
+    width: calc(100% - 32px);
+    margin: 40px auto;
+  }
+  .login-form {
+    padding: 24px;
+  }
+}

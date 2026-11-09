@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Herald — Ledger Auth &amp; Session Access</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-surface-variant": "#bfc8cc",
+            "on-primary-container": "#abeaff",
+            "on-secondary": "#1b343c",
+            "on-error-container": "#ffdad6",
+            "surface-bright": "#3a3939",
+            "surface-container-low": "#1c1b1b",
+            "secondary-fixed": "#cce7f1",
+            "on-tertiary-container": "#ffd9bc",
+            "tertiary-fixed": "#ffdcc1",
+            "on-primary-fixed": "#001f27",
+            "inverse-surface": "#e5e2e1",
+            "primary": "#8ad1e7",
+            "on-tertiary-fixed-variant": "#6a3b08",
+            "error-container": "#93000a",
+            "on-tertiary": "#4c2700",
+            "on-secondary-fixed": "#031f26",
+            "on-tertiary-fixed": "#2e1500",
+            "on-secondary-container": "#a2bdc6",
+            "secondary-fixed-dim": "#b0cbd5",
+            "primary-fixed": "#b2ebff",
+            "surface-variant": "#353534",
+            "surface-container-high": "#2a2a2a",
+            "tertiary": "#fdb87c",
+            "tertiary-fixed-dim": "#fdb87c",
+            "tertiary-container": "#8c5724",
+            "surface-dim": "#131313",
+            "on-surface": "#e5e2e1",
+            "primary-container": "#1b6c80",
+            "secondary": "#b0cbd5",
+            "inverse-on-surface": "#313030",
+            "on-primary-fixed-variant": "#004e5e",
+            "surface-tint": "#8ad1e7",
+            "on-background": "#e5e2e1",
+            "surface-container": "#201f1f",
+            "outline": "#899296",
+            "background": "#131313",
+            "on-secondary-fixed-variant": "#324a52",
+            "inverse-primary": "#12677b",
+            "error": "#ffb4ab",
+            "on-primary": "#003642",
+            "on-error": "#690005",
+            "outline-variant": "#3f484c",
+            "surface-container-highest": "#353534",
+            "surface": "#131313",
+            "secondary-container": "#344d55",
+            "surface-container-lowest": "#0e0e0e",
+            "primary-fixed-dim": "#8ad1e7"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["IBM Plex Sans", "sans-serif"],
+            display: ["IBM Plex Sans", "sans-serif"],
+            body: ["IBM Plex Sans", "sans-serif"],
+            label: ["IBM Plex Sans", "sans-serif"],
+            mono: ["IBM Plex Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body min-h-screen flex flex-col antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top Bar / App Shell Header (Shared Components compliant) -->
+<header class="w-full h-12 px-6 flex items-center justify-between bg-surface border-b border-outline-variant text-sm font-medium">
+<div class="flex items-center gap-3">
+<!-- Herald Signature Mark: 3 offset receipt strokes ending in arrow -->
+<div class="flex items-center gap-2">
+<svg aria-hidden="true" class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24">
+<line x1="3" x2="15" y1="6" y2="6"></line>
+<line x1="5" x2="18" y1="12" y2="12"></line>
+<line x1="3" x2="20" y1="18" y2="18"></line>
+<polyline points="15 9 18 12 15 15"></polyline>
+</svg>
+<span class="font-headline text-base font-bold tracking-tight text-on-surface">Herald</span>
+</div>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono tracking-wide bg-surface-container text-outline border border-outline-variant">
+        ledger auth
+      </span>
+<span class="text-xs text-outline font-mono hidden sm:inline">v2.14.0-wal</span>
+</div>
+<!-- Right Controls: Status Pill & Appearance Segmented Control -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-outline font-mono">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span>Disconnected · Local queue</span>
+</div>
+<!-- Theme Segmented Control: System / Light / Dark -->
+<div aria-label="Appearance" class="flex items-center bg-surface-container-low border border-outline-variant rounded p-0.5 text-xs" role="radiogroup">
+<button class="px-2 py-1 rounded text-outline hover:text-on-surface transition-colors flex items-center gap-1" title="System Theme" type="button">
+<span class="material-symbols-outlined text-[16px]">brightness_auto</span>
+<span class="hidden md:inline font-mono">Sys</span>
+</button>
+<button class="px-2 py-1 rounded text-outline hover:text-on-surface transition-colors flex items-center gap-1" title="Light Theme" type="button">
+<span class="material-symbols-outlined text-[16px]">light_mode</span>
+<span class="hidden md:inline font-mono">Light</span>
+</button>
+<button class="px-2 py-1 rounded bg-surface-container-high text-primary font-medium flex items-center gap-1 border border-outline-variant" title="Dark Theme (Active)" type="button">
+<span class="material-symbols-outlined text-[16px]">dark_mode</span>
+<span class="hidden md:inline font-mono">Dark</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Canvas Sheet Frame -->
+<main class="flex-1 flex flex-col items-center justify-center p-6 md:p-10">
+<div class="w-full max-w-2xl space-y-6">
+<!-- Authentication Work Card -->
+<section class="bg-surface-container border border-outline-variant rounded-lg p-6 sm:p-8">
+<!-- Header -->
+<div class="mb-6 pb-4 border-b border-outline-variant">
+<div class="flex items-center justify-between">
+<h1 class="font-headline text-xl font-semibold tracking-tight text-on-surface">Open your inbox</h1>
+<span class="text-xs font-mono text-outline px-2 py-0.5 bg-surface-container-lowest rounded border border-outline-variant">session-scoped</span>
+</div>
+<p class="mt-1 text-sm text-outline">
+            Use the management token from your server's private credentials file.
+          </p>
+</div>
+<!-- Token Entry Form -->
+<form class="space-y-4" onsubmit="event.preventDefault(); handleConnect();">
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<label class="text-xs font-medium text-on-surface uppercase tracking-wider" for="mgmt_token">
+                Management token
+              </label>
+<span class="text-[11px] font-mono text-outline">herald_mgmt_64hex</span>
+</div>
+<div class="relative flex items-center">
+<input autocomplete="off" class="w-full bg-surface-container-lowest border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary rounded px-3 py-2 text-sm font-mono text-on-surface placeholder:text-outline-variant pr-24" id="mgmt_token" placeholder="herald_mgmt_••••••••••••••••••••••••••••••••" spellcheck="false" type="password" value="herald_mgmt_9a4f882bc71900e12d4a51e60cb6f5a3e1b782c949"/>
+<button class="absolute right-1.5 px-2 py-1 text-xs text-outline hover:text-on-surface flex items-center gap-1 font-mono rounded bg-surface-container hover:bg-surface-container-high transition-colors" id="toggle-btn" onclick="toggleVisibility()" title="Toggle token visibility" type="button">
+<span class="material-symbols-outlined text-[16px]" id="eye-icon">visibility</span>
+<span id="eye-text">Show</span>
+</button>
+</div>
+<p class="mt-1 text-[11px] font-mono text-outline">
+              File path: <span class="text-on-surface-variant font-mono">/var/lib/herald/credentials/mgmt.token</span>
+</p>
+</div>
+<!-- Interactive State Demonstration Bar -->
+<div class="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<button class="px-5 py-2 rounded bg-primary-container hover:bg-opacity-90 text-on-primary-container font-headline text-sm font-medium transition-colors flex items-center justify-center gap-2 min-w-[120px]" id="connect-btn" type="submit">
+<span class="material-symbols-outlined text-[18px]">key</span>
+<span>Connect</span>
+</button>
+<button class="px-3 py-2 rounded border border-outline-variant hover:border-outline text-outline hover:text-on-surface text-xs font-mono transition-colors" onclick="simulateHandshake()" title="Simulate network validation" type="button">
+                Simulate Check
+              </button>
+</div>
+<!-- Handshake status indicator -->
+<div class="hidden items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-low border border-outline-variant text-xs font-mono text-outline" id="status-pill">
+<svg class="animate-spin w-3 h-3 text-primary" fill="none" viewbox="0 0 24 24">
+<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+<path class="opacity-75" d="M4 12a8 8 0 018-8v8H4z" fill="currentColor"></path>
+</svg>
+<span>Checking token against local socket...</span>
+</div>
+</div>
+</form>
+<!-- Inline Error Banner Demo (Utility / Task-specific) -->
+<div class="mt-4 p-3 rounded bg-[#351f22] border border-[#a33136] text-[#f0a5a8] text-xs font-mono flex items-start gap-2.5" id="error-banner">
+<span class="material-symbols-outlined text-[16px] text-[#f0a5a8] mt-0.5">error</span>
+<div class="flex-1 leading-relaxed">
+<span class="font-semibold">Format validation failure:</span> Expected 64-character hex key string.
+            Secret edit blanks preserve credentials automatically on write.
+          </div>
+<button class="text-[#f0a5a8] hover:opacity-80" onclick="document.getElementById('error-banner').classList.add('hidden')" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<!-- Security Disclosure Callout -->
+<div class="mt-5 pt-4 border-t border-outline-variant flex items-start gap-2.5 text-xs text-outline">
+<span class="material-symbols-outlined text-[16px] text-outline mt-0.5">lock</span>
+<p class="leading-normal">
+<span class="text-on-surface font-medium">Security note:</span> Token stays strictly in this tab's session storage. Receiving messages uses a separate ingest token (write-only) which cannot access inbox history.
+          </p>
+</div>
+</section>
+<!-- Architectural Explanation Ledger Panel: Delivery Pipeline Semantics -->
+<section class="bg-surface-container-low border border-outline-variant rounded-lg p-5">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-primary">alt_route</span>
+<h2 class="text-xs font-mono uppercase tracking-wider text-on-surface font-medium">
+              Delivery pipeline semantics
+            </h2>
+</div>
+<span class="text-[11px] font-mono text-outline">Single-user isolated ledger</span>
+</div>
+<!-- Three-step delivery rail -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+<!-- Step 1: Received -->
+<div class="bg-surface-container border border-outline-variant rounded p-3 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-xs font-mono font-semibold text-primary">1. Received</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#1b3022] text-[#9cd6b0] border border-[#246444]">
+                  ACK 202
+                </span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">
+                Logged into local queue ledger immediately upon API acceptance.
+              </p>
+</div>
+<div class="mt-3 pt-2 border-t border-outline-variant flex items-center justify-between text-[11px] font-mono text-outline">
+<span>stage: ingress</span>
+<span class="text-primary font-medium">100% trace</span>
+</div>
+</div>
+<!-- Step 2: Stored -->
+<div class="bg-surface-container border border-outline-variant rounded p-3 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-xs font-mono font-semibold text-on-surface">2. Stored</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono bg-surface-container-high text-on-surface border border-outline-variant">
+                  FSYNC
+                </span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">
+                Persisted to local durable storage (<span class="font-mono">SQLite/WAL</span> journal mode).
+              </p>
+</div>
+<div class="mt-3 pt-2 border-t border-outline-variant flex items-center justify-between text-[11px] font-mono text-outline">
+<span>storage: durable</span>
+<span class="text-outline">at-least-once</span>
+</div>
+</div>
+<!-- Step 3: Forwarded -->
+<div class="bg-surface-container border border-outline-variant rounded p-3 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-xs font-mono font-semibold text-on-surface">3. Forwarded</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#30291b] text-[#e6c987] border border-[#825b12]">
+                  DISPATCH
+                </span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">
+                Dispatched to configured APNs / Telegram / Ntfy remote push targets.
+              </p>
+</div>
+<div class="mt-3 pt-2 border-t border-outline-variant flex items-center justify-between text-[11px] font-mono text-outline">
+<span>egress: downstream</span>
+<span class="text-outline">push hook</span>
+</div>
+</div>
+</div>
+<!-- Strict Guarantee Clarification Callout -->
+<div class="mt-4 p-3 bg-surface-container rounded border border-outline-variant flex items-start gap-2.5 text-xs">
+<span class="material-symbols-outlined text-[16px] text-tertiary mt-0.5">info</span>
+<div class="leading-relaxed text-outline">
+<span class="text-on-surface font-medium">Receipt guarantee:</span> Receipt means accepted into the local durable queue, not verified physical delivery on destination device. Downstream push targets report status via individual forward receipts.
+          </div>
+</div>
+</section>
+<!-- Footer system metadata (strictly utility, no marketing) -->
+<footer class="flex items-center justify-between px-2 text-[11px] font-mono text-outline">
+<div>Herald Delivery Ledger · IPC socket <span class="text-on-surface">/run/herald.sock</span></div>
+<div class="flex items-center gap-3">
+<span>Schema rev 12</span>
+<span>•</span>
+<a class="hover:text-on-surface underline decoration-outline-variant" href="#">Documentation</a>
+</div>
+</footer>
+</div>
+</main>
+<!-- Interactive script for pure state simulation -->
+<script>
+    function toggleVisibility() {
+      const input = document.getElementById('mgmt_token');
+      const icon = document.getElementById('eye-icon');
+      const text = document.getElementById('eye-text');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.textContent = 'visibility_off';
+        text.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        icon.textContent = 'visibility';
+        text.textContent = 'Show';
+      }
+    }
+
+    function simulateHandshake() {
+      const pill = document.getElementById('status-pill');
+      const err = document.getElementById('error-banner');
+      pill.classList.remove('hidden');
+      pill.classList.add('flex');
+      err.classList.add('hidden');
+
+      setTimeout(() => {
+        pill.classList.add('hidden');
+        pill.classList.remove('flex');
+        err.classList.remove('hidden');
+      }, 1200);
+    }
+
+    function handleConnect() {
+      const pill = document.getElementById('status-pill');
+      pill.classList.remove('hidden');
+      pill.classList.add('flex');
+      setTimeout(() => {
+        pill.classList.add('hidden');
+        pill.classList.remove('flex');
+      }, 800);
+    }
+  </script>
+</body></html>

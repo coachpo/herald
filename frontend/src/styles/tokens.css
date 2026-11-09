@@ -1,0 +1,75 @@
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-400.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-500.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-600.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  color-scheme: light;
+  --ground: #f3f5f6;
+  --surface: #fff;
+  --raised: #f4f6f8;
+  --active: #ebedee;
+  --border: #e8eaec;
+  --rule: #eef0f1;
+  --control: #a4a9ad;
+  --text: #131416;
+  --muted: #5d5f60;
+  --accent: #1b6c80;
+  --info-bg: #eaf3f5;
+  --primary: #202224;
+  --on-primary: #fff;
+  --primary-hover: #393c3e;
+  --positive: #246444;
+  --positive-bg: #e6f2ea;
+  --negative: #a33136;
+  --negative-bg: #fbeaec;
+  --negative-border: #e3b7ba;
+  --danger-hover: #8b292e;
+  --warning: #825b12;
+  --warning-bg: #fbf2dc;
+  --disabled-ink: #666b6d;
+  --disabled-bg: #e8ebed;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #111;
+  --surface: #181818;
+  --raised: #232323;
+  --active: #2b2b2b;
+  --border: #333;
+  --rule: #2b2b2b;
+  --control: #636363;
+  --text: #f0f0f0;
+  --muted: #b4b4b4;
+  --accent: #8ac8d5;
+  --info-bg: #1d3034;
+  --primary: #eee;
+  --on-primary: #181818;
+  --primary-hover: #d2d2d2;
+  --positive: #9cd6b0;
+  --positive-bg: #1b3022;
+  --negative: #f0a5a8;
+  --negative-bg: #351f22;
+  --negative-border: #684047;
+  --danger-hover: #f5c0c2;
+  --warning: #e6c987;
+  --warning-bg: #30291b;
+  --disabled-ink: #b0b0b0;
+  --disabled-bg: #333;
+}

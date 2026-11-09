@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Herald · Connect Ledger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace'],
+          },
+          colors: {
+            herald: {
+              teal: '#1b6c80',
+              tealLight: '#2388a0',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+  </style>
+</head>
+<body class="bg-[#121415] text-[#e1e3e5] min-h-screen flex flex-col justify-between selection:bg-[#1b6c80] selection:text-white transition-colors duration-150">
+
+  <!-- Header: Brand mark + Wordmark & Appearance Switcher -->
+  <header class="w-full max-w-[390px] mx-auto px-4 h-14 flex items-center justify-between border-b border-white/[0.08] shrink-0">
+    <!-- Brand -->
+    <div class="flex items-center gap-2">
+      <!-- Original three-stroke delivery arrow mark -->
+      <svg class="w-6 h-6 text-[#2ec4b6] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7h10M11 4l3 3-3 3"/>
+        <path d="M4 12h14M15 9l3 3-3 3"/>
+        <path d="M4 17h8M9 14l3 3-3 3"/>
+      </svg>
+      <span class="font-semibold text-[17px] tracking-tight text-white font-sans">Herald</span>
+      <span class="text-[11px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50 ml-1">v2.14</span>
+    </div>
+
+    <!-- Appearance Switcher: System / Light / Dark -->
+    <div class="inline-flex items-center p-0.5 bg-black/40 border border-white/[0.1] rounded-md text-[11px] font-mono text-white/60">
+      <button type="button" id="btn-theme-sys" onclick="setTheme('system')" class="px-2 py-1 rounded transition-colors hover:text-white" title="Follow system theme">
+        Sys
+      </button>
+      <button type="button" id="btn-theme-light" onclick="setTheme('light')" class="px-2 py-1 rounded transition-colors hover:text-white flex items-center gap-1" title="Light theme">
+        <span class="material-symbols-outlined text-[12px]">light_mode</span>
+      </button>
+      <button type="button" id="btn-theme-dark" onclick="setTheme('dark')" class="px-2 py-1 rounded bg-white/[0.12] text-white font-medium flex items-center gap-1" title="Dark theme">
+        <span class="material-symbols-outlined text-[12px]">dark_mode</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Flow (Compact Connection Form) -->
+  <main class="w-full max-w-[390px] mx-auto px-4 pt-4 pb-6 flex-1 flex flex-col justify-start">
+
+    <!-- Card: Upper middle container -->
+    <div class="w-full bg-[#1a1d1e] border border-white/[0.08] rounded-xl p-5 shadow-sm">
+
+      <!-- Title & Context -->
+      <div class="mb-4">
+        <h1 class="text-[20px] font-semibold text-white tracking-tight leading-snug">Open your inbox</h1>
+        <p class="text-[13px] text-white/65 mt-1 leading-relaxed">
+          Use the management token from your server's private credentials file.
+        </p>
+      </div>
+
+      <!-- Token Form -->
+      <form id="connect-form" onsubmit="handleConnect(event)" class="space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="token-input" class="text-[11px] font-mono font-medium uppercase tracking-wider text-white/60">
+              Management token
+            </label>
+            <span class="text-[11px] font-mono text-white/40">session-scoped</span>
+          </div>
+
+          <!-- Password input with Show/Hide toggle -->
+          <div class="relative flex items-center">
+            <input
+              type="password"
+              id="token-input"
+              value="herald_mgmt_9a4f78c2e01b4d588fa1762e8412cd6a"
+              placeholder="Paste management token..."
+              autocomplete="current-password"
+              spellcheck="false"
+              class="w-full bg-[#111314] text-white placeholder-white/30 text-[13px] font-mono px-3 py-2.5 pr-20 border border-white/[0.14] rounded-lg focus:outline-none focus:border-[#2388a0] focus:ring-1 focus:ring-[#2388a0] transition-all"
+            />
+            <button
+              type="button"
+              id="toggle-btn"
+              onclick="toggleTokenVisibility()"
+              class="absolute right-1.5 px-2.5 py-1 text-[11px] font-mono text-white/70 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] rounded flex items-center gap-1 transition-colors"
+            >
+              <span id="toggle-icon" class="material-symbols-outlined text-[14px]">visibility</span>
+              <span id="toggle-label">Show</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline Error Banner (Dismissable / Demonstrable) -->
+        <div id="error-banner" class="bg-red-950/40 border border-red-500/40 rounded-lg p-3 text-red-200 text-[12px] flex items-start gap-2.5 leading-relaxed">
+          <span class="material-symbols-outlined text-red-400 text-[16px] shrink-0 mt-0.5">error</span>
+          <div class="flex-1">
+            <div class="font-medium text-red-300">Invalid management token</div>
+            <div class="text-[11px] text-red-300/80 mt-0.5 font-mono">Token rejected by local socket. Check credentials.env.</div>
+          </div>
+          <button type="button" onclick="dismissError()" class="text-red-400 hover:text-red-200 transition-colors p-0.5">
+            <span class="material-symbols-outlined text-[15px]">close</span>
+          </button>
+        </div>
+
+        <!-- Actions: Primary Connect + Interactive Checking State Preview -->
+        <div class="pt-1 flex flex-col gap-2">
+          <!-- Primary Connect Button -->
+          <button
+            type="submit"
+            id="connect-btn"
+            class="w-full h-10 px-4 bg-white text-[#121415] hover:bg-gray-100 font-medium text-[14px] rounded-lg flex items-center justify-center gap-2 transition-colors active:scale-[0.99]"
+          >
+            <span class="material-symbols-outlined text-[18px]">key</span>
+            <span>Connect</span>
+          </button>
+
+          <!-- Interactive demonstration button to test the Checking... state requested in spec -->
+          <button
+            type="button"
+            id="checking-toggle-btn"
+            onclick="simulateCheckingState()"
+            class="w-full text-center py-1.5 text-[11px] font-mono text-white/45 hover:text-white/75 transition-colors"
+          >
+            [ Preview Checking state ]
+          </button>
+        </div>
+
+        <!-- Security Note -->
+        <div class="pt-2 border-t border-white/[0.06] flex items-start gap-2 text-[11.5px] text-white/55 leading-relaxed">
+          <span class="material-symbols-outlined text-[15px] text-white/40 shrink-0 mt-0.5">lock</span>
+          <span>
+            Token stays strictly in this tab's session storage. Receiving messages uses a separate ingest token.
+          </span>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Lower Section: Compact 3-Step Architecture / Delivery Explanation -->
+    <div class="mt-5 w-full bg-[#161819] border border-white/[0.07] rounded-xl p-4">
+      <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.06]">
+        <div class="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-white/50">
+          <span class="material-symbols-outlined text-[14px] text-[#2ec4b6]">alt_route</span>
+          <span>Delivery Pipeline Semantics</span>
+        </div>
+        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.05] text-white/45">local queue</span>
+      </div>
+
+      <!-- 3-step vertical flow for compact mobile presentation -->
+      <div class="space-y-2.5 text-[12px]">
+        <!-- Step 1: Received -->
+        <div class="flex items-start gap-2.5 bg-black/25 p-2 rounded-lg border border-white/[0.04]">
+          <span class="w-5 h-5 rounded-full bg-[#1b6c80]/40 text-[#2ec4b6] border border-[#2ec4b6]/30 flex items-center justify-center text-[10px] font-mono font-semibold shrink-0 mt-0.5">1</span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-white/90">Received</span>
+              <span class="text-[10px] font-mono text-white/40">ACK 202</span>
+            </div>
+            <p class="text-[11px] text-white/55 mt-0.5 leading-snug">
+              Ingress request accepted and appended to durable queue ledger.
+            </p>
+          </div>
+        </div>
+
+        <!-- Step 2: Stored -->
+        <div class="flex items-start gap-2.5 bg-black/25 p-2 rounded-lg border border-white/[0.04]">
+          <span class="w-5 h-5 rounded-full bg-[#1b6c80]/40 text-[#2ec4b6] border border-[#2ec4b6]/30 flex items-center justify-center text-[10px] font-mono font-semibold shrink-0 mt-0.5">2</span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-white/90">Stored</span>
+              <span class="text-[10px] font-mono text-white/40">Fsync WAL</span>
+            </div>
+            <p class="text-[11px] text-white/55 mt-0.5 leading-snug">
+              Written to persistent storage before caller receipt is returned.
+            </p>
+          </div>
+        </div>
+
+        <!-- Step 3: Forwarded -->
+        <div class="flex items-start gap-2.5 bg-black/25 p-2 rounded-lg border border-white/[0.04]">
+          <span class="w-5 h-5 rounded-full bg-white/[0.08] text-white/70 border border-white/[0.1] flex items-center justify-center text-[10px] font-mono font-semibold shrink-0 mt-0.5">3</span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-white/90">Forwarded</span>
+              <span class="text-[10px] font-mono text-white/40">Egress push</span>
+            </div>
+            <p class="text-[11px] text-white/55 mt-0.5 leading-snug">
+              Dispatched to configured target devices in background.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Explicit Notice: Receipt is not delivery success -->
+      <div class="mt-3 pt-2.5 border-t border-white/[0.06] flex items-start gap-2 text-[11px] text-white/60 leading-relaxed bg-[#1b6c80]/10 border border-[#1b6c80]/20 rounded-lg p-2.5">
+        <span class="material-symbols-outlined text-[15px] text-[#2ec4b6] shrink-0 mt-0.5">info</span>
+        <span>
+          <strong class="font-medium text-white/85">Receipt guarantee:</strong> Messages are stored before receipt; receipt confirms safe storage in local queue, not verified physical delivery on destination endpoints.
+        </span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer: Single-user metadata -->
+  <footer class="w-full max-w-[390px] mx-auto px-4 py-3 text-center border-t border-white/[0.05] shrink-0">
+    <div class="text-[11px] font-mono text-white/35 flex items-center justify-center gap-2">
+      <span>Herald Single-User Ledger</span>
+      <span>•</span>
+      <span>IPC isolated</span>
+    </div>
+  </footer>
+
+  <!-- Interactive Scripts -->
+  <script>
+    function toggleTokenVisibility() {
+      const input = document.getElementById('token-input');
+      const icon = document.getElementById('toggle-icon');
+      const label = document.getElementById('toggle-label');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.textContent = 'visibility_off';
+        label.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        icon.textContent = 'visibility';
+        label.textContent = 'Show';
+      }
+    }
+
+    function dismissError() {
+      const banner = document.getElementById('error-banner');
+      if (banner) {
+        banner.style.display = 'none';
+      }
+    }
+
+    let isChecking = false;
+    function simulateCheckingState() {
+      const btn = document.getElementById('connect-btn');
+      const input = document.getElementById('token-input');
+      const toggle = document.getElementById('checking-toggle-btn');
+
+      if (!isChecking) {
+        isChecking = true;
+        btn.disabled = true;
+        input.disabled = true;
+        btn.className = "w-full h-10 px-4 bg-white/20 text-white/70 font-medium text-[14px] rounded-lg flex items-center justify-center gap-2 cursor-wait border border-white/20";
+        btn.innerHTML = `
+          <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Checking ledger token...</span>
+        `;
+        toggle.textContent = "[ Reset to Connect state ]";
+      } else {
+        isChecking = false;
+        btn.disabled = false;
+        input.disabled = false;
+        btn.className = "w-full h-10 px-4 bg-white text-[#121415] hover:bg-gray-100 font-medium text-[14px] rounded-lg flex items-center justify-center gap-2 transition-colors active:scale-[0.99]";
+        btn.innerHTML = `
+          <span class="material-symbols-outlined text-[18px]">key</span>
+          <span>Connect</span>
+        `;
+        toggle.textContent = "[ Preview Checking state ]";
+      }
+    }
+
+    function handleConnect(e) {
+      e.preventDefault();
+      simulateCheckingState();
+    }
+
+    function setTheme(mode) {
+      const sysBtn = document.getElementById('btn-theme-sys');
+      const lightBtn = document.getElementById('btn-theme-light');
+      const darkBtn = document.getElementById('btn-theme-dark');
+
+      [sysBtn, lightBtn, darkBtn].forEach(b => {
+        b.className = "px-2 py-1 rounded transition-colors hover:text-white flex items-center gap-1";
+      });
+
+      if (mode === 'light') {
+        lightBtn.className = "px-2 py-1 rounded bg-white/[0.12] text-white font-medium flex items-center gap-1";
+      } else if (mode === 'dark') {
+        darkBtn.className = "px-2 py-1 rounded bg-white/[0.12] text-white font-medium flex items-center gap-1";
+      } else {
+        sysBtn.className = "px-2 py-1 rounded bg-white/[0.12] text-white font-medium";
+      }
+    }
+  </script>
+</body>
+</html>

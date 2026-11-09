@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Herald — Notification workspace</title>
+<!-- Fonts: IBM Plex Sans & IBM Plex Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with Forms & Container Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-background": "#191c1d",
+            "on-tertiary": "#ffffff",
+            "on-primary": "#ffffff",
+            "error": "#ba1a1a",
+            "secondary": "#49626b",
+            "on-surface": "#191c1d",
+            "on-secondary-fixed-variant": "#324a52",
+            "primary-fixed-dim": "#8ad1e7",
+            "on-primary-fixed-variant": "#004e5e",
+            "primary-fixed": "#b2ebff",
+            "primary-container": "#1b6c80",
+            "surface-variant": "#e1e3e4",
+            "on-primary-fixed": "#001f27",
+            "inverse-surface": "#2d3132",
+            "surface-container-high": "#e6e8e9",
+            "secondary-container": "#cce7f1",
+            "tertiary-container": "#8c5724",
+            "on-error-container": "#93000a",
+            "surface-container-highest": "#e1e3e4",
+            "surface-tint": "#12677b",
+            "surface-bright": "#f8fafb",
+            "on-tertiary-fixed-variant": "#6a3b08",
+            "secondary-fixed": "#cce7f1",
+            "surface-dim": "#d8dadb",
+            "on-primary-container": "#abeaff",
+            "tertiary-fixed": "#ffdcc1",
+            "surface-container": "#eceeef",
+            "inverse-primary": "#8ad1e7",
+            "on-tertiary-fixed": "#2e1500",
+            "tertiary": "#70400e",
+            "on-secondary-fixed": "#031f26",
+            "background": "#f8fafb",
+            "outline": "#6f797c",
+            "outline-variant": "#bfc8cc",
+            "on-error": "#ffffff",
+            "inverse-on-surface": "#eff1f2",
+            "surface": "#f8fafb",
+            "error-container": "#ffdad6",
+            "on-secondary-container": "#4f6871",
+            "on-secondary": "#ffffff",
+            "surface-container-lowest": "#ffffff",
+            "secondary-fixed-dim": "#b0cbd5",
+            "tertiary-fixed-dim": "#fdb87c",
+            "surface-container-low": "#f2f4f5",
+            "on-tertiary-container": "#ffd9bc",
+            "on-surface-variant": "#3f484c",
+            "primary": "#005364"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["IBM Plex Sans", "sans-serif"],
+            display: ["IBM Plex Sans", "sans-serif"],
+            body: ["IBM Plex Sans", "sans-serif"],
+            label: ["IBM Plex Sans", "sans-serif"],
+            mono: ["IBM Plex Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      color: #131416;
+      background-color: #f3f5f6;
+    }
+    .material-symbols-outlined {
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+    .mono-code {
+      font-family: 'IBM Plex Mono', monospace;
+    }
+  </style>
+</head>
+<body class="h-full flex overflow-hidden antialiased bg-[#f3f5f6] text-[#131416]">
+<!-- SIDEBAR (Fixed 228px, per Shared Components JSON) -->
+<aside class="w-[228px] h-screen fixed top-0 left-0 flex flex-col justify-between bg-surface-container-low dark:bg-inverse-surface border-r border-outline-variant/30 dark:border-outline/20 select-none z-30">
+<div class="p-3 flex flex-col gap-5">
+<!-- Header / Logo Mark -->
+<div class="px-2 pt-2 flex items-center gap-2.5">
+<!-- Herald three-stroke delivery arrow mark -->
+<svg aria-label="Herald three-stroke delivery arrow mark" class="w-6 h-6 text-primary flex-shrink-0" fill="none" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 6.5H15M15 6.5L12 3.5M15 6.5L12 9.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M3 12H19M19 12L16 9M19 12L16 15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M3 17.5H13M13 17.5L10 14.5M13 17.5L10 20.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<div class="flex flex-col">
+<span class="font-headline text-base font-semibold tracking-tight text-on-surface dark:text-inverse-on-surface leading-tight">Herald</span>
+<span class="text-[11px] leading-tight text-on-surface-variant dark:text-surface-variant font-normal">Single-user workspace</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav aria-label="Primary Workspace Navigation" class="flex flex-col gap-0.5">
+<!-- Active Nav: Messages -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 text-sm leading-5 bg-surface-container-lowest dark:bg-surface-container text-primary dark:text-primary-fixed font-medium rounded-DEFAULT transition-colors duration-150 ease-in-out" href="#messages">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+<span>Messages</span>
+</a>
+<!-- Inactive Nav: Send message -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 text-sm leading-5 text-on-surface-variant dark:text-surface-variant font-normal rounded-DEFAULT hover:bg-surface-variant/50 dark:hover:bg-surface-container-high/40 text-on-surface dark:text-inverse-on-surface transition-colors duration-150 ease-in-out" href="#send">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+<span>Send message</span>
+</a>
+<!-- Inactive Nav: Targets -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 text-sm leading-5 text-on-surface-variant dark:text-surface-variant font-normal rounded-DEFAULT hover:bg-surface-variant/50 dark:hover:bg-surface-container-high/40 text-on-surface dark:text-inverse-on-surface transition-colors duration-150 ease-in-out" href="#targets">
+<span class="material-symbols-outlined" data-icon="alt_route">alt_route</span>
+<span>Targets</span>
+</a>
+<!-- Inactive Nav: Connection destinations -->
+<a class="flex items-center gap-2.5 px-2.5 py-1.5 text-sm leading-5 text-on-surface-variant dark:text-surface-variant font-normal rounded-DEFAULT hover:bg-surface-variant/50 dark:hover:bg-surface-container-high/40 text-on-surface dark:text-inverse-on-surface transition-colors duration-150 ease-in-out" href="#destinations">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span>Connection destinations</span>
+</a>
+</nav>
+</div>
+<!-- Footer Controls -->
+<div class="p-3 border-t border-outline-variant/20 dark:border-outline/10 flex flex-col gap-0.5">
+<button class="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-on-surface-variant dark:text-surface-variant rounded-DEFAULT hover:bg-surface-variant/40 transition-colors duration-150">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="palette">palette</span>
+<span>Theme: System</span>
+</span>
+<span class="text-[10px] uppercase font-mono tracking-wide px-1.5 py-0.5 bg-surface-container rounded text-outline">auto</span>
+</button>
+<button class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-on-surface-variant hover:text-error dark:text-surface-variant rounded-DEFAULT hover:bg-error-container/40 transition-colors duration-150">
+<span class="material-symbols-outlined text-[16px]" data-icon="logout">logout</span>
+<span>Disconnect</span>
+</button>
+</div>
+</aside>
+<!-- TOP BAR (Fixed 48px, ml-[228px] matching Shared Components JSON) -->
+<header class="h-12 w-[calc(100%-228px)] fixed top-0 right-0 z-20 flex justify-between items-center px-6 bg-[#f3f5f6] border-b border-outline-variant/30 select-none">
+<div class="flex items-center gap-2">
+<span class="font-headline text-xs font-medium uppercase tracking-wider text-on-surface-variant">Notification workspace</span>
+<span class="text-outline-variant text-xs">/</span>
+<span class="text-xs text-on-surface font-medium">Delivery ledger</span>
+</div>
+<div class="flex items-center gap-4 text-xs">
+<div class="flex items-center gap-1.5 px-2 py-0.5 bg-surface-container rounded text-[11px] font-mono text-[#5d5f60]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#1b6c80] animate-pulse"></span>
+<span>4s auto-refresh active</span>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded transition-opacity duration-150" title="Refresh now">
+<span class="material-symbols-outlined text-[18px]" data-icon="refresh">refresh</span>
+</button>
+<button class="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded transition-opacity duration-150" title="Workspace parameters">
+<span class="material-symbols-outlined text-[18px]" data-icon="tune">tune</span>
+</button>
+</div>
+</div>
+</header>
+<!-- MAIN WRAPPER: Inset framed work sheet with 8px margin from right/bottom -->
+<main class="ml-[228px] pt-12 pr-2 pb-2 h-screen w-[calc(100%-228px)] flex flex-col box-border">
+<!-- Work sheet container with 16px radius, crisp white ground, no dropshadow -->
+<div class="flex-1 bg-surface-container-lowest border border-[#e8eaec] rounded-[16px] flex flex-col overflow-hidden">
+<!-- Work Sheet Header & Filtering Sub-bar -->
+<section class="border-b border-[#e8eaec] px-6 py-3.5 bg-surface-bright flex flex-col gap-2.5"><div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<h1 class="text-[20px] font-semibold text-[#131416] tracking-tight">Messages</h1>
+<span class="text-xs text-[#5d5f60] font-mono">5 records</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#131416] hover:bg-[#2d3132] text-white text-xs font-medium rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined text-[16px]" data-icon="send">send</span>
+<span>New message</span>
+</button>
+<button class="p-1.5 border border-[#e8eaec] hover:bg-surface-container text-[#131416] rounded-DEFAULT transition-colors" title="Reload message queue">
+<span class="material-symbols-outlined text-[16px]" data-icon="refresh">refresh</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-1.5">
+<button class="px-2.5 py-1 text-xs font-medium rounded bg-surface-container text-[#131416]">
+              All messages (5)
+            </button>
+<button class="px-2.5 py-1 text-xs font-medium rounded text-[#5d5f60] hover:bg-surface-container/60 hover:text-[#131416] transition-colors flex items-center gap-1">
+<span>Failed on this page (1)</span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#ba1a1a]"></span>
+</button>
+</div>
+<p class="text-xs text-[#5d5f60]">
+            Showing 5 messages on page • <span class="font-mono text-[11px]">4s update active</span>
+</p>
+</div></section>
+<!-- Two-column Master/Detail split layout -->
+<div class="flex-1 flex overflow-hidden">
+<!-- COLUMN 1: Master Message List (440px wide) -->
+<section aria-label="Message Stream" class="w-[440px] flex-shrink-0 border-r border-[#e8eaec] flex flex-col bg-surface-container-lowest">
+<!-- Scrollable Message List Rows -->
+<div aria-label="Messages list" class="flex-1 overflow-y-auto divide-y divide-[#e8eaec]" tabindex="0"><!-- Message 1 (ACTIVE / SELECTED: neutral highlight, no colored accent border) -->
+<article class="p-3.5 bg-surface-container-low cursor-pointer focus:outline-none transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1">
+<span class="text-sm font-semibold text-[#131416] truncate">Backup completed</span>
+<span class="text-[11px] font-mono text-[#5d5f60] flex-shrink-0">14:22:05</span>
+</div>
+<p class="text-xs text-[#5d5f60] line-clamp-2 leading-relaxed mb-2.5">
+                Snapshot db-main-replica finished (4.2GB in 41s). Next run at 04:00 UTC. Checksum sha256:7f9b8c verified.
+              </p>
+<div class="flex items-center justify-between text-[11px]">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container text-[#5d5f60] font-mono">
+                  P3 Standard
+                </span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#fbeaec] text-[#a33136] font-medium border border-[#f0a5a8]/40">
+<span class="w-1.5 h-1.5 rounded-full bg-[#a33136]"></span>
+                  1 of 2 delivered
+                </span>
+</div>
+</article>
+<!-- Message 2 -->
+<article class="p-3.5 hover:bg-[#f8fafb] cursor-pointer transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1">
+<span class="text-sm font-medium text-[#131416] truncate">Build ready</span>
+<span class="text-[11px] font-mono text-[#5d5f60] flex-shrink-0">13:48:12</span>
+</div>
+<p class="text-xs text-[#5d5f60] line-clamp-2 leading-relaxed mb-2.5">
+                Release candidate v2.14.0 artifact generated and published to internal registry.
+              </p>
+<div class="flex items-center justify-between text-[11px]">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container text-[#5d5f60] font-mono">
+                  P3
+                </span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#fbf2dc] text-[#825b12] font-medium border border-[#e6c987]/40">
+<span class="w-1.5 h-1.5 rounded-full bg-[#825b12]"></span>
+                  Queued
+                </span>
+</div>
+</article>
+<!-- Message 3 -->
+<article class="p-3.5 hover:bg-[#f8fafb] cursor-pointer transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1">
+<span class="text-sm font-medium text-[#131416] truncate">Service restored</span>
+<span class="text-[11px] font-mono text-[#5d5f60] flex-shrink-0">12:15:30</span>
+</div>
+<p class="text-xs text-[#5d5f60] line-clamp-2 leading-relaxed mb-2.5">
+                Worker node us-east-pool-4 heartbeat re-established after brief transient network split.
+              </p>
+<div class="flex items-center justify-between text-[11px]">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container text-[#5d5f60] font-mono">
+                  P4 High
+                </span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#e6f2ea] text-[#246444] font-medium border border-[#9cd6b0]/40">
+<span class="w-1.5 h-1.5 rounded-full bg-[#246444]"></span>
+                  Delivered
+                </span>
+</div>
+</article>
+<!-- Message 4 -->
+<article class="p-3.5 hover:bg-[#f8fafb] cursor-pointer transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1">
+<span class="text-sm font-medium text-[#131416] truncate">SSL Certificate Expiry Warning</span>
+<span class="text-[11px] font-mono text-[#5d5f60] flex-shrink-0">09:30:11</span>
+</div>
+<p class="text-xs text-[#5d5f60] line-clamp-2 leading-relaxed mb-2.5">
+                Edge wildcard cert *.internal expires in 5 days. ACME auto-renew protocol queued.
+              </p>
+<div class="flex items-center justify-between text-[11px]">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-error-container text-[#93000a] font-mono font-medium">
+                  P5 Urgent
+                </span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#e6f2ea] text-[#246444] font-medium border border-[#9cd6b0]/40">
+<span class="w-1.5 h-1.5 rounded-full bg-[#246444]"></span>
+                  Delivered
+                </span>
+</div>
+</article>
+<!-- Message 5 -->
+<article class="p-3.5 hover:bg-[#f8fafb] cursor-pointer transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1">
+<span class="text-sm font-medium text-[#131416] truncate">Nightly sanitization run</span>
+<span class="text-[11px] font-mono text-[#5d5f60] flex-shrink-0">Yesterday</span>
+</div>
+<p class="text-xs text-[#5d5f60] line-clamp-2 leading-relaxed mb-2.5">
+                Pruned 420 orphaned test delivery logs older than 30 days. Reclaimed 14.8MB disk space.
+              </p>
+<div class="flex items-center justify-between text-[11px]">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container text-[#5d5f60] font-mono">
+                  P1 Low
+                </span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#e6f2ea] text-[#246444] font-medium border border-[#9cd6b0]/40">
+<span class="w-1.5 h-1.5 rounded-full bg-[#246444]"></span>
+                  Delivered
+                </span>
+</div>
+</article></div>
+<!-- Bottom Pagination / History Controls -->
+<footer class="p-2.5 border-t border-[#e8eaec] bg-surface-bright flex items-center justify-between text-xs">
+<div class="flex items-center gap-1">
+<button class="px-2 py-1 border border-[#e8eaec] rounded bg-white hover:bg-surface-container text-[#5d5f60] disabled:opacity-40" disabled="">
+                Latest
+              </button>
+<button class="px-2 py-1 border border-[#e8eaec] rounded bg-white hover:bg-surface-container text-[#131416]">
+                Older
+              </button>
+</div>
+<button class="flex items-center gap-1 text-[11px] text-[#5d5f60] hover:text-[#131416]">
+<span>Cleanup history</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="expand_more">expand_more</span>
+</button>
+</footer>
+</section>
+<!-- COLUMN 2: Message Detail Ledger (Work sheet inspector) -->
+<section aria-label="Message Detail Ledger" class="flex-1 overflow-y-auto p-6 flex flex-col gap-5 bg-white">
+<!-- Detail Header Section -->
+<div class="flex flex-col gap-2 pb-4 border-b border-[#e8eaec]"><div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<h2 class="text-xl font-bold tracking-tight text-[#131416]">Backup completed</h2>
+<span class="px-2 py-0.5 text-xs font-mono bg-[#fbeaec] text-[#a33136] rounded border border-[#f0a5a8]/50">
+                  1 of 2 delivered (Needs attention)
+                </span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-3 pt-2 text-xs">
+<div class="flex flex-col gap-0.5">
+<span class="text-[#5d5f60] text-[11px]">Message ID</span>
+<span class="font-mono text-[#131416] select-all">msg_8f92a1c4</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<span class="text-[#5d5f60] text-[11px]">Received UTC</span>
+<span class="font-mono text-[#131416]">2025-05-18 14:22:05 (12s ago)</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<span class="text-[#5d5f60] text-[11px]">Priority &amp; Route</span>
+<span class="text-[#131416]">P3 (Standard dispatch)</span>
+</div>
+</div></div>
+<!-- Payload Inspector Section -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="text-xs font-medium uppercase tracking-wider text-[#5d5f60]">Raw Payload</span>
+<button class="flex items-center gap-1 text-xs text-[#005364] hover:underline" title="Copy raw payload snippet">
+<span class="material-symbols-outlined text-[14px]" data-icon="content_copy">content_copy</span>
+<span>Copy payload</span>
+</button>
+</div>
+<div class="p-3 bg-[#f8fafb] border border-[#e8eaec] rounded font-mono text-xs leading-relaxed text-[#191c1d] select-all">
+Snapshot db-main-replica finished (4.2GB in 41s). Next run at 04:00 UTC. Checksum sha256:7f9b8ce698d27a1b02cc verified.
+            </div>
+</div>
+<!-- Compact Signature Receipt Rail -->
+<div class="flex flex-col gap-2"><span class="text-xs font-medium uppercase tracking-wider text-[#5d5f60]">Delivery Receipt Rail</span>
+<div class="p-3 bg-[#f8fafb] border border-[#e8eaec] rounded">
+<div class="flex items-center justify-between text-xs">
+<!-- Step 1: Received -->
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-[#1b6c80] text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-[15px]" data-icon="done">done</span>
+</div>
+<div>
+<div class="font-medium text-[#131416]">1. Received</div>
+<div class="text-[11px] font-mono text-[#5d5f60]">14:22:05 UTC (stored)</div>
+</div>
+</div>
+<div class="flex-1 h-0.5 mx-3 bg-[#1b6c80]"></div>
+<!-- Step 2: Queue -->
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-[#1b6c80] text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-[15px]" data-icon="done">done</span>
+</div>
+<div>
+<div class="font-medium text-[#131416]">2. Queue</div>
+<div class="text-[11px] font-mono text-[#5d5f60]">2 targets</div>
+</div>
+</div>
+<div class="flex-1 h-0.5 mx-3 bg-outline-variant"></div>
+<!-- Step 3: Delivered (1 of 2, partial degraded) -->
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-[#fbeaec] text-[#a33136] border border-[#a33136] flex items-center justify-center">
+<span class="material-symbols-outlined text-[15px]" data-icon="priority_high">priority_high</span>
+</div>
+<div>
+<div class="font-medium text-[#a33136]">3. Delivered</div>
+<div class="text-[11px] font-mono text-[#5d5f60]">1 of 2 delivered</div>
+</div>
+</div>
+</div>
+</div></div>
+<!-- Per-Target Telemetry Results Table -->
+<div class="flex flex-col gap-2"><span class="text-xs font-medium uppercase tracking-wider text-[#5d5f60]">Target Dispatches (2 defined)</span>
+<div class="border border-[#e8eaec] rounded overflow-hidden divide-y divide-[#e8eaec] text-xs">
+<!-- Target 1: Backup phone Bark -->
+<div class="p-3.5 bg-white flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#246444] text-[18px]" data-icon="smartphone">smartphone</span>
+<span class="font-semibold text-[#131416]">Backup phone Bark</span>
+</div>
+<span class="px-2 py-0.5 rounded bg-[#e6f2ea] text-[#246444] font-medium text-[11px] border border-[#9cd6b0]/50">
+                  Delivered
+                </span>
+</div>
+<div class="text-[11px] text-[#5d5f60] font-mono flex items-center gap-4">
+<span>Attempts: 1</span>
+<span>Completed: 14:22:05 UTC</span>
+</div>
+</div>
+<!-- Target 2: Operations ntfy -->
+<div class="p-3.5 bg-[#fdf8f8] flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#a33136] text-[18px]" data-icon="notifications_active">notifications_active</span>
+<span class="font-semibold text-[#131416]">Operations ntfy</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded bg-[#fbeaec] text-[#a33136] font-medium text-[11px] border border-[#f0a5a8]/60">
+                  Failed
+                </span>
+<button class="px-2 py-1 bg-[#a33136] hover:bg-[#85272b] text-white rounded font-medium text-[11px] transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]" data-icon="replay">replay</span>
+<span>Retry failed delivery</span>
+</button>
+</div>
+</div>
+<!-- Error diagnostics log box -->
+<div class="p-2 bg-[#fbeaec]/60 border border-[#f0a5a8]/40 rounded font-mono text-[11px] text-[#a33136] leading-tight flex items-start gap-1.5">
+<span class="material-symbols-outlined text-[14px] flex-shrink-0 mt-0.5" data-icon="error">error</span>
+<span>HTTP 503 Service Unavailable (ntfy.sh upstream socket timeout after 5000ms)</span>
+</div>
+<div class="text-[11px] text-[#5d5f60] font-mono flex items-center justify-between">
+<span>Cumulative attempts: 5</span>
+<span class="text-[#a33136] font-medium">Terminal failure</span>
+</div>
+</div>
+</div></div>
+<!-- Bottom Guarantee Disclaimer & Local Ledger Rules -->
+<footer class="mt-auto pt-4 border-t border-[#e8eaec] text-[11px] text-[#5d5f60] leading-relaxed">
+<p class="flex items-start gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-outline flex-shrink-0 mt-0.5" data-icon="info">info</span>
+<span><strong>Receipt guarantee:</strong> Receipt means accepted into local durable queue, not verified physical display on destination device. Single-user instance ledger mode.</span>
+</p>
+</footer>
+</section>
+</div>
+</div>
+</main>
+</body></html>

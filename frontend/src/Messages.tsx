@@ -1,343 +1,241 @@
-import { useCallback, useEffect, useState } from "react";
-import { api } from "./lib/api";
-import type { MessagePage, Settings, Target } from "./lib/types";
+import { useRef, useState } from "react";
+import type { MessageHistory } from "./hooks/useMessages";
+import { dateTime, deliverySummary } from "./lib/presentation";
+import { MessageDetail } from "./components/MessageDetail";
+import { Feedback } from "./components/Feedback";
+import { Icon } from "./components/Icon";
 
-type Props = {
-  token: string;
-  targets: Target[];
-  settings: Settings | null;
-  report: (error: unknown) => void;
-};
-const date = (value: string | null) =>
-  value ? new Date(value).toLocaleString() : "—";
+interface MessagesProps {
+  readonly history: MessageHistory;
+  readonly onCompose: () => void;
+  readonly selectedId: string | null;
+  readonly onSelect: (id: string) => void;
+  readonly openSelected?: boolean;
+}
 
-export function Messages({ token, targets, settings, report }: Props) {
-  const [page, setPage] = useState<MessagePage>({ messages: [] });
-  const [before, setBefore] = useState<string>();
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [priority, setPriority] = useState(3);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [explicit, setExplicit] = useState(false);
+export function Messages({
+  history,
+  onCompose,
+  selectedId,
+  onSelect,
+  openSelected = false,
+}: MessagesProps) {
   const [onlyFailed, setOnlyFailed] = useState(false);
-  const [retrying, setRetrying] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const query = new URLSearchParams({ limit: "50" });
-    if (before) query.set("before", before);
-    setPage(await api<MessagePage>(token, `/messages?${query}`));
-  }, [token, before]);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    const refresh = () => {
-      void load()
-        .catch((error) => {
-          if (active) report(error);
-        })
-        .finally(() => {
-          if (active) setLoading(false);
-        });
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 4000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [load, report]);
-
-  const enabled = targets.filter((target) => target.enabled);
-  const defaults = enabled.filter((target) => target.is_default);
-  const visible = onlyFailed
-    ? page.messages.filter((message) =>
-        message.deliveries.some((delivery) => delivery.status === "failed"),
-      )
-    : page.messages;
-
+  const [detailOpen, setDetailOpen] = useState(openSelected);
+  const listScroll = useRef(0);
+  const selectedButton = useRef<HTMLButtonElement | null>(null);
+  const { page, loading, error, refreshing, updatedAt } = history;
+  const failures = page.messages.filter((message) =>
+    message.deliveries.some((delivery) => delivery.status === "failed"),
+  );
+  const visible = onlyFailed ? failures : page.messages;
+  const selected =
+    visible.find((message) => message.id === selectedId) ?? visible[0];
+  const back = () => {
+    setDetailOpen(false);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: listScroll.current });
+      selectedButton.current?.focus({ preventScroll: true });
+    });
+  };
   return (
-    <main className="stack">
-      <section className="panel">
-        <h2>Send a message</h2>
-        <form
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setBusy(true);
-            setNotice("");
-            try {
-              const result = await api<{
-                message_id: string;
-                duplicate: boolean;
-              }>(token, "/messages", {
-                method: "POST",
-                body: JSON.stringify({
-                  title,
-                  body,
-                  priority,
-                  ...(explicit ? { target_ids: selected } : {}),
-                }),
-              });
-              setNotice(
-                `Message stored and queued: ${result.message_id}. Delivery results appear below.`,
-              );
-              setBody("");
-              setTitle("");
-              setBefore(undefined);
-              if (!before) await load();
-            } catch (error) {
-              report(error);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <div className="columns">
-            <label>
-              Title
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </label>
-            <label>
-              Priority
-              <select
-                aria-label="Priority"
-                value={priority}
-                onChange={(event) => setPriority(Number(event.target.value))}
-              >
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label>
-            Message
-            <textarea
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              rows={3}
-              required
-            />
-          </label>
-          <fieldset>
-            <legend>Delivery targets</legend>
-            <label className="inline">
-              <input
-                type="checkbox"
-                checked={explicit}
-                onChange={(event) => setExplicit(event.target.checked)}
-              />
-              Choose specific targets
-            </label>
-            {explicit ? (
-              <div className="choices">
-                {enabled.map((target) => (
-                  <label key={target.id} className="inline">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(target.id)}
-                      onChange={(event) =>
-                        setSelected((previous) =>
-                          event.target.checked
-                            ? [...previous, target.id]
-                            : previous.filter((id) => id !== target.id),
-                        )
-                      }
-                    />
-                    {target.name}
-                  </label>
-                ))}
-                {enabled.length === 0 && <p>Add an enabled target first.</p>}
-              </div>
-            ) : (
-              <p className="muted">
-                Default targets:{" "}
-                {defaults.map((target) => target.name).join(", ") ||
-                  "None. Configure a default target or choose specific targets."}
-              </p>
-            )}
-          </fieldset>
-          <button
-            disabled={
-              busy ||
-              !body.trim() ||
-              (explicit ? selected.length === 0 : defaults.length === 0)
-            }
-          >
-            {busy ? "Storing…" : "Store and queue"}
-          </button>
-        </form>
-        {notice && (
-          <p role="status" className="notice">
-            {notice}
-          </p>
-        )}
-      </section>
-
-      <section className="panel receive">
-        <h2>Receive from your scripts</h2>
-        <p>
-          POST JSON to <code>{settings?.ingest_path ?? "/api/ingest"}</code>{" "}
-          with <code>Authorization: Bearer $HERALD_INGEST_TOKEN</code>. Read
-          this separate token from the server’s private{" "}
-          <code>credentials.env</code> file.
-        </p>
-        <pre>{`curl -X POST "${window.location.origin}${settings?.ingest_path ?? "/api/ingest"}" \\\n  -H "Authorization: Bearer $HERALD_INGEST_TOKEN" \\\n  -H 'Content-Type: application/json' \\\n  -d '{"body":"Hello from my script"}'`}</pre>
-        <small>
-          Omit target_ids to use enabled default targets, or include an array of
-          target IDs. A successful receipt means the message is stored;
-          forwarding happens asynchronously.
-        </small>
-      </section>
-
-      <section className="stack" aria-label="Message history">
-        <div className="section-heading">
-          <div>
-            <h2>Messages & delivery results</h2>
-            <p className="muted">
-              Updates every 4 seconds. Failed deliveries stay available for
-              manual retry.
-            </p>
-          </div>
-          <button
-            className="secondary"
-            onClick={() => void load().catch(report)}
-          >
-            Refresh
-          </button>
+    <main
+      id="main-content"
+      className={`messages-page${detailOpen ? " inspecting" : ""}`}
+    >
+      <div className="page-heading">
+        <div>
+          <h1 tabIndex={-1}>
+            <span className="list-title">Messages</span>
+            <span className="inspection-title">Message detail</span>
+          </h1>
+          <p className="muted">Every receipt. Every delivery.</p>
         </div>
-        <div className="toolbar">
-          <label className="inline">
-            <input
-              type="checkbox"
-              checked={onlyFailed}
-              onChange={(event) => setOnlyFailed(event.target.checked)}
-            />
-            Failed deliveries on this page
-          </label>
+        <button onClick={onCompose}>
+          <Icon name="plus" />
+          New message
+        </button>
+      </div>
+      <div className="history-toolbar">
+        <div className="filter-tabs" aria-label="Message filters">
           <button
-            className="secondary"
-            onClick={async () => {
-              try {
-                const result = await api<{ deleted: number }>(
-                  token,
-                  "/cleanup",
-                  { method: "POST" },
-                );
-                setNotice(
-                  `Removed ${result.deleted} fully delivered messages older than ${settings?.retention_days ?? 30} days.`,
-                );
-                await load();
-              } catch (error) {
-                report(error);
-              }
+            aria-pressed={!onlyFailed}
+            onClick={() => {
+              setOnlyFailed(false);
+              setDetailOpen(false);
             }}
           >
-            Clean up delivered history
+            All messages <span>{page.messages.length}</span>
+          </button>
+          <button
+            aria-pressed={onlyFailed}
+            onClick={() => {
+              setOnlyFailed(true);
+              setDetailOpen(false);
+            }}
+          >
+            Failed on this page <span>{failures.length}</span>
           </button>
         </div>
-        {loading ? (
-          <p role="status">Loading messages…</p>
-        ) : visible.length === 0 ? (
-          <p className="panel">
+        <button
+          className="ghost refresh-button"
+          aria-label="Refresh messages"
+          onClick={() => void history.load()}
+          disabled={refreshing}
+        >
+          <Icon name="refresh" />
+          <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
+        </button>
+      </div>
+      <div className="history-meta small muted">
+        <span>
+          {loading
+            ? "Loading messages…"
+            : `${visible.length} message${visible.length === 1 ? "" : "s"} on this page`}
+          {history.before ? " · Older history" : " · Latest history"}
+        </span>
+        <span>
+          Updates every 4 seconds
+          {updatedAt
+            ? ` · ${updatedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+            : ""}
+        </span>
+      </div>
+      {error && (
+        <Feedback tone="error" onRetry={() => void history.load()}>
+          Couldn’t update messages. {error}
+          {updatedAt ? ` Last updated ${updatedAt.toLocaleTimeString()}.` : ""}
+        </Feedback>
+      )}
+      {history.notice && <Feedback tone="info">{history.notice}</Feedback>}
+      {loading && page.messages.length === 0 ? (
+        <div
+          className="message-skeleton"
+          role="status"
+          aria-label="Loading messages"
+        >
+          <span>Loading your inbox…</span>
+          {[0, 1, 2].map((row) => (
+            <div className="skeleton-row" key={row}>
+              <i />
+              <i />
+              <i />
+            </div>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <section className="empty-state">
+          <Icon name="inbox" size={28} />
+          <h2>
             {onlyFailed
-              ? "No failed deliveries on this page."
-              : "No messages yet."}
+              ? "No failed deliveries on this page"
+              : error
+                ? "Messages unavailable"
+                : "Your inbox is ready"}
+          </h2>
+          <p className="muted">
+            {onlyFailed
+              ? "Other pages may still contain failed deliveries. Browse older history or view all messages."
+              : error
+                ? "Try refreshing to load your message history."
+                : "Send your first message, or connect a script with your ingest token."}
           </p>
-        ) : (
-          visible.map((message) => (
-            <article className="panel message" key={message.id}>
-              <div className="section-heading">
-                <h3>{message.title || "Untitled message"}</h3>
-                <span className="muted">
-                  Priority {message.priority} · {date(message.received_at)}
-                </span>
-              </div>
-              <p className="message-body">{message.body}</p>
-              <small className="identifier">{message.id}</small>
-              <div className="deliveries">
-                {message.deliveries.map((delivery) => (
-                  <div className="delivery" key={delivery.id}>
-                    <div className="section-heading">
-                      <strong>{delivery.target_name}</strong>
-                      <span className={`status ${delivery.status}`}>
-                        {delivery.status}
-                      </span>
-                    </div>
-                    <p className="muted">
-                      {delivery.attempts} attempt
-                      {delivery.attempts === 1 ? "" : "s"}
-                      {delivery.completed_at
-                        ? ` · Completed ${date(delivery.completed_at)}`
-                        : delivery.available_at && delivery.status === "retry"
-                          ? ` · Next attempt ${date(delivery.available_at)}`
-                          : ""}
-                    </p>
-                    {delivery.last_error && (
-                      <p className="error">{delivery.last_error}</p>
-                    )}
-                    {delivery.status === "failed" && (
-                      <button
-                        disabled={retrying === delivery.id}
-                        className="secondary"
-                        onClick={async () => {
-                          setRetrying(delivery.id);
-                          try {
-                            await api(
-                              token,
-                              `/deliveries/${delivery.id}/retry`,
-                              { method: "POST" },
-                            );
-                            setNotice(
-                              "Failed delivery queued for another attempt. Check its result below.",
-                            );
-                            await load();
-                          } catch (error) {
-                            report(error);
-                          } finally {
-                            setRetrying(null);
-                          }
-                        }}
-                      >
-                        {retrying === delivery.id
-                          ? "Queuing…"
-                          : "Retry failed delivery"}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))
-        )}
-        <div className="toolbar">
           <button
             className="secondary"
-            disabled={!before}
-            onClick={() => setBefore(undefined)}
+            onClick={
+              onlyFailed
+                ? () => setOnlyFailed(false)
+                : error
+                  ? () => void history.load()
+                  : onCompose
+            }
           >
-            Latest messages
+            {onlyFailed
+              ? "View all messages"
+              : error
+                ? "Refresh messages"
+                : "Send a message"}
           </button>
-          <button
-            className="secondary"
-            disabled={!page.next_cursor || loading}
-            onClick={() => setBefore(page.next_cursor ?? undefined)}
-          >
-            Older messages
-          </button>
+        </section>
+      ) : (
+        <div className={`inbox-layout${detailOpen ? " has-detail" : ""}`}>
+          <section className="message-list" aria-label="Message history">
+            {visible.map((message) => {
+              const summary = deliverySummary(message);
+              return (
+                <button
+                  key={message.id}
+                  ref={selected?.id === message.id ? selectedButton : undefined}
+                  className="message-row"
+                  aria-pressed={selected?.id === message.id}
+                  onClick={() => {
+                    listScroll.current = window.scrollY;
+                    onSelect(message.id);
+                    setDetailOpen(true);
+                    if (window.matchMedia("(max-width: 1100px)").matches)
+                      window.scrollTo({ top: 0 });
+                  }}
+                >
+                  <span className="message-row-heading">
+                    <strong>{message.title || "Untitled message"}</strong>
+                    <Icon name="arrow" size={16} />
+                  </span>
+                  <span className="message-excerpt">{message.body}</span>
+                  <span className="message-row-meta">
+                    <time dateTime={message.received_at}>
+                      {dateTime(message.received_at)}
+                    </time>
+                    <span>Priority {message.priority}</span>
+                  </span>
+                  <span className="message-row-result">
+                    <span className={`status ${summary.tone}`}>
+                      {summary.label}
+                    </span>
+                    <span>
+                      {summary.sent} of {summary.total} delivered
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+          {selected && (
+            <MessageDetail
+              message={selected}
+              opened={detailOpen}
+              onBack={back}
+              retrying={history.retrying}
+              onRetry={(id) => void history.retry(id)}
+            />
+          )}
         </div>
-        <small>
-          Cleanup removes only fully delivered messages older than{" "}
-          {settings?.retention_days ?? 30} days. Pending and failed deliveries
-          are kept.
-        </small>
-      </section>
+      )}
+      <div className="pagination">
+        <button
+          className="secondary"
+          disabled={!history.before || loading}
+          onClick={() => {
+            history.latest();
+            setDetailOpen(false);
+          }}
+        >
+          <Icon name="back" />
+          Latest messages
+        </button>
+        <span className="small muted">Up to 50 per page</span>
+        <button
+          className="secondary"
+          disabled={!page.next_cursor || loading}
+          onClick={() => {
+            history.older();
+            setDetailOpen(false);
+            window.scrollTo({ top: 0 });
+          }}
+        >
+          Older messages
+          <Icon name="arrow" />
+        </button>
+      </div>
     </main>
   );
 }

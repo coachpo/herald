@@ -1,166 +1,164 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, errorText } from "./lib/api";
-import type { Target, Settings } from "./lib/types";
+import { useState } from "react";
+import { useSession } from "./hooks/useSession";
+import { useTheme } from "./hooks/useTheme";
+import { useMessages } from "./hooks/useMessages";
 import { Messages } from "./Messages";
+import { SendMessage } from "./SendMessage";
 import { Targets } from "./Targets";
+import { Connection } from "./Connection";
+import { Login } from "./components/Login";
+import { ThemePicker } from "./components/ThemePicker";
+import { HeraldMark, Icon } from "./components/Icon";
+import { Feedback } from "./components/Feedback";
 
-const TOKEN_KEY = "herald_admin_token";
+type View = "messages" | "send" | "targets" | "connection";
+const destinations = [
+  { view: "messages", label: "Messages", icon: "inbox" },
+  { view: "send", label: "Send message", icon: "send" },
+  { view: "targets", label: "Targets", icon: "target" },
+  { view: "connection", label: "Connection", icon: "connection" },
+] as const;
+
+interface WorkspaceProps {
+  readonly session: ReturnType<typeof useSession>;
+}
+
+function Workspace({ session }: WorkspaceProps) {
+  const [view, setView] = useState<View>("messages");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [inspectReceipt, setInspectReceipt] = useState(false);
+  const history = useMessages(
+    session.token,
+    session.report,
+    view === "messages",
+  );
+  const navigate = (next: View) => {
+    setInspectReceipt(false);
+    setView(next);
+    window.scrollTo({ top: 0 });
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>("main h1")
+        ?.focus({ preventScroll: true }),
+    );
+  };
+  return (
+    <>
+      <nav className="main-navigation" aria-label="Main navigation">
+        {destinations.map((item) => (
+          <button
+            key={item.view}
+            aria-current={view === item.view ? "page" : undefined}
+            onClick={() => navigate(item.view)}
+          >
+            <Icon name={item.icon} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="work-sheet">
+        {session.resourceError && (
+          <Feedback tone="error" onRetry={() => void session.reloadResources()}>
+            Couldn’t load targets or connection settings.{" "}
+            {session.resourceError}
+          </Feedback>
+        )}
+        {view === "messages" ? (
+          <Messages
+            history={history}
+            onCompose={() => navigate("send")}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            openSelected={inspectReceipt}
+          />
+        ) : view === "send" ? (
+          <SendMessage
+            token={session.token}
+            targets={session.targets}
+            loading={session.resourcesLoading}
+            report={session.report}
+            onTargets={() => navigate("targets")}
+            onStored={(id) => {
+              setSelectedId(id);
+              history.latest();
+            }}
+            onView={(id) => {
+              setSelectedId(id);
+              navigate("messages");
+              setInspectReceipt(true);
+            }}
+          />
+        ) : view === "targets" ? (
+          <Targets
+            token={session.token}
+            targets={session.targets}
+            reload={session.reloadTargets}
+            report={session.report}
+            loading={session.resourcesLoading}
+            onRefresh={() => void session.reloadResources()}
+          />
+        ) : (
+          <Connection
+            token={session.token}
+            settings={session.settings}
+            report={session.report}
+            onCleanup={() => {
+              history.latest();
+            }}
+            onDisconnect={session.disconnect}
+          />
+        )}
+      </div>
+    </>
+  );
+}
 
 export function App() {
-  const [token, setToken] = useState(
-    () => sessionStorage.getItem(TOKEN_KEY) ?? "",
-  );
-  const [draft, setDraft] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
-  const [checking, setChecking] = useState(Boolean(token));
-  const [attempt, setAttempt] = useState(0);
-  const [error, setError] = useState("");
-  const [view, setView] = useState<"messages" | "targets">("messages");
-  const [targets, setTargets] = useState<Target[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-
-  const disconnect = useCallback(() => {
-    sessionStorage.removeItem(TOKEN_KEY);
-    setToken("");
-    setDraft("");
-    setAuthenticated(false);
-    setChecking(false);
-    setTargets([]);
-    setSettings(null);
-  }, []);
-
-  const report = useCallback(
-    (failure: unknown) => {
-      if (failure instanceof ApiError && failure.status === 401) disconnect();
-      setError(errorText(failure));
-    },
-    [disconnect],
-  );
-
-  const loadTargets = useCallback(async () => {
-    const result = await api<{ targets: Target[] }>(token, "/targets");
-    setTargets(result.targets);
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    setChecking(true);
-    void api<{ authenticated: boolean }>(token, "/session")
-      .then(async () => {
-        if (cancelled) return;
-        sessionStorage.setItem(TOKEN_KEY, token);
-        setAuthenticated(true);
-        setDraft("");
-        const [targetResult, settingsResult] = await Promise.all([
-          api<{ targets: Target[] }>(token, "/targets"),
-          api<Settings>(token, "/settings"),
-        ]);
-        if (!cancelled) {
-          setTargets(targetResult.targets);
-          setSettings(settingsResult);
-        }
-      })
-      .catch((failure) => {
-        if (!cancelled) report(failure);
-      })
-      .finally(() => {
-        if (!cancelled) setChecking(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, report, attempt]);
-
-  if (!authenticated)
-    return (
-      <main className="login panel">
-        <p className="eyebrow">Herald</p>
-        <h1>Open your inbox</h1>
-        <p>
-          Use the management token from your server’s private credentials file.
-        </p>
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError("");
-            setToken(draft.trim());
-            setAttempt((value) => value + 1);
-          }}
-        >
-          <label>
-            Management token
-            <input
-              type="password"
-              autoComplete="off"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              required
-            />
-          </label>
-          <button disabled={checking}>
-            {checking ? "Checking…" : "Connect"}
-          </button>
-        </form>
-        <small>
-          The token stays in this tab’s session storage. Receiving messages uses
-          a separate ingest token.
-        </small>
-      </main>
-    );
-
+  const session = useSession();
+  const theme = useTheme();
   return (
-    <div className="app">
-      <header>
-        <div>
-          <p className="eyebrow">Herald</p>
-          <h1>Receive. Store. Forward.</h1>
+    <div className={session.authenticated ? "app-shell" : "auth-shell"}>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <div className="brand">
+        <HeraldMark />
+        <span>
+          Herald<small>Notification ledger</small>
+        </span>
+      </div>
+      <header className="workspace-topbar">
+        <span className="workspace-context">
+          Single-user workspace <span>/</span> Receive. Store. Forward.
+        </span>
+        <div className="topbar-actions">
+          <ThemePicker value={theme.preference} onChange={theme.choose} />
+          {session.authenticated && (
+            <button
+              className="ghost disconnect"
+              aria-label="Disconnect"
+              onClick={session.disconnect}
+            >
+              <Icon name="logout" />
+              <span>Disconnect</span>
+            </button>
+          )}
         </div>
-        <button className="secondary" onClick={disconnect}>
-          Disconnect
-        </button>
       </header>
-      <nav aria-label="Main navigation">
-        <button
-          aria-current={view === "messages" ? "page" : undefined}
-          onClick={() => setView("messages")}
-        >
-          Messages
-        </button>
-        <button
-          aria-current={view === "targets" ? "page" : undefined}
-          onClick={() => setView("targets")}
-        >
-          Targets
-        </button>
-      </nav>
-      {error && (
-        <div className="error notice" role="alert">
-          {error}
-          <button className="secondary" onClick={() => setError("")}>
-            Dismiss
-          </button>
-        </div>
-      )}
-      {view === "messages" ? (
-        <Messages
-          token={token}
-          targets={targets}
-          settings={settings}
-          report={report}
-        />
+      {session.authenticated ? (
+        <Workspace session={session} />
       ) : (
-        <Targets
-          token={token}
-          targets={targets}
-          reload={loadTargets}
-          report={report}
+        <Login
+          checking={session.checking}
+          error={session.error}
+          onConnect={session.connect}
         />
+      )}
+      {session.authenticated && (
+        <div className="sidebar-foot">
+          <span className="small">Single-user · Durable delivery</span>
+          <p>Receive. Store. Forward.</p>
+        </div>
       )}
     </div>
   );
